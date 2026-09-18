@@ -430,6 +430,44 @@
                         Service Master
                     </a>
 
+
+                    <div
+                        class="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                        System Administration
+                    </div>
+
+
+                    <a
+                        href="{{ route('admin.users.index') }}"
+                        class="block rounded-lg px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white"
+                    >
+                        User Management
+                    </a>
+
+
+                    <div
+                        class="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                        Master Data
+                    </div>
+
+
+                    <a
+                        href="{{ route('admin.departments.index') }}"
+                        class="block rounded-lg px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white"
+                    >
+                        Departments
+                    </a>
+
+
+                    <a
+                        href="{{ route('admin.employees.index') }}"
+                        class="block rounded-lg px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white"
+                    >
+                        Staff / Employees
+                    </a>
+
                 @endif
 
 
@@ -471,4 +509,4 @@
 
     </div>
 
-</nav>s
+</nav>

@@ -10,6 +10,8 @@ use App\Http\Controllers\Pharmacy\PharmacyPurchaseOrderController;
 use App\Http\Controllers\Pharmacy\PharmacySupplierController;
 
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Administration\AdministrativeRequestController;
 use App\Http\Controllers\BedTariffController;
 use App\Http\Controllers\IpBillingController;
@@ -144,7 +146,85 @@ Route::middleware([
             ->whereNumber('user')
             ->name('admin.users.status');
 
-        /*
+       /*
+|--------------------------------------------------------------------------
+| Admin - Department Master
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'role:admin'
+)->prefix('admin')->name('admin.')->group(function () {
+
+    Route::get(
+        '/departments',
+        [DepartmentController::class, 'index']
+    )->name('departments.index');
+
+    Route::get(
+        '/departments/create',
+        [DepartmentController::class, 'create']
+    )->name('departments.create');
+
+    Route::post(
+        '/departments',
+        [DepartmentController::class, 'store']
+    )->name('departments.store');
+
+    Route::get(
+        '/departments/{department}/edit',
+        [DepartmentController::class, 'edit']
+    )
+        ->whereNumber('department')
+        ->name('departments.edit');
+
+    Route::put(
+        '/departments/{department}',
+        [DepartmentController::class, 'update']
+    )
+        ->whereNumber('department')
+        ->name('departments.update');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin - Employee / Staff Master
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        '/employees',
+        [EmployeeController::class, 'index']
+    )->name('employees.index');
+
+    Route::get(
+        '/employees/create',
+        [EmployeeController::class, 'create']
+    )->name('employees.create');
+
+    Route::post(
+        '/employees',
+        [EmployeeController::class, 'store']
+    )->name('employees.store');
+
+    Route::get(
+        '/employees/{employee}/edit',
+        [EmployeeController::class, 'edit']
+    )
+        ->whereNumber('employee')
+        ->name('employees.edit');
+
+    Route::put(
+        '/employees/{employee}',
+        [EmployeeController::class, 'update']
+    )
+        ->whereNumber('employee')
+        ->name('employees.update');
+});
+       
+       
+       
+            /*
         |--------------------------------------------------------------------------
         | Bed Tariff Master
         |--------------------------------------------------------------------------

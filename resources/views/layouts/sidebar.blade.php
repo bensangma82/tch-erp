@@ -11,33 +11,69 @@
     $canPharmacy = $isAdmin || $user->hasRole('pharmacy');
     $canDoctor = $isAdmin || $user->hasRole('doctor');
 
-
     $canClinical =
         $canReception
         || $canNursing
         || $canDoctor;
 
-
     $canDiagnostics =
         $canLaboratory
         || $canRadiology;
-
 
     $canOperations =
         $canPharmacy
         || $isAdmin;
 
-
     $canBusiness =
         $canBilling
         || $isAdmin;
+
+    $clinicalOpen =
+        request()->routeIs('patients.*')
+        || request()->routeIs('opd.*')
+        || request()->routeIs('nursing.*')
+        || request()->routeIs('emergency.*')
+        || request()->routeIs('ipd.*');
+
+    $diagnosticsOpen =
+        request()->routeIs('laboratory.*')
+        || request()->routeIs('imaging.*')
+        || request()->routeIs('diagnostics.items.*');
+
+    $pharmacyOpen =
+        request()->routeIs('pharmacy.*');
+
+    $operationsOpen =
+        $pharmacyOpen;
+
+    $businessOpen =
+        request()->routeIs('billing.*')
+        || request()->routeIs('ip-billing.*');
+
+    $masterDataOpen =
+        request()->routeIs('admin.departments.*')
+        || request()->routeIs('admin.employees.*');
+
+    $administrationOpen =
+        request()->routeIs('administration.*')
+        || request()->routeIs('services.*')
+        || request()->routeIs('admin.users.*')
+        || $masterDataOpen;
 @endphp
 
-
-<aside class="min-h-screen w-64 border-r border-slate-800 bg-slate-950 text-slate-200">
-
+<aside
+    class="min-h-screen w-64 border-r border-slate-800 bg-slate-950 text-slate-200"
+    x-data="{
+        clinical: {{ $clinicalOpen ? 'true' : 'false' }},
+        diagnostics: {{ $diagnosticsOpen ? 'true' : 'false' }},
+        operations: {{ $operationsOpen ? 'true' : 'false' }},
+        pharmacy: {{ $pharmacyOpen ? 'true' : 'false' }},
+        business: {{ $businessOpen ? 'true' : 'false' }},
+        administration: {{ $administrationOpen ? 'true' : 'false' }},
+        masterData: {{ $masterDataOpen ? 'true' : 'false' }}
+    }"
+>
     <div class="border-b border-slate-800 px-4 py-4">
-
         <div class="text-xs uppercase tracking-wider text-slate-500">
             Main Navigation
         </div>
@@ -49,17 +85,11 @@
         <div class="mt-1 text-xs text-slate-400">
             {{ ucfirst($user->role ?? 'staff') }}
         </div>
-
     </div>
-
 
     <nav class="space-y-1 px-3 py-4 text-sm">
 
-
-        {{-- ========================================================= --}}
         {{-- DASHBOARD --}}
-        {{-- ========================================================= --}}
-
         <a
             href="{{ route('dashboard') }}"
             class="block rounded-md px-3 py-2
@@ -70,720 +100,499 @@
             Dashboard
         </a>
 
-
-
-        {{-- ========================================================= --}}
         {{-- CLINICAL --}}
-        {{-- ========================================================= --}}
-
         @if ($canClinical)
-
-            <div class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-500">
-                Clinical
-            </div>
-
-
-            {{-- ===================================================== --}}
-            {{-- PATIENTS --}}
-            {{-- ===================================================== --}}
-
-            @if ($canReception || $canNursing || $canDoctor)
-
-                <a
-                    href="{{ route('patients.index') }}"
-                    class="block rounded-md px-3 py-2
-                        {{ request()->routeIs('patients.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'hover:bg-slate-800' }}"
+            <div class="pt-3">
+                <button
+                    type="button"
+                    @click="clinical = !clinical"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 font-semibold
+                        {{ $clinicalOpen
+                            ? 'bg-slate-900 text-white'
+                            : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
                 >
-                    Patients
-                </a>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- OPD --}}
-            {{-- ===================================================== --}}
-
-            @if ($canReception || $canNursing || $canDoctor)
-
-                <a
-                    href="{{ route('opd.index') }}"
-                    class="block rounded-md px-3 py-2
-                        {{ request()->routeIs('opd.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'hover:bg-slate-800' }}"
-                >
-                    OPD
-                </a>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- NURSING STATION --}}
-            {{-- ===================================================== --}}
-
-            @if ($canNursing)
-
-                <a
-                    href="{{ route('nursing.index') }}"
-                    class="block rounded-md px-3 py-2
-                        {{ request()->routeIs('nursing.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'hover:bg-slate-800' }}"
-                >
-                    Nursing Station
-                </a>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- EMERGENCY --}}
-            {{-- ===================================================== --}}
-
-            @if ($canReception || $canNursing || $canDoctor)
-
-                <a
-                    href="{{ route('emergency.index') }}"
-                    class="mt-2 flex items-center justify-between rounded-md px-3 py-2 font-semibold
-                        {{ request()->routeIs('emergency.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-200 hover:bg-slate-800 hover:text-white' }}"
-                >
-                    <span>
-                        Emergency
-                    </span>
-
-                    <span class="text-xs text-slate-500">
+                    <span>Clinical</span>
+                    <span
+                        class="text-xs transition-transform duration-200"
+                        :class="{ 'rotate-90': clinical }"
+                    >
                         ›
                     </span>
-                </a>
+                </button>
 
-
-                <div class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3">
-
-
-                    {{-- EMERGENCY QUEUE --}}
-
-                    <a
-                        href="{{ route('emergency.index') }}"
-                        class="block rounded-md px-3 py-2 text-sm
-                            {{
-                                request()->routeIs('emergency.index')
-                                ||
-                                request()->routeIs('emergency.show')
-                                ||
-                                request()->routeIs('emergency.triage.*')
-                                ||
-                                request()->routeIs('emergency.admission.*')
-                                    ? 'bg-slate-800 text-white'
-                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                            }}"
-                    >
-                        Emergency Queue
-                    </a>
-
-
-                    {{-- REGISTER EMERGENCY PATIENT --}}
-
-                    @if ($canReception)
-
+                <div
+                    x-show="clinical"
+                    x-collapse
+                    class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                >
+                    @if ($canReception || $canNursing || $canDoctor)
                         <a
-                            href="{{ route('emergency.create') }}"
+                            href="{{ route('patients.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
-                                {{ request()->routeIs('emergency.create')
+                                {{ request()->routeIs('patients.*')
                                     ? 'bg-slate-800 text-white'
                                     : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
                         >
-                            Register Patient
+                            Patients
                         </a>
 
+                        <a
+                            href="{{ route('opd.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('opd.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            OPD
+                        </a>
                     @endif
 
-                </div>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- IPD --}}
-            {{-- ===================================================== --}}
-
-            @if ($canReception || $canNursing || $canDoctor)
-
-                <a
-                    href="{{ route('ipd.index') }}"
-                    class="mt-2 flex items-center justify-between rounded-md px-3 py-2 font-semibold
-                        {{ request()->routeIs('ipd.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-200 hover:bg-slate-800 hover:text-white' }}"
-                >
-                    <span>
-                        IPD
-                    </span>
-
-                    <span class="text-xs text-slate-500">
-                        ›
-                    </span>
-                </a>
-
-
-                <div class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3">
-
-                    <a
-                        href="{{ route('ipd.index') }}"
-                        class="block rounded-md px-3 py-2 text-sm
-                            {{ request()->routeIs('ipd.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        Patient Census
-                    </a>
-
-                </div>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- FUTURE CLINICAL MODULES --}}
-            {{-- ===================================================== --}}
-
-            @if ($isAdmin)
-
-                <a
-                    href="#"
-                    class="mt-2 block rounded-md px-3 py-2 text-slate-500"
-                >
-                    ICU
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Endoscopy
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Echocardiography
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Dialysis
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-            @endif
-
-        @endif
-
-
-
-        {{-- ========================================================= --}}
-        {{-- DIAGNOSTICS --}}
-        {{-- ========================================================= --}}
-
-        @if ($canDiagnostics)
-
-            <div class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-500">
-                Diagnostics
-            </div>
-
-
-            {{-- ===================================================== --}}
-            {{-- LABORATORY --}}
-            {{-- ===================================================== --}}
-
-            @if ($canLaboratory)
-
-                <a
-                    href="{{ route('laboratory.index') }}"
-                    class="block rounded-md px-3 py-2
-                        {{
-                            request()->routeIs('laboratory.*')
-                            ||
-                            request()->routeIs('diagnostics.items.result.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'hover:bg-slate-800'
-                        }}"
-                >
-                    Laboratory
-                </a>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- IMAGING --}}
-            {{-- ===================================================== --}}
-
-            @if ($canRadiology)
-
-                <a
-                    href="{{ route('imaging.index') }}"
-                    class="block rounded-md px-3 py-2
-                        {{
-                            request()->routeIs('imaging.*')
-                            ||
-                            request()->routeIs('diagnostics.items.imaging-report.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'hover:bg-slate-800'
-                        }}"
-                >
-                    Imaging / Radiology
-                </a>
-
-            @endif
-
-        @endif
-
-
-
-        {{-- ========================================================= --}}
-        {{-- OPERATIONS --}}
-        {{-- ========================================================= --}}
-
-        @if ($canOperations)
-
-            <div class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-500">
-                Operations
-            </div>
-
-
-            {{-- ===================================================== --}}
-            {{-- PHARMACY --}}
-            {{-- ===================================================== --}}
-
-            @if ($canPharmacy)
-
-                <a
-                    href="{{ route('pharmacy.dashboard') }}"
-                    class="flex items-center justify-between rounded-md px-3 py-2 font-semibold
-                        {{ request()->routeIs('pharmacy.dashboard')
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-200 hover:bg-slate-800 hover:text-white' }}"
-                >
-                    <span>
-                        Pharmacy
-                    </span>
-
-                    <span class="text-xs text-slate-500">
-                        ›
-                    </span>
-                </a>
-
-
-                <div class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3">
-
-
-                    {{-- DISPENSING --}}
-
-                    <a
-                        href="{{ route('pharmacy.dispensing.index') }}"
-                        class="block rounded-md px-3 py-2 text-sm
-                            {{
-                                request()->routeIs('pharmacy.dispensing.*')
-                                ||
-                                request()->routeIs('pharmacy.returns.*')
+                    @if ($canNursing)
+                        <a
+                            href="{{ route('nursing.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('nursing.*')
                                     ? 'bg-slate-800 text-white'
-                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                            }}"
-                    >
-                        Dispensing
-                    </a>
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            Nursing Station
+                        </a>
+                    @endif
 
+                    @if ($canReception || $canNursing || $canDoctor)
+                        <a
+                            href="{{ route('emergency.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('emergency.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            Emergency
+                        </a>
 
-
-                    {{-- MEDICINE MASTER --}}
-
-                    <a
-                        href="{{ route('pharmacy.medicines.index') }}"
-                        class="block rounded-md px-3 py-2 text-sm
-                            {{ request()->routeIs('pharmacy.medicines.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        Medicine Master
-                    </a>
-
-
-
-                    {{-- PHARMACY STOCK --}}
-
-                    <a
-                        href="{{ route('pharmacy.stock-batches.index') }}"
-                        class="block rounded-md px-3 py-2 text-sm
-                            {{ request()->routeIs('pharmacy.stock-batches.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        Pharmacy Stock
-                    </a>
-
-
-
-                    {{-- SUPPLIER MASTER --}}
-
-                    <a
-                        href="{{ route('pharmacy.suppliers.index') }}"
-                        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition
-                            {{ request()->routeIs('pharmacy.suppliers.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-
-                        Supplier Master
-                    </a>
-
-
-
-                    {{-- PURCHASE ORDERS --}}
-
-                    <a
-                        href="{{ route('pharmacy.purchase-orders.index') }}"
-                        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition
-                            {{ request()->routeIs('pharmacy.purchase-orders.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-
-                        Purchase Orders
-                    </a>
-
-
-
-                    {{-- GRN REGISTER --}}
-
-                    <a
-                        href="{{ route('pharmacy.grns.index') }}"
-                        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition
-                            {{ request()->routeIs('pharmacy.grns.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-
-                        GRN Register
-                    </a>
-
-
-
-                    {{-- PURCHASE RETURNS --}}
-
-                    <a
-                        href="{{ route('pharmacy.purchase-returns.index') }}"
-                        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition
-                            {{ request()->routeIs('pharmacy.purchase-returns.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-
-                        Purchase Returns
-                    </a>
-
-
-
-                    {{-- SUPPLIER PAYABLES --}}
-
-                    <a
-                        href="{{ route('pharmacy.supplier-payables.index') }}"
-                        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition
-                            {{ request()->routeIs('pharmacy.supplier-payables.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-
-                        Supplier Payables
-                    </a>
-
-
-
-                    {{-- STOCK AUDIT --}}
-
-                    <a
-                        href="{{ route('pharmacy.stock-audits.index') }}"
-                        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition
-                            {{ request()->routeIs('pharmacy.stock-audits.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-
-                        Stock Audit
-                    </a>
-
-
-
-                    {{-- DISPOSAL REGISTER --}}
-
-                    <a
-                        href="{{ route('pharmacy.disposals.index') }}"
-                        class="block rounded-md px-3 py-2 text-sm
-                            {{ request()->routeIs('pharmacy.disposals.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        Disposal Register
-                    </a>
-
-
-
-                    {{-- STOCK TRANSFERS --}}
-
-                    <a
-                        href="{{ route('pharmacy.stock-transfers.index') }}"
-                        class="block rounded-md px-3 py-2 text-sm
-                            {{ request()->routeIs('pharmacy.stock-transfers.*')
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
-                    >
-                        Stock Transfers
-                    </a>
-
+                        <a
+                            href="{{ route('ipd.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('ipd.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            IPD
+                        </a>
+                    @endif
                 </div>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- FUTURE OPERATIONS MODULES --}}
-            {{-- ===================================================== --}}
-
-            @if ($isAdmin)
-
-                <a
-                    href="#"
-                    class="mt-2 block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Inventory
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Purchase
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Assets
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Maintenance
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-            @endif
-
+            </div>
         @endif
 
+        {{-- DIAGNOSTICS --}}
+        @if ($canDiagnostics)
+            <div class="pt-2">
+                <button
+                    type="button"
+                    @click="diagnostics = !diagnostics"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 font-semibold
+                        {{ $diagnosticsOpen
+                            ? 'bg-slate-900 text-white'
+                            : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
+                >
+                    <span>Diagnostics</span>
+                    <span
+                        class="text-xs transition-transform duration-200"
+                        :class="{ 'rotate-90': diagnostics }"
+                    >
+                        ›
+                    </span>
+                </button>
 
+                <div
+                    x-show="diagnostics"
+                    x-collapse
+                    class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                >
+                    @if ($canLaboratory)
+                        <a
+                            href="{{ route('laboratory.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{
+                                    request()->routeIs('laboratory.*')
+                                    || request()->routeIs('diagnostics.items.result.*')
+                                    || request()->routeIs('diagnostics.items.sample.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                }}"
+                        >
+                            Laboratory
+                        </a>
+                    @endif
 
-        {{-- ========================================================= --}}
+                    @if ($canRadiology)
+                        <a
+                            href="{{ route('imaging.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{
+                                    request()->routeIs('imaging.*')
+                                    || request()->routeIs('diagnostics.items.imaging-report.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                }}"
+                        >
+                            Imaging / Radiology
+                        </a>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        {{-- OPERATIONS --}}
+        @if ($canOperations)
+            <div class="pt-2">
+                <button
+                    type="button"
+                    @click="operations = !operations"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 font-semibold
+                        {{ $operationsOpen
+                            ? 'bg-slate-900 text-white'
+                            : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
+                >
+                    <span>Operations</span>
+                    <span
+                        class="text-xs transition-transform duration-200"
+                        :class="{ 'rotate-90': operations }"
+                    >
+                        ›
+                    </span>
+                </button>
+
+                <div
+                    x-show="operations"
+                    x-collapse
+                    class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                >
+                    @if ($canPharmacy)
+                        <button
+                            type="button"
+                            @click="pharmacy = !pharmacy"
+                            class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium
+                                {{ $pharmacyOpen
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            <span>Pharmacy</span>
+                            <span
+                                class="text-xs transition-transform duration-200"
+                                :class="{ 'rotate-90': pharmacy }"
+                            >
+                                ›
+                            </span>
+                        </button>
+
+                        <div
+                            x-show="pharmacy"
+                            x-collapse
+                            class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                        >
+                            <a
+                                href="{{ route('pharmacy.dashboard') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.dashboard')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Dashboard
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.dispensing.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{
+                                        request()->routeIs('pharmacy.dispensing.*')
+                                        || request()->routeIs('pharmacy.returns.*')
+                                            ? 'bg-slate-800 text-white'
+                                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                    }}"
+                            >
+                                Dispensing
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.medicines.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.medicines.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Medicine Master
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.stock-batches.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.stock-batches.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Pharmacy Stock
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.suppliers.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.suppliers.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Supplier Master
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.purchase-orders.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.purchase-orders.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Purchase Orders
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.grns.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.grns.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                GRN Register
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.purchase-returns.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.purchase-returns.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Purchase Returns
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.supplier-payables.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.supplier-payables.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Supplier Payables
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.stock-audits.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.stock-audits.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Stock Audit
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.disposals.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.disposals.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Disposal Register
+                            </a>
+
+                            <a
+                                href="{{ route('pharmacy.stock-transfers.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('pharmacy.stock-transfers.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Stock Transfers
+                            </a>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
         {{-- BUSINESS --}}
-        {{-- ========================================================= --}}
-
         @if ($canBusiness)
+            <div class="pt-2">
+                <button
+                    type="button"
+                    @click="business = !business"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 font-semibold
+                        {{ $businessOpen
+                            ? 'bg-slate-900 text-white'
+                            : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
+                >
+                    <span>Business</span>
+                    <span
+                        class="text-xs transition-transform duration-200"
+                        :class="{ 'rotate-90': business }"
+                    >
+                        ›
+                    </span>
+                </button>
 
-            <div class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-500">
-                Business
+                <div
+                    x-show="business"
+                    x-collapse
+                    class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                >
+                    @if ($canBilling)
+                        <a
+                            href="{{ route('billing.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('billing.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            Billing Counter
+                        </a>
+
+                        <a
+                            href="{{ route('ip-billing.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('ip-billing.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            IP Billing
+                        </a>
+                    @endif
+                </div>
             </div>
-
-
-            {{-- ===================================================== --}}
-            {{-- BILLING COUNTER --}}
-            {{-- ===================================================== --}}
-
-            @if ($canBilling)
-
-                <a
-                    href="{{ route('billing.index') }}"
-                    class="block rounded-md px-3 py-2
-                        {{ request()->routeIs('billing.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'hover:bg-slate-800' }}"
-                >
-                    Billing Counter
-                </a>
-
-
-                <a
-                    href="{{ route('ip-billing.index') }}"
-                    class="block rounded-md px-3 py-2
-                        {{ request()->routeIs('ip-billing.*')
-                            ? 'bg-slate-800 text-white'
-                            : 'hover:bg-slate-800' }}"
-                >
-                    IP Billing
-                </a>
-
-            @endif
-
-
-
-            {{-- ===================================================== --}}
-            {{-- FUTURE BUSINESS MODULES --}}
-            {{-- ===================================================== --}}
-
-            @if ($isAdmin)
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    MHIS / Insurance
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Finance
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    HR
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-
-                <a
-                    href="#"
-                    class="block rounded-md px-3 py-2 text-slate-500"
-                >
-                    Reports
-
-                    <span class="float-right text-[10px] uppercase">
-                        Soon
-                    </span>
-                </a>
-
-            @endif
-
         @endif
 
-
-
-        {{-- ========================================================= --}}
         {{-- ADMINISTRATION --}}
-        {{-- ========================================================= --}}
-
         @if ($isAdmin)
+            <div class="pt-2">
+                <button
+                    type="button"
+                    @click="administration = !administration"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 font-semibold
+                        {{ $administrationOpen
+                            ? 'bg-slate-900 text-white'
+                            : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
+                >
+                    <span>Administration</span>
+                    <span
+                        class="text-xs transition-transform duration-200"
+                        :class="{ 'rotate-90': administration }"
+                    >
+                        ›
+                    </span>
+                </button>
 
-            <div class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-500">
-                Administration
+                <div
+                    x-show="administration"
+                    x-collapse
+                    class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                >
+                    {{-- ADMINISTRATION WORKFLOW --}}
+                    <a
+                        href="{{ route('administration.dashboard') }}"
+                        class="block rounded-md px-3 py-2 text-sm
+                            {{ request()->routeIs('administration.dashboard')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                    >
+                        Administration Dashboard
+                    </a>
+
+                    <a
+                        href="{{ route('administration.requests.index') }}"
+                        class="block rounded-md px-3 py-2 text-sm
+                            {{ request()->routeIs('administration.requests.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                    >
+                        Requests
+                    </a>
+
+                    <a
+                        href="{{ route('administration.my-work.index') }}"
+                        class="block rounded-md px-3 py-2 text-sm
+                            {{ request()->routeIs('administration.my-work.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                    >
+                        My Work
+                    </a>
+
+                    <div class="my-2 border-t border-slate-800"></div>
+
+                    {{-- SYSTEM / MASTER CONFIGURATION --}}
+                    <a
+                        href="{{ route('services.index') }}"
+                        class="block rounded-md px-3 py-2 text-sm
+                            {{ request()->routeIs('services.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                    >
+                        Service Master
+                    </a>
+
+                    <a
+                        href="{{ route('admin.users.index') }}"
+                        class="block rounded-md px-3 py-2 text-sm
+                            {{ request()->routeIs('admin.users.*')
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                    >
+                        User Management
+                    </a>
+
+                    <button
+                        type="button"
+                        @click="masterData = !masterData"
+                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium
+                            {{ $masterDataOpen
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                    >
+                        <span>Master Data</span>
+                        <span
+                            class="text-xs transition-transform duration-200"
+                            :class="{ 'rotate-90': masterData }"
+                        >
+                            ›
+                        </span>
+                    </button>
+
+                    <div
+                        x-show="masterData"
+                        x-collapse
+                        class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                    >
+                        <a
+                            href="{{ route('admin.departments.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('admin.departments.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            Departments
+                        </a>
+
+                        <a
+                            href="{{ route('admin.employees.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('admin.employees.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            Staff / Employees
+                        </a>
+                    </div>
+                </div>
             </div>
-
-
-            {{-- SERVICE MASTER --}}
-
-            <a
-                href="{{ route('services.index') }}"
-                class="block rounded-md px-3 py-2
-                    {{ request()->routeIs('services.*')
-                        ? 'bg-slate-800 text-white'
-                        : 'hover:bg-slate-800' }}"
-            >
-                Service Master
-            </a>
-
-
-
-            {{-- SYSTEM ADMINISTRATION --}}
-
-            <a
-                href="{{ route('admin.users.index') }}"
-                class="block rounded-md px-3 py-2
-                    {{ request()->routeIs('admin.users.*')
-                        ? 'bg-slate-800 text-white'
-                        : 'hover:bg-slate-800' }}"
-            >
-                System Administration
-            </a>
-
         @endif
-
 
     </nav>
-
 </aside>
