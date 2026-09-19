@@ -468,6 +468,14 @@
                         Staff / Employees
                     </a>
 
+
+                    <a
+                        href="{{ route('inpatient-master.index') }}"
+                        class="block rounded-lg px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white"
+                    >
+                        Inpatient Setup
+                    </a>
+
                 @endif
 
 
