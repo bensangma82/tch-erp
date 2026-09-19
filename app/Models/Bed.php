@@ -15,6 +15,7 @@ class Bed extends Model
     protected $fillable = [
         'ward_id',
         'bed_number',
+        'room_id',
         'bed_type',
         'status',
         'is_active',
@@ -59,4 +60,12 @@ class Bed extends Model
                 'allocated_at'
             );
     }
+
+    /**
+ * Room / cabin this bed belongs to, if applicable.
+ */
+public function room(): BelongsTo
+{
+    return $this->belongsTo(Room::class);
+}
 }

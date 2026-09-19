@@ -290,25 +290,33 @@
                                             {{-- NEW INVESTIGATION ORDER --}}
                                             <a
                                                 href="{{ route('billing.create', $encounter) }}"
-                                                class="inline-flex whitespace-nowrap rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                                                class="inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
                                             >
-                                                Enter Investigations
+                                                <span class="mr-1.5 text-sm leading-none">+</span>
+                                                Add Investigations
                                             </a>
 
 
                                             {{-- RECEIPT REPRINT --}}
                                             @if ($latestInvestigationPayment)
 
-                                                <div class="mt-1 whitespace-nowrap text-xs font-medium text-gray-500">
-                                                    {{ $latestInvestigationPayment->receipt_no }}
+                                                <div class="mt-2 flex flex-col items-end">
+                                                    <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700">
+                                                        <span class="inline-block h-2 w-2 rounded-full bg-green-500"></span>
+                                                        Payment completed
+                                                    </div>
+
+                                                    <div class="mt-1 whitespace-nowrap text-xs font-medium text-gray-500">
+                                                        {{ $latestInvestigationPayment->receipt_no }}
+                                                    </div>
                                                 </div>
 
                                                 <a
                                                     href="{{ route('billing.receipt', $latestInvestigationPayment) }}"
                                                     target="_blank"
-                                                    class="inline-flex whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                    class="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
                                                 >
-                                                    Print Receipt
+                                                    View / Print Receipt
                                                 </a>
 
                                             @elseif (

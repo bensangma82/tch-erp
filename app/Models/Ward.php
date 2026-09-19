@@ -44,4 +44,11 @@ class Ward extends Model
         )
             ->orderByDesc('effective_from');
     }
+    /**
+ * Rooms / cabins belonging to this ward.
+ */
+public function rooms(): HasMany
+{
+    return $this->hasMany(Room::class);
+}
 }

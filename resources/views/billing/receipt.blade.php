@@ -152,6 +152,23 @@
             text-align: center;
         }
 
+        .back-button {
+            display: inline-block;
+            margin-right: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #334155;
+            padding: 7px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            background: #f1f5f9;
+        }
+
         .print-button {
             cursor: pointer;
             border: none;
@@ -213,6 +230,13 @@
 
 
         <div class="print-actions">
+
+            <a
+                href="{{ route('billing.index') }}"
+                class="back-button"
+            >
+                ← Back to Billing
+            </a>
 
             <button
                 type="button"

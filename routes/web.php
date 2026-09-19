@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Administration\AdministrativeRequestController;
+use App\Http\Controllers\InpatientMasterController;
 use App\Http\Controllers\BedTariffController;
 use App\Http\Controllers\IpBillingController;
 use App\Http\Controllers\BillingController;
@@ -252,7 +253,64 @@ Route::middleware(
     });
 
 
+/*
+|--------------------------------------------------------------------------
+| Admin - Inpatient Master
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware(
+    'role:admin'
+)->group(function () {
+
+    Route::get(
+        '/admin/inpatient-master',
+        [InpatientMasterController::class, 'index']
+    )->name('inpatient-master.index');
+
+
+    Route::post(
+        '/admin/inpatient-master/wards',
+        [InpatientMasterController::class, 'storeWard']
+    )->name('inpatient-master.wards.store');
+
+
+    Route::put(
+        '/admin/inpatient-master/wards/{ward}',
+        [InpatientMasterController::class, 'updateWard']
+    )
+        ->whereNumber('ward')
+        ->name('inpatient-master.wards.update');
+
+
+    Route::post(
+        '/admin/inpatient-master/rooms',
+        [InpatientMasterController::class, 'storeRoom']
+    )->name('inpatient-master.rooms.store');
+
+
+    Route::put(
+        '/admin/inpatient-master/rooms/{room}',
+        [InpatientMasterController::class, 'updateRoom']
+    )
+        ->whereNumber('room')
+        ->name('inpatient-master.rooms.update');
+
+
+    Route::post(
+        '/admin/inpatient-master/beds',
+        [InpatientMasterController::class, 'storeBed']
+    )->name('inpatient-master.beds.store');
+
+
+    Route::put(
+        '/admin/inpatient-master/beds/{bed}',
+        [InpatientMasterController::class, 'updateBed']
+    )
+        ->whereNumber('bed')
+        ->name('inpatient-master.beds.update');
+
+});
     /*
     |--------------------------------------------------------------------------
     | Patient Registration
