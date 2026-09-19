@@ -19,7 +19,16 @@ class PharmacyGrnItem extends Model
         'unit',
         'batch_number',
         'expiry_date',
+
+        // Pack / stock quantity fields
+        'purchase_qty',
+        'bonus_qty',
+        'units_per_pack',
+        'received_units',
+
+        // Legacy quantity field retained for compatibility
         'quantity_received',
+
         'purchase_price',
         'selling_price',
         'discount_percent',
@@ -34,7 +43,13 @@ class PharmacyGrnItem extends Model
 
     protected $casts = [
         'expiry_date' => 'date',
+
+        'purchase_qty' => 'integer',
+        'bonus_qty' => 'integer',
+        'units_per_pack' => 'integer',
+        'received_units' => 'integer',
         'quantity_received' => 'integer',
+
         'purchase_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
         'discount_percent' => 'decimal:2',

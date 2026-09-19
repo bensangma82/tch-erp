@@ -187,7 +187,7 @@
 
                 <div class="overflow-x-auto">
 
-                    <table class="min-w-full divide-y divide-slate-200">
+                    <table class="min-w-[1550px] w-full divide-y divide-slate-200">
 
                         <thead class="bg-slate-50">
 
@@ -206,11 +206,23 @@
                                 </th>
 
                                 <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Qty Received
+                                    Purchase Qty
                                 </th>
 
                                 <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Purchase Price
+                                    Bonus Qty
+                                </th>
+
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Units / Pack
+                                </th>
+
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Net Qty
+                                </th>
+
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Purchase Rate / Pack
                                 </th>
 
                                 <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -267,8 +279,29 @@
                                     </td>
 
 
-                                    <td class="px-4 py-4 text-right font-bold text-slate-900">
-                                        {{ number_format($item->quantity_received) }}
+                                    <td class="px-4 py-4 text-right font-semibold text-slate-900">
+                                        {{ number_format((int) ($item->purchase_qty ?? 0)) }}
+                                    </td>
+
+
+                                    <td class="px-4 py-4 text-right text-slate-700">
+                                        {{ number_format((int) ($item->bonus_qty ?? 0)) }}
+                                    </td>
+
+
+                                    <td class="px-4 py-4 text-right text-slate-700">
+                                        {{ number_format((int) ($item->units_per_pack ?? 1)) }}
+                                    </td>
+
+
+                                    <td class="px-4 py-4 text-right font-bold text-emerald-700">
+                                        {{ number_format(
+                                            (int) (
+                                                ($item->received_units ?? 0) > 0
+                                                    ? $item->received_units
+                                                    : $item->quantity_received
+                                            )
+                                        ) }}
                                     </td>
 
 
@@ -407,7 +440,7 @@
             <div class="no-print flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
 
                 <div class="text-xs leading-5 text-slate-500">
-                    Stock has been posted to the pharmacy ledger for this GRN.
+                    Stock has been posted to the pharmacy ledger in base units for this GRN.
                 </div>
 
 

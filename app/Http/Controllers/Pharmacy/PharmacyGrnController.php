@@ -216,10 +216,22 @@ class PharmacyGrnController extends Controller
                     'exists:pharmacy_purchase_order_items,id',
                 ],
 
-                'items.*.quantity_received' => [
+                'items.*.purchase_qty' => [
                     'required',
                     'integer',
                     'min:0',
+                ],
+
+                'items.*.bonus_qty' => [
+                    'nullable',
+                    'integer',
+                    'min:0',
+                ],
+
+                'items.*.units_per_pack' => [
+                    'required',
+                    'integer',
+                    'min:1',
                 ],
 
                 'items.*.batch_number' => [
@@ -239,6 +251,15 @@ class PharmacyGrnController extends Controller
                     'min:0',
                 ],
 
+                'items.*.mrp_per_pack' => [
+                    'nullable',
+                    'numeric',
+                    'min:0',
+                ],
+
+                // Kept for compatibility with the Blade payload.
+                // The server does not trust this value; it recalculates
+                // selling price per base unit from MRP / Pack.
                 'items.*.selling_price' => [
                     'nullable',
                     'numeric',
@@ -357,14 +378,24 @@ class PharmacyGrnController extends Controller
                         as $row
                     ) {
 
-                        $quantity =
+                        $purchaseQty =
                             (int)
-                            $row[
-                                'quantity_received'
-                            ];
+                            $row['purchase_qty'];
+
+                        $bonusQty =
+                            (int)
+                            ($row['bonus_qty'] ?? 0);
+
+                        $unitsPerPack =
+                            (int)
+                            $row['units_per_pack'];
+
+                        $receivedUnits =
+                            ($purchaseQty + $bonusQty)
+                            * $unitsPerPack;
 
 
-                        if ($quantity <= 0) {
+                        if ($purchaseQty <= 0) {
                             continue;
                         }
 
@@ -402,7 +433,7 @@ class PharmacyGrnController extends Controller
 
 
                         if (
-                            $quantity
+                            $purchaseQty
                             > $remaining
                         ) {
 
@@ -456,7 +487,7 @@ class PharmacyGrnController extends Controller
 
                         throw ValidationException::withMessages([
                             'items' =>
-                                'Enter a received quantity for at least one medicine.',
+                                'Enter a purchased pack quantity for at least one medicine.',
                         ]);
                     }
 
@@ -577,14 +608,24 @@ class PharmacyGrnController extends Controller
                         as $row
                     ) {
 
-                        $quantity =
+                        $purchaseQty =
                             (int)
-                            $row[
-                                'quantity_received'
-                            ];
+                            $row['purchase_qty'];
+
+                        $bonusQty =
+                            (int)
+                            ($row['bonus_qty'] ?? 0);
+
+                        $unitsPerPack =
+                            (int)
+                            $row['units_per_pack'];
+
+                        $receivedUnits =
+                            ($purchaseQty + $bonusQty)
+                            * $unitsPerPack;
 
 
-                        if ($quantity <= 0) {
+                        if ($purchaseQty <= 0) {
                             continue;
                         }
 
@@ -613,7 +654,7 @@ class PharmacyGrnController extends Controller
 
 
                         if (
-                            $quantity
+                            $purchaseQty
                             > $remaining
                         ) {
 
@@ -654,15 +695,36 @@ class PharmacyGrnController extends Controller
                             );
 
 
-                        $sellingPrice =
+                        /*
+                        |--------------------------------------------------------------------------
+                        | MRP / Selling Price
+                        |--------------------------------------------------------------------------
+                        |
+                        | MRP is entered per purchase pack. Stock and dispensing
+                        | operate in base units, so selling_price must always be
+                        | stored as the price of ONE base unit.
+                        |
+                        | Never trust the hidden browser selling_price value.
+                        |
+                        */
+
+                        $mrpPerPack =
                             round(
                                 (float)
                                 (
                                     $row[
-                                        'selling_price'
+                                        'mrp_per_pack'
                                     ]
                                     ?? 0
                                 ),
+                                2
+                            );
+
+
+                        $sellingPrice =
+                            round(
+                                $mrpPerPack
+                                / $unitsPerPack,
                                 2
                             );
 
@@ -693,7 +755,7 @@ class PharmacyGrnController extends Controller
 
                         $gross =
                             round(
-                                $quantity
+                                $purchaseQty
                                 * $purchasePrice,
                                 2
                             );
@@ -844,7 +906,7 @@ class PharmacyGrnController extends Controller
 
                             $newGlobalBalance =
                                 $oldGlobalBalance
-                                + $quantity;
+                                + $receivedUnits;
 
 
                             $stockBatch->update([
@@ -853,7 +915,7 @@ class PharmacyGrnController extends Controller
                                     (int)
                                     $stockBatch
                                         ->quantity_received
-                                    + $quantity,
+                                    + $receivedUnits,
 
                                 'quantity_available' =>
                                     $newGlobalBalance,
@@ -883,7 +945,7 @@ class PharmacyGrnController extends Controller
 
 
                             $newGlobalBalance =
-                                $quantity;
+                                $receivedUnits;
 
 
                             $stockBatch =
@@ -906,10 +968,10 @@ class PharmacyGrnController extends Controller
                                         $sellingPrice,
 
                                     'quantity_received' =>
-                                        $quantity,
+                                        $receivedUnits,
 
                                     'quantity_available' =>
-                                        $quantity,
+                                        $receivedUnits,
 
                                     'reorder_level' =>
                                         0,
@@ -966,7 +1028,7 @@ class PharmacyGrnController extends Controller
 
                             $newCentralBalance =
                                 $oldCentralBalance
-                                + $quantity;
+                                + $receivedUnits;
 
 
                             $centralBalance->update([
@@ -982,7 +1044,7 @@ class PharmacyGrnController extends Controller
 
 
                             $newCentralBalance =
-                                $quantity;
+                                $receivedUnits;
 
 
                             $centralBalance =
@@ -995,7 +1057,7 @@ class PharmacyGrnController extends Controller
                                         $stockBatch->id,
 
                                     'quantity_available' =>
-                                        $quantity,
+                                        $receivedUnits,
 
                                     'reorder_level' =>
                                         $stockBatch
@@ -1059,8 +1121,21 @@ class PharmacyGrnController extends Controller
                             'expiry_date' =>
                                 $expiryDate,
 
+                            'purchase_qty' =>
+                                $purchaseQty,
+
+                            'bonus_qty' =>
+                                $bonusQty,
+
+                            'units_per_pack' =>
+                                $unitsPerPack,
+
+                            'received_units' =>
+                                $receivedUnits,
+
+                            // Legacy field retained as base-unit quantity.
                             'quantity_received' =>
-                                $quantity,
+                                $receivedUnits,
 
                             'purchase_price' =>
                                 $purchasePrice,
@@ -1109,7 +1184,7 @@ class PharmacyGrnController extends Controller
                                 'stock_in',
 
                             'quantity' =>
-                                $quantity,
+                                $receivedUnits,
 
                             'balance_after' =>
                                 $newGlobalBalance,
@@ -1127,6 +1202,14 @@ class PharmacyGrnController extends Controller
                                 . $po->po_no
                                 . ' | Batch: '
                                 . $batchNumber
+                                . ' | Packs: '
+                                . $purchaseQty
+                                . ' + Bonus: '
+                                . $bonusQty
+                                . ' | Units/Pack: '
+                                . $unitsPerPack
+                                . ' | Stock Units: '
+                                . $receivedUnits
                                 . ' | Central Store: '
                                 . $oldCentralBalance
                                 . ' → '
@@ -1158,7 +1241,7 @@ class PharmacyGrnController extends Controller
                                 (int)
                                 $poItem
                                     ->quantity_received
-                                + $quantity,
+                                + $purchaseQty,
                         ]);
 
 

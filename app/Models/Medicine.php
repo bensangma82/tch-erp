@@ -16,8 +16,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'manufacturer',
     'hsn_code',
     'gst_percent',
+
+    // Packaging / inventory
     'unit',
+    'purchase_pack',
+    'units_per_pack',
+
+    // Pricing
+    'default_purchase_price',
+    'mrp_per_pack',
     'default_selling_price',
+
     'is_active',
     'description',
 ])]
@@ -29,6 +38,9 @@ class Medicine extends Model
     {
         return [
             'gst_percent' => 'decimal:2',
+            'units_per_pack' => 'integer',
+            'default_purchase_price' => 'decimal:2',
+            'mrp_per_pack' => 'decimal:2',
             'default_selling_price' => 'decimal:2',
             'is_active' => 'boolean',
         ];

@@ -267,7 +267,7 @@
                         </h3>
 
                         <p class="mt-1 text-xs text-slate-500">
-                            Enter quantity received, batch number, expiry, purchase price and selling price.
+                            Enter purchased packs, bonus packs, units per pack, batch, expiry, purchase rate per pack and MRP per pack. MRP per unit is calculated automatically.
                         </p>
 
                     </div>
@@ -275,7 +275,7 @@
 
                     <div class="overflow-x-auto">
 
-                        <table class="min-w-[1300px] w-full divide-y divide-slate-200">
+                        <table class="min-w-[1775px] w-full divide-y divide-slate-200">
 
                             <thead class="bg-slate-50">
 
@@ -298,7 +298,19 @@
                                     </th>
 
                                     <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Receive Now
+                                        Purchase Qty
+                                    </th>
+
+                                    <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Bonus Qty
+                                    </th>
+
+                                    <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Units / Pack
+                                    </th>
+
+                                    <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Net Qty
                                     </th>
 
                                     <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -310,11 +322,15 @@
                                     </th>
 
                                     <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Purchase Price
+                                        Purchase Rate / Pack
                                     </th>
 
                                     <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Selling Price
+                                        MRP / Pack
+                                    </th>
+
+                                    <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        MRP / Unit
                                     </th>
 
                                     <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -405,11 +421,50 @@
                                                 min="0"
                                                 max="{{ $remaining }}"
                                                 step="1"
-                                                name="items[{{ $index }}][quantity_received]"
-                                                value="{{ old("items.$index.quantity_received", 0) }}"
-                                                class="receive-qty w-28 rounded-lg border-slate-300 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                name="items[{{ $index }}][purchase_qty]"
+                                                value="{{ old("items.$index.purchase_qty", 0) }}"
+                                                class="purchase-qty w-28 rounded-lg border-slate-300 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                                 {{ $remaining <= 0 ? 'readonly' : '' }}
                                             >
+
+                                        </td>
+
+
+                                        <td class="px-3 py-4 align-top">
+
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                name="items[{{ $index }}][bonus_qty]"
+                                                value="{{ old("items.$index.bonus_qty", 0) }}"
+                                                class="bonus-qty w-24 rounded-lg border-slate-300 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                {{ $remaining <= 0 ? 'readonly' : '' }}
+                                            >
+
+                                        </td>
+
+
+                                        <td class="px-3 py-4 align-top">
+
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                name="items[{{ $index }}][units_per_pack]"
+                                                value="{{ old("items.$index.units_per_pack", $item->medicine->units_per_pack ?? 1) }}"
+                                                class="units-per-pack w-24 rounded-lg border-slate-300 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                {{ $remaining <= 0 ? 'readonly' : '' }}
+                                            >
+
+                                        </td>
+
+
+                                        <td class="px-3 py-4 text-right align-top">
+
+                                            <div class="net-qty pt-2 font-bold text-emerald-700">
+                                                0
+                                            </div>
 
                                         </td>
 
@@ -462,11 +517,27 @@
                                                 type="number"
                                                 min="0"
                                                 step="0.01"
-                                                name="items[{{ $index }}][selling_price]"
-                                                value="{{ old("items.$index.selling_price", 0) }}"
-                                                class="selling-price w-32 rounded-lg border-slate-300 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                name="items[{{ $index }}][mrp_per_pack]"
+                                                value="{{ old("items.$index.mrp_per_pack", $item->medicine->mrp_per_pack ?? 0) }}"
+                                                class="mrp-per-pack w-32 rounded-lg border-slate-300 text-right text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                                 {{ $remaining <= 0 ? 'readonly' : '' }}
                                             >
+
+                                            <input
+                                                type="hidden"
+                                                name="items[{{ $index }}][selling_price]"
+                                                value="{{ old("items.$index.selling_price", 0) }}"
+                                                class="selling-price"
+                                            >
+
+                                        </td>
+
+
+                                        <td class="px-3 py-4 text-right align-top">
+
+                                            <div class="mrp-per-unit pt-2 font-bold text-blue-700">
+                                                ₹0.00
+                                            </div>
 
                                         </td>
 
@@ -708,9 +779,31 @@
                                 );
 
 
-                            const quantityInput =
+                            const purchaseQtyInput =
                                 row.querySelector(
-                                    '.receive-qty'
+                                    '.purchase-qty'
+                                );
+
+                            const bonusQtyInput =
+                                row.querySelector(
+                                    '.bonus-qty'
+                                );
+
+                            const unitsPerPackInput =
+                                row.querySelector(
+                                    '.units-per-pack'
+                                );
+
+
+                            const mrpPerPackInput =
+                                row.querySelector(
+                                    '.mrp-per-pack'
+                                );
+
+
+                            const sellingPriceInput =
+                                row.querySelector(
+                                    '.selling-price'
                                 );
 
 
@@ -732,14 +825,64 @@
                                 );
 
 
-                            const quantity =
+                            const purchaseQty =
                                 Math.max(
                                     0,
                                     Number(
-                                        quantityInput.value
+                                        purchaseQtyInput.value
                                         || 0
                                     )
                                 );
+
+                            const bonusQty =
+                                Math.max(
+                                    0,
+                                    Number(
+                                        bonusQtyInput.value
+                                        || 0
+                                    )
+                                );
+
+                            const unitsPerPack =
+                                Math.max(
+                                    1,
+                                    Number(
+                                        unitsPerPackInput.value
+                                        || 1
+                                    )
+                                );
+
+                            const receivedUnits =
+                                (purchaseQty + bonusQty)
+                                * unitsPerPack;
+
+
+                            const mrpPerPack =
+                                Math.max(
+                                    0,
+                                    Number(
+                                        mrpPerPackInput?.value
+                                        || 0
+                                    )
+                                );
+
+
+                            const mrpPerUnit =
+                                unitsPerPack > 0
+                                    ? mrpPerPack / unitsPerPack
+                                    : 0;
+
+
+                            if (sellingPriceInput) {
+                                sellingPriceInput.value =
+                                    mrpPerUnit.toFixed(2);
+                            }
+
+
+                            row.querySelector(
+                                '.mrp-per-unit'
+                            ).textContent =
+                                money(mrpPerUnit);
 
 
                             const purchasePrice =
@@ -752,14 +895,14 @@
                                 );
 
 
-                            if (quantity > 0) {
+                            if (purchaseQty > 0) {
 
                                 hasReceipt =
                                     true;
 
 
                                 if (
-                                    quantity > remaining
+                                    purchaseQty > remaining
                                     || ! batchInput.value.trim()
                                     || ! expiryInput.value
                                 ) {
@@ -771,7 +914,7 @@
 
 
                             const gross =
-                                quantity
+                                purchaseQty
                                 * purchasePrice;
 
 
@@ -796,6 +939,11 @@
                                 taxable
                                 + gst;
 
+
+                            row.querySelector(
+                                '.net-qty'
+                            ).textContent =
+                                Number(receivedUnits).toLocaleString('en-IN');
 
                             row.querySelector(
                                 '.line-total'
