@@ -11,6 +11,8 @@ use App\Models\IpBillingMhisClaim;
 use App\Models\IpBillingMhisReceipt;
 use App\Models\IpBillingPayment;
 use App\Models\Payment;
+use App\Models\PharmacyReturn;
+use App\Models\PharmacySale;
 use App\Services\Finance\BillingFinanceService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -54,12 +56,58 @@ class FinanceReportController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Inpatient Advances
+        | Direct Pharmacy Sales
         |--------------------------------------------------------------------------
         |
-        | Advances are actual patient collections.
-        | Finalized bill totals are not treated as cash receipts.
+        | Only direct pharmacy sales are included here.
         |
+        | Pharmacy items issued through IP Billing are excluded because their
+        | revenue is already recognized through the inpatient billing flow.
+        |
+        */
+
+        $pharmacySales = PharmacySale::query()
+            ->where('status', 'completed')
+            ->whereNull('admission_id')
+            ->where('paid_amount', '>', 0)
+            ->whereDate('sale_at', '>=', $dateFrom)
+            ->whereDate('sale_at', '<=', $dateTo)
+            ->orderBy('sale_at')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Direct Pharmacy Returns
+        |--------------------------------------------------------------------------
+        |
+        | Only returns belonging to direct pharmacy sales are included.
+        |
+        | This deliberately excludes old returns against IP-billed pharmacy
+        | issues even if those historical records contain refund_mode = cash.
+        |
+        */
+
+        $pharmacyReturns = PharmacyReturn::query()
+    ->with('sale')
+    ->where('status', 'completed')
+    ->whereHas('sale', function ($query) {
+        $query
+            ->whereNull('admission_id')
+            ->where(function ($query) {
+                $query
+                    ->whereNull('payment_mode')
+                    ->orWhere('payment_mode', '!=', 'ip_billing');
+            });
+    })
+            ->whereDate('returned_at', '>=', $dateFrom)
+            ->whereDate('returned_at', '<=', $dateTo)
+            ->orderBy('returned_at')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Inpatient Advances
+        |--------------------------------------------------------------------------
         */
 
         $ipAdvances = IpBillingAdvance::query()
@@ -73,10 +121,6 @@ class FinanceReportController extends Controller
         |--------------------------------------------------------------------------
         | Finalized IP Patient Payments
         |--------------------------------------------------------------------------
-        |
-        | These are actual payments collected against the patient
-        | balance after an inpatient bill has been finalized.
-        |
         */
 
         $ipPayments = IpBillingPayment::query()
@@ -108,10 +152,6 @@ class FinanceReportController extends Controller
         |--------------------------------------------------------------------------
         | MHIS Claims / Receivables
         |--------------------------------------------------------------------------
-        |
-        | A settled MHIS claim represents recognized MHIS settlement.
-        | Actual active receipts reduce the outstanding receivable.
-        |
         */
 
         $mhisClaims = IpBillingMhisClaim::query()
@@ -139,11 +179,11 @@ class FinanceReportController extends Controller
             );
 
             /*
-             * Active receipts are deliberately not restricted
-             * to the report period here.
+             * Active receipts are deliberately not restricted to the
+             * report period here.
              *
-             * This represents the current outstanding receivable
-             * for claims settled within the selected period.
+             * This gives the current outstanding receivable for claims
+             * settled during the selected period.
              */
             $receivedAmount = round(
                 (float) $claim->receipts->sum('amount'),
@@ -194,8 +234,11 @@ class FinanceReportController extends Controller
                 $headId =
                     (int) $allocation['finance_head_id'];
 
-                if (!isset($billingRevenueByHead[$headId])) {
-                    $billingRevenueByHead[$headId] = 0.0;
+                if (!isset(
+                    $billingRevenueByHead[$headId]
+                )) {
+                    $billingRevenueByHead[$headId] =
+                        0.0;
                 }
 
                 $billingRevenueByHead[$headId] +=
@@ -205,14 +248,46 @@ class FinanceReportController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | IP / MHIS Income Head Allocation
+        | Pharmacy Collection Totals
         |--------------------------------------------------------------------------
         |
-        | Both IP advances and finalized IP patient payments are
-        | actual inpatient collections.
+        | Collection-basis pharmacy income:
         |
-        | MHIS receipts are actual scheme collections.
+        | direct payments received
+        | minus
+        | direct-sale refunds issued
         |
+        */
+
+        $pharmacySalesTotal =
+            round(
+                (float) $pharmacySales->sum(
+                    fn (PharmacySale $sale) =>
+                        (float) $sale->paid_amount
+                ),
+                2
+            );
+
+        $pharmacyRefundTotal =
+            round(
+                (float) $pharmacyReturns->sum(
+                    fn (PharmacyReturn $return) =>
+                        (float) $return->refund_amount
+                ),
+                2
+            );
+
+        $pharmacyNetCollectionTotal =
+            round(
+                $pharmacySalesTotal
+                - $pharmacyRefundTotal,
+                2
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | IP / MHIS Collection Totals
+        |--------------------------------------------------------------------------
         */
 
         $ipAdvanceTotal =
@@ -237,6 +312,40 @@ class FinanceReportController extends Controller
                     (float) $receipt->amount
             );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Pharmacy Income Head Allocation
+        |--------------------------------------------------------------------------
+        */
+
+        $pharmacyIncomeHead = FinanceHead::query()
+            ->where('code', 'INC-PHARM')
+            ->where('head_type', 'income')
+            ->where('is_active', true)
+            ->first();
+
+        if (
+            $pharmacyIncomeHead
+            && $pharmacyNetCollectionTotal != 0
+        ) {
+            $billingRevenueByHead[
+                $pharmacyIncomeHead->id
+            ] =
+                (
+                    $billingRevenueByHead[
+                        $pharmacyIncomeHead->id
+                    ]
+                    ?? 0
+                )
+                + $pharmacyNetCollectionTotal;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | IP Income Head Allocation
+        |--------------------------------------------------------------------------
+        */
+
         $ipIncomeHead = FinanceHead::query()
             ->where('code', 'INC-IPD')
             ->where('head_type', 'income')
@@ -247,7 +356,9 @@ class FinanceReportController extends Controller
             $ipIncomeHead
             && $ipPatientCollectionTotal > 0
         ) {
-            $billingRevenueByHead[$ipIncomeHead->id] =
+            $billingRevenueByHead[
+                $ipIncomeHead->id
+            ] =
                 (
                     $billingRevenueByHead[
                         $ipIncomeHead->id
@@ -256,6 +367,12 @@ class FinanceReportController extends Controller
                 )
                 + $ipPatientCollectionTotal;
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MHIS Income Head Allocation
+        |--------------------------------------------------------------------------
+        */
 
         $mhisIncomeHead = FinanceHead::query()
             ->where('code', 'INC-MHIS')
@@ -267,7 +384,9 @@ class FinanceReportController extends Controller
             $mhisIncomeHead
             && $mhisPeriodReceiptTotal > 0
         ) {
-            $billingRevenueByHead[$mhisIncomeHead->id] =
+            $billingRevenueByHead[
+                $mhisIncomeHead->id
+            ] =
                 (
                     $billingRevenueByHead[
                         $mhisIncomeHead->id
@@ -282,17 +401,17 @@ class FinanceReportController extends Controller
         | Income by Head
         |--------------------------------------------------------------------------
         |
-        | This is COLLECTION income for the selected period.
+        | This is collection income for the selected period.
         |
-        | It includes:
+        | Includes:
         | - Manual Finance receipts
-        | - OPD / investigation Billing payments
+        | - OPD / investigation collections
+        | - Direct Pharmacy net collections
         | - IP advances
         | - Finalized IP patient payments
         | - Actual MHIS receipts
         |
-        | MHIS receivable is reported separately and is NOT
-        | added again here.
+        | MHIS receivable is reported separately and is not added here.
         |
         */
 
@@ -336,7 +455,9 @@ class FinanceReportController extends Controller
 
                 $integratedTotal =
                     (float) (
-                        $billingRevenueByHead[$head->id]
+                        $billingRevenueByHead[
+                            $head->id
+                        ]
                         ?? 0
                     );
 
@@ -363,6 +484,10 @@ class FinanceReportController extends Controller
         |--------------------------------------------------------------------------
         | Expenses by Head
         |--------------------------------------------------------------------------
+        |
+        | Pharmacy refunds are NOT recorded here as an expense.
+        | They already reduce Pharmacy income above.
+        |
         */
 
         $expenseHeads = FinanceHead::query()
@@ -414,11 +539,18 @@ class FinanceReportController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Billing Collections by Finance Account
+        | Integrated Account Receipts / Payments
         |--------------------------------------------------------------------------
         */
 
-        $billingReceiptsByAccount = [];
+        $integratedReceiptsByAccount = [];
+        $integratedPaymentsByAccount = [];
+
+        /*
+        |--------------------------------------------------------------------------
+        | OPD / Investigation Collections by Finance Account
+        |--------------------------------------------------------------------------
+        */
 
         foreach ($billingPayments as $payment) {
             $account =
@@ -430,14 +562,18 @@ class FinanceReportController extends Controller
             }
 
             if (!isset(
-                $billingReceiptsByAccount[$account->id]
+                $integratedReceiptsByAccount[
+                    $account->id
+                ]
             )) {
-                $billingReceiptsByAccount[
+                $integratedReceiptsByAccount[
                     $account->id
                 ] = 0.0;
             }
 
-            $billingReceiptsByAccount[$account->id] +=
+            $integratedReceiptsByAccount[
+                $account->id
+            ] +=
                 (float) $payment->amount;
         }
 
@@ -446,11 +582,11 @@ class FinanceReportController extends Controller
         | IP Cash Collections -> Main Cash
         |--------------------------------------------------------------------------
         |
-        | Cash IP advances and cash finalized patient payments
-        | are mapped automatically to CASH-MAIN.
+        | Cash IP advances and cash finalized patient payments are mapped
+        | automatically to CASH-MAIN.
         |
-        | UPI / card remain unmapped until a specific bank or
-        | settlement account is configured.
+        | UPI / card remain unmapped until a specific settlement account
+        | is configured.
         |
         */
 
@@ -491,11 +627,11 @@ class FinanceReportController extends Controller
                 + $ipCashPaymentTotal;
 
             if ($ipCashCollectionTotal > 0) {
-                $billingReceiptsByAccount[
+                $integratedReceiptsByAccount[
                     $mainCashAccount->id
                 ] =
                     (
-                        $billingReceiptsByAccount[
+                        $integratedReceiptsByAccount[
                             $mainCashAccount->id
                         ]
                         ?? 0
@@ -506,15 +642,100 @@ class FinanceReportController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Direct Pharmacy Cash -> Pharmacy Cash
+        |--------------------------------------------------------------------------
+        |
+        | Only CASH transactions are mapped automatically.
+        |
+        | Direct cash sales increase CASH-PHARM.
+        | Direct cash refunds decrease CASH-PHARM.
+        |
+        | UPI / card transactions remain unmapped until their settlement
+        | account is explicitly configured.
+        |
+        */
+
+        $pharmacyCashAccount = FinanceAccount::query()
+            ->where('code', 'CASH-PHARM')
+            ->where('is_active', true)
+            ->first();
+
+        $pharmacyCashSalesTotal = 0.0;
+        $pharmacyCashRefundTotal = 0.0;
+
+        if ($pharmacyCashAccount) {
+            $pharmacyCashSalesTotal =
+                round(
+                    (float) $pharmacySales
+                        ->filter(
+                            fn (PharmacySale $sale) =>
+                                strtolower(
+                                    trim(
+                                        (string) $sale->payment_mode
+                                    )
+                                ) === 'cash'
+                        )
+                        ->sum(
+                            fn (PharmacySale $sale) =>
+                                (float) $sale->paid_amount
+                        ),
+                    2
+                );
+
+            $pharmacyCashRefundTotal =
+                round(
+                    (float) $pharmacyReturns
+                        ->filter(
+                            fn (PharmacyReturn $return) =>
+                                strtolower(
+                                    trim(
+                                        (string) $return->refund_mode
+                                    )
+                                ) === 'cash'
+                        )
+                        ->sum(
+                            fn (PharmacyReturn $return) =>
+                                (float) $return->refund_amount
+                        ),
+                    2
+                );
+
+            if ($pharmacyCashSalesTotal > 0) {
+                $integratedReceiptsByAccount[
+                    $pharmacyCashAccount->id
+                ] =
+                    (
+                        $integratedReceiptsByAccount[
+                            $pharmacyCashAccount->id
+                        ]
+                        ?? 0
+                    )
+                    + $pharmacyCashSalesTotal;
+            }
+
+            if ($pharmacyCashRefundTotal > 0) {
+                $integratedPaymentsByAccount[
+                    $pharmacyCashAccount->id
+                ] =
+                    (
+                        $integratedPaymentsByAccount[
+                            $pharmacyCashAccount->id
+                        ]
+                        ?? 0
+                    )
+                    + $pharmacyCashRefundTotal;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Account Movements
         |--------------------------------------------------------------------------
         |
-        | MHIS receipts are intentionally NOT assigned to an
-        | account yet because no MHIS bank account mapping has
-        | been configured.
+        | MHIS receipts are intentionally not assigned to an account yet
+        | because no MHIS bank account mapping has been configured.
         |
-        | UPI / card IP collections are also left unmapped until
-        | the appropriate bank account mapping is configured.
+        | UPI / card IP and Pharmacy collections are also left unmapped.
         |
         */
 
@@ -529,7 +750,8 @@ class FinanceReportController extends Controller
                 ) use (
                     $dateFrom,
                     $dateTo,
-                    $billingReceiptsByAccount
+                    $integratedReceiptsByAccount,
+                    $integratedPaymentsByAccount
                 ) {
                     $manualReceipts =
                         (float) FinanceVoucher::query()
@@ -553,7 +775,7 @@ class FinanceReportController extends Controller
 
                     $integratedReceipts =
                         (float) (
-                            $billingReceiptsByAccount[
+                            $integratedReceiptsByAccount[
                                 $account->id
                             ]
                             ?? 0
@@ -563,7 +785,7 @@ class FinanceReportController extends Controller
                         $manualReceipts
                         + $integratedReceipts;
 
-                    $payments =
+                    $manualPayments =
                         (float) FinanceVoucher::query()
                             ->where('status', 'posted')
                             ->where(
@@ -582,6 +804,18 @@ class FinanceReportController extends Controller
                                 ]
                             )
                             ->sum('amount');
+
+                    $integratedPayments =
+                        (float) (
+                            $integratedPaymentsByAccount[
+                                $account->id
+                            ]
+                            ?? 0
+                        );
+
+                    $payments =
+                        $manualPayments
+                        + $integratedPayments;
 
                     $transfersIn =
                         (float) FinanceVoucher::query()
@@ -629,8 +863,21 @@ class FinanceReportController extends Controller
                     $account->report_manual_receipts =
                         $manualReceipts;
 
+                    /*
+                     * Keep the old property name because the existing
+                     * Finance report Blade already uses it.
+                     */
                     $account->report_billing_receipts =
                         $integratedReceipts;
+
+                    $account->report_integrated_receipts =
+                        $integratedReceipts;
+
+                    $account->report_manual_payments =
+                        $manualPayments;
+
+                    $account->report_integrated_payments =
+                        $integratedPayments;
 
                     $account->report_payments =
                         $payments;
@@ -712,6 +959,12 @@ class FinanceReportController extends Controller
                 'transactions' =>
                     $transactions,
 
+                /*
+                |--------------------------------------------------------------------------
+                | OPD / Investigation
+                |--------------------------------------------------------------------------
+                */
+
                 'billingPayments' =>
                     $billingPayments,
 
@@ -720,6 +973,39 @@ class FinanceReportController extends Controller
                         fn (Payment $payment) =>
                             (float) $payment->amount
                     ),
+
+                /*
+                |--------------------------------------------------------------------------
+                | Pharmacy
+                |--------------------------------------------------------------------------
+                */
+
+                'pharmacySales' =>
+                    $pharmacySales,
+
+                'pharmacyReturns' =>
+                    $pharmacyReturns,
+
+                'pharmacySalesTotal' =>
+                    $pharmacySalesTotal,
+
+                'pharmacyRefundTotal' =>
+                    $pharmacyRefundTotal,
+
+                'pharmacyNetCollectionTotal' =>
+                    $pharmacyNetCollectionTotal,
+
+                'pharmacyCashSalesTotal' =>
+                    $pharmacyCashSalesTotal,
+
+                'pharmacyCashRefundTotal' =>
+                    $pharmacyCashRefundTotal,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Inpatient
+                |--------------------------------------------------------------------------
+                */
 
                 'ipAdvances' =>
                     $ipAdvances,
@@ -735,6 +1021,12 @@ class FinanceReportController extends Controller
 
                 'ipPatientCollectionTotal' =>
                     $ipPatientCollectionTotal,
+
+                /*
+                |--------------------------------------------------------------------------
+                | MHIS
+                |--------------------------------------------------------------------------
+                */
 
                 'mhisReceipts' =>
                     $mhisReceipts,

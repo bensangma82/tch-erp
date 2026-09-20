@@ -10,13 +10,17 @@ use App\Models\IpBillingAdvance;
 use App\Models\IpBillingMhisReceipt;
 use App\Models\IpBillingPayment;
 use App\Models\Payment;
+use App\Models\PharmacyReturn;
+use App\Models\PharmacySale;
 use App\Services\Finance\BillingFinanceService;
+use App\Services\Finance\FinanceHealthService;
 use Illuminate\View\View;
 
 class FinanceDashboardController extends Controller
 {
     public function index(
-        BillingFinanceService $billingFinanceService
+        BillingFinanceService $billingFinanceService,
+        FinanceHealthService $financeHealthService
     ): View {
         $today = now()->toDateString();
         $year = now()->year;
@@ -58,10 +62,6 @@ class FinanceDashboardController extends Controller
         |--------------------------------------------------------------------------
         | OPD / Investigation Billing Collections
         |--------------------------------------------------------------------------
-        |
-        | Payment remains the source of truth.
-        | These transactions are not copied into FinanceVoucher.
-        |
         */
 
         $billingTodayPayments = Payment::query()
@@ -89,6 +89,144 @@ class FinanceDashboardController extends Controller
             (float) $billingMonthPayments->sum(
                 fn (Payment $payment) =>
                     (float) $payment->amount
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Direct Pharmacy Sales
+        |--------------------------------------------------------------------------
+        |
+        | IP-billed pharmacy transactions are excluded using both
+        | admission_id and payment_mode safeguards.
+        |
+        */
+
+        $pharmacyTodaySales = PharmacySale::query()
+            ->where('status', 'completed')
+            ->whereNull('admission_id')
+            ->where(function ($query) {
+                $query
+                    ->whereNull('payment_mode')
+                    ->orWhere(
+                        'payment_mode',
+                        '!=',
+                        'ip_billing'
+                    );
+            })
+            ->where('paid_amount', '>', 0)
+            ->whereDate('sale_at', $today)
+            ->get();
+
+        $pharmacyMonthSales = PharmacySale::query()
+            ->where('status', 'completed')
+            ->whereNull('admission_id')
+            ->where(function ($query) {
+                $query
+                    ->whereNull('payment_mode')
+                    ->orWhere(
+                        'payment_mode',
+                        '!=',
+                        'ip_billing'
+                    );
+            })
+            ->where('paid_amount', '>', 0)
+            ->whereYear('sale_at', $year)
+            ->whereMonth('sale_at', $month)
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Direct Pharmacy Returns
+        |--------------------------------------------------------------------------
+        */
+
+        $pharmacyTodayReturns = PharmacyReturn::query()
+            ->with('sale')
+            ->where('status', 'completed')
+            ->whereHas('sale', function ($query) {
+                $query
+                    ->whereNull('admission_id')
+                    ->where(function ($query) {
+                        $query
+                            ->whereNull('payment_mode')
+                            ->orWhere(
+                                'payment_mode',
+                                '!=',
+                                'ip_billing'
+                            );
+                    });
+            })
+            ->whereDate('returned_at', $today)
+            ->get();
+
+        $pharmacyMonthReturns = PharmacyReturn::query()
+            ->with('sale')
+            ->where('status', 'completed')
+            ->whereHas('sale', function ($query) {
+                $query
+                    ->whereNull('admission_id')
+                    ->where(function ($query) {
+                        $query
+                            ->whereNull('payment_mode')
+                            ->orWhere(
+                                'payment_mode',
+                                '!=',
+                                'ip_billing'
+                            );
+                    });
+            })
+            ->whereYear('returned_at', $year)
+            ->whereMonth('returned_at', $month)
+            ->get();
+
+        $pharmacyTodaySalesTotal =
+            round(
+                (float) $pharmacyTodaySales->sum(
+                    fn (PharmacySale $sale) =>
+                        (float) $sale->paid_amount
+                ),
+                2
+            );
+
+        $pharmacyTodayRefundTotal =
+            round(
+                (float) $pharmacyTodayReturns->sum(
+                    fn (PharmacyReturn $return) =>
+                        (float) $return->refund_amount
+                ),
+                2
+            );
+
+        $pharmacyTodayNetTotal =
+            round(
+                $pharmacyTodaySalesTotal
+                - $pharmacyTodayRefundTotal,
+                2
+            );
+
+        $pharmacyMonthSalesTotal =
+            round(
+                (float) $pharmacyMonthSales->sum(
+                    fn (PharmacySale $sale) =>
+                        (float) $sale->paid_amount
+                ),
+                2
+            );
+
+        $pharmacyMonthRefundTotal =
+            round(
+                (float) $pharmacyMonthReturns->sum(
+                    fn (PharmacyReturn $return) =>
+                        (float) $return->refund_amount
+                ),
+                2
+            );
+
+        $pharmacyMonthNetTotal =
+            round(
+                $pharmacyMonthSalesTotal
+                - $pharmacyMonthRefundTotal,
+                2
             );
 
         /*
@@ -161,10 +299,6 @@ class FinanceDashboardController extends Controller
         |--------------------------------------------------------------------------
         | MHIS Actual Receipts
         |--------------------------------------------------------------------------
-        |
-        | Only actual active MHIS receipts are included here.
-        | Claim settlement amounts are not added again.
-        |
         */
 
         $mhisTodayReceipts = IpBillingMhisReceipt::query()
@@ -199,12 +333,14 @@ class FinanceDashboardController extends Controller
         $todayReceipts =
             $manualTodayReceipts
             + $billingTodayReceipts
+            + $pharmacyTodayNetTotal
             + $ipTodayCollectionTotal
             + $mhisTodayReceiptTotal;
 
         $monthReceipts =
             $manualMonthReceipts
             + $billingMonthReceipts
+            + $pharmacyMonthNetTotal
             + $ipMonthCollectionTotal
             + $mhisMonthReceiptTotal;
 
@@ -245,14 +381,54 @@ class FinanceDashboardController extends Controller
                     ];
                 }
 
-                $billingMonthRevenueByHead[$code]['amount'] +=
+                $billingMonthRevenueByHead[
+                    $code
+                ]['amount'] +=
                     (float) $allocation['amount'];
             }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Add IP Collections to INC-IPD
+        | Pharmacy Revenue -> INC-PHARM
+        |--------------------------------------------------------------------------
+        */
+
+        $pharmacyIncomeHead = FinanceHead::query()
+            ->where('code', 'INC-PHARM')
+            ->where('head_type', 'income')
+            ->where('is_active', true)
+            ->first();
+
+        if (
+            $pharmacyIncomeHead
+            && $pharmacyMonthNetTotal != 0
+        ) {
+            if (
+                !isset(
+                    $billingMonthRevenueByHead[
+                        'INC-PHARM'
+                    ]
+                )
+            ) {
+                $billingMonthRevenueByHead[
+                    'INC-PHARM'
+                ] = [
+                    'code' => 'INC-PHARM',
+                    'name' => $pharmacyIncomeHead->name,
+                    'amount' => 0.0,
+                ];
+            }
+
+            $billingMonthRevenueByHead[
+                'INC-PHARM'
+            ]['amount'] +=
+                $pharmacyMonthNetTotal;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | IP Revenue -> INC-IPD
         |--------------------------------------------------------------------------
         */
 
@@ -268,10 +444,14 @@ class FinanceDashboardController extends Controller
         ) {
             if (
                 !isset(
-                    $billingMonthRevenueByHead['INC-IPD']
+                    $billingMonthRevenueByHead[
+                        'INC-IPD'
+                    ]
                 )
             ) {
-                $billingMonthRevenueByHead['INC-IPD'] = [
+                $billingMonthRevenueByHead[
+                    'INC-IPD'
+                ] = [
                     'code' => 'INC-IPD',
                     'name' => $ipIncomeHead->name,
                     'amount' => 0.0,
@@ -280,12 +460,13 @@ class FinanceDashboardController extends Controller
 
             $billingMonthRevenueByHead[
                 'INC-IPD'
-            ]['amount'] += $ipMonthCollectionTotal;
+            ]['amount'] +=
+                $ipMonthCollectionTotal;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Add MHIS Receipts to INC-MHIS
+        | MHIS Revenue -> INC-MHIS
         |--------------------------------------------------------------------------
         */
 
@@ -301,10 +482,14 @@ class FinanceDashboardController extends Controller
         ) {
             if (
                 !isset(
-                    $billingMonthRevenueByHead['INC-MHIS']
+                    $billingMonthRevenueByHead[
+                        'INC-MHIS'
+                    ]
                 )
             ) {
-                $billingMonthRevenueByHead['INC-MHIS'] = [
+                $billingMonthRevenueByHead[
+                    'INC-MHIS'
+                ] = [
                     'code' => 'INC-MHIS',
                     'name' => $mhisIncomeHead->name,
                     'amount' => 0.0,
@@ -313,12 +498,13 @@ class FinanceDashboardController extends Controller
 
             $billingMonthRevenueByHead[
                 'INC-MHIS'
-            ]['amount'] += $mhisMonthReceiptTotal;
+            ]['amount'] +=
+                $mhisMonthReceiptTotal;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Master Data Counts
+        | Finance Master Counts
         |--------------------------------------------------------------------------
         */
 
@@ -338,17 +524,8 @@ class FinanceDashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Finance Account Balances
+        | All Integrated Transactions for Account Balances
         |--------------------------------------------------------------------------
-        |
-        | Balance =
-        | Opening Balance
-        | + Manual Posted Receipts
-        | + Integrated Collections assigned to the account
-        | - Manual Posted Payments
-        | - Transfers Out
-        | + Transfers In
-        |
         */
 
         $allBillingPayments = Payment::query()
@@ -365,50 +542,79 @@ class FinanceDashboardController extends Controller
             ->where('status', 'active')
             ->get();
 
-        $billingReceiptsByAccount = [];
+        $allPharmacySales = PharmacySale::query()
+            ->where('status', 'completed')
+            ->whereNull('admission_id')
+            ->where(function ($query) {
+                $query
+                    ->whereNull('payment_mode')
+                    ->orWhere(
+                        'payment_mode',
+                        '!=',
+                        'ip_billing'
+                    );
+            })
+            ->where('paid_amount', '>', 0)
+            ->get();
+
+        $allPharmacyReturns = PharmacyReturn::query()
+            ->with('sale')
+            ->where('status', 'completed')
+            ->whereHas('sale', function ($query) {
+                $query
+                    ->whereNull('admission_id')
+                    ->where(function ($query) {
+                        $query
+                            ->whereNull('payment_mode')
+                            ->orWhere(
+                                'payment_mode',
+                                '!=',
+                                'ip_billing'
+                            );
+                    });
+            })
+            ->get();
+
+        $integratedReceiptsByAccount = [];
+        $integratedPaymentsByAccount = [];
 
         /*
-         * OPD / investigation collections.
-         */
+        |--------------------------------------------------------------------------
+        | OPD / Investigation Collections by Account
+        |--------------------------------------------------------------------------
+        */
+
         foreach ($allBillingPayments as $payment) {
             $account =
                 $billingFinanceService
                     ->resolveAccount($payment);
 
-            /*
-             * Unknown payment modes are deliberately excluded
-             * rather than silently mapped to the wrong account.
-             */
             if (!$account) {
                 continue;
             }
 
             if (
                 !isset(
-                    $billingReceiptsByAccount[
+                    $integratedReceiptsByAccount[
                         $account->id
                     ]
                 )
             ) {
-                $billingReceiptsByAccount[
+                $integratedReceiptsByAccount[
                     $account->id
                 ] = 0.0;
             }
 
-            $billingReceiptsByAccount[
+            $integratedReceiptsByAccount[
                 $account->id
-            ] += (float) $payment->amount;
+            ] +=
+                (float) $payment->amount;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | IP Cash Collections -> Main Cash
+        | IP Cash Collections -> CASH-MAIN
         |--------------------------------------------------------------------------
-        |
-        | Only cash is mapped automatically.
-        | UPI/card remain unassigned until explicit bank
-        | account mappings are configured.
-        |
         */
 
         $mainCashAccount = FinanceAccount::query()
@@ -422,7 +628,9 @@ class FinanceDashboardController extends Controller
                     ->filter(
                         fn (IpBillingAdvance $advance) =>
                             strtolower(
-                                (string) $advance->payment_mode
+                                trim(
+                                    (string) $advance->payment_mode
+                                )
                             ) === 'cash'
                     )
                     ->sum(
@@ -435,7 +643,9 @@ class FinanceDashboardController extends Controller
                     ->filter(
                         fn (IpBillingPayment $payment) =>
                             strtolower(
-                                (string) $payment->payment_mode
+                                trim(
+                                    (string) $payment->payment_mode
+                                )
                             ) === 'cash'
                     )
                     ->sum(
@@ -448,29 +658,105 @@ class FinanceDashboardController extends Controller
                 + $allIpCashPayments;
 
             if ($allIpCashCollections > 0) {
-                if (
-                    !isset(
-                        $billingReceiptsByAccount[
+                $integratedReceiptsByAccount[
+                    $mainCashAccount->id
+                ] =
+                    (
+                        $integratedReceiptsByAccount[
                             $mainCashAccount->id
                         ]
+                        ?? 0
                     )
-                ) {
-                    $billingReceiptsByAccount[
-                        $mainCashAccount->id
-                    ] = 0.0;
-                }
-
-                $billingReceiptsByAccount[
-                    $mainCashAccount->id
-                ] += $allIpCashCollections;
+                    + $allIpCashCollections;
             }
         }
 
         /*
-         * MHIS receipts are intentionally not assigned to a
-         * Finance Account until the receiving bank account is
-         * explicitly configured.
-         */
+        |--------------------------------------------------------------------------
+        | Pharmacy Cash -> CASH-PHARM
+        |--------------------------------------------------------------------------
+        */
+
+        $pharmacyCashAccount = FinanceAccount::query()
+            ->where('code', 'CASH-PHARM')
+            ->where('is_active', true)
+            ->first();
+
+        if ($pharmacyCashAccount) {
+            $allPharmacyCashSales =
+                round(
+                    (float) $allPharmacySales
+                        ->filter(
+                            fn (PharmacySale $sale) =>
+                                strtolower(
+                                    trim(
+                                        (string) $sale->payment_mode
+                                    )
+                                ) === 'cash'
+                        )
+                        ->sum(
+                            fn (PharmacySale $sale) =>
+                                (float) $sale->paid_amount
+                        ),
+                    2
+                );
+
+            $allPharmacyCashRefunds =
+                round(
+                    (float) $allPharmacyReturns
+                        ->filter(
+                            fn (PharmacyReturn $return) =>
+                                strtolower(
+                                    trim(
+                                        (string) $return->refund_mode
+                                    )
+                                ) === 'cash'
+                        )
+                        ->sum(
+                            fn (PharmacyReturn $return) =>
+                                (float) $return->refund_amount
+                        ),
+                    2
+                );
+
+            if ($allPharmacyCashSales > 0) {
+                $integratedReceiptsByAccount[
+                    $pharmacyCashAccount->id
+                ] =
+                    (
+                        $integratedReceiptsByAccount[
+                            $pharmacyCashAccount->id
+                        ]
+                        ?? 0
+                    )
+                    + $allPharmacyCashSales;
+            }
+
+            if ($allPharmacyCashRefunds > 0) {
+                $integratedPaymentsByAccount[
+                    $pharmacyCashAccount->id
+                ] =
+                    (
+                        $integratedPaymentsByAccount[
+                            $pharmacyCashAccount->id
+                        ]
+                        ?? 0
+                    )
+                    + $allPharmacyCashRefunds;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Finance Account Balances
+        |--------------------------------------------------------------------------
+        |
+        | MHIS receipts are intentionally not assigned to an account
+        | until the receiving bank account is explicitly configured.
+        |
+        | UPI/card transactions are also not guessed.
+        |
+        */
 
         $accountBalances = FinanceAccount::query()
             ->where('is_active', true)
@@ -481,18 +767,15 @@ class FinanceDashboardController extends Controller
                 function (
                     FinanceAccount $account
                 ) use (
-                    $billingReceiptsByAccount
+                    $integratedReceiptsByAccount,
+                    $integratedPaymentsByAccount
                 ) {
                     $openingBalance =
-                        (float) $account
-                            ->opening_balance;
+                        (float) $account->opening_balance;
 
                     $manualReceipts =
                         (float) FinanceVoucher::query()
-                            ->where(
-                                'status',
-                                'posted'
-                            )
+                            ->where('status', 'posted')
                             ->where(
                                 'voucher_type',
                                 'receipt'
@@ -505,18 +788,15 @@ class FinanceDashboardController extends Controller
 
                     $integratedReceipts =
                         (float) (
-                            $billingReceiptsByAccount[
+                            $integratedReceiptsByAccount[
                                 $account->id
                             ]
                             ?? 0
                         );
 
-                    $payments =
+                    $manualPayments =
                         (float) FinanceVoucher::query()
-                            ->where(
-                                'status',
-                                'posted'
-                            )
+                            ->where('status', 'posted')
                             ->where(
                                 'voucher_type',
                                 'payment'
@@ -527,12 +807,21 @@ class FinanceDashboardController extends Controller
                             )
                             ->sum('amount');
 
+                    $integratedPayments =
+                        (float) (
+                            $integratedPaymentsByAccount[
+                                $account->id
+                            ]
+                            ?? 0
+                        );
+
+                    $payments =
+                        $manualPayments
+                        + $integratedPayments;
+
                     $transfersOut =
                         (float) FinanceVoucher::query()
-                            ->where(
-                                'status',
-                                'posted'
-                            )
+                            ->where('status', 'posted')
                             ->where(
                                 'voucher_type',
                                 'transfer'
@@ -545,10 +834,7 @@ class FinanceDashboardController extends Controller
 
                     $transfersIn =
                         (float) FinanceVoucher::query()
-                            ->where(
-                                'status',
-                                'posted'
-                            )
+                            ->where('status', 'posted')
                             ->where(
                                 'voucher_type',
                                 'transfer'
@@ -576,8 +862,20 @@ class FinanceDashboardController extends Controller
                     $account->manual_receipt_total =
                         $manualReceipts;
 
+                    /*
+                     * Preserve the property already used by the Blade.
+                     */
                     $account->billing_receipt_total =
                         $integratedReceipts;
+
+                    $account->integrated_receipt_total =
+                        $integratedReceipts;
+
+                    $account->manual_payment_total =
+                        $manualPayments;
+
+                    $account->integrated_payment_total =
+                        $integratedPayments;
 
                     $account->payment_total =
                         $payments;
@@ -595,8 +893,7 @@ class FinanceDashboardController extends Controller
         $totalAccountBalance =
             $accountBalances->sum(
                 fn (FinanceAccount $account) =>
-                    (float) $account
-                        ->calculated_balance
+                    (float) $account->calculated_balance
             );
 
         /*
@@ -615,6 +912,24 @@ class FinanceDashboardController extends Controller
             ->latest('id')
             ->limit(10)
             ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Financial Health
+        |--------------------------------------------------------------------------
+        */
+
+        $liquidity =
+            $financeHealthService->liquidity();
+
+        $breakEven =
+            $financeHealthService->breakEven();
+
+        $financialRisk =
+            $financeHealthService->financialRisk();
+
+        $dashboardCharts =
+            $financeHealthService->dashboardCharts();
 
         /*
         |--------------------------------------------------------------------------
@@ -649,6 +964,15 @@ class FinanceDashboardController extends Controller
             'billingTodayReceipts' =>
                 $billingTodayReceipts,
 
+            'pharmacyTodaySalesTotal' =>
+                $pharmacyTodaySalesTotal,
+
+            'pharmacyTodayRefundTotal' =>
+                $pharmacyTodayRefundTotal,
+
+            'pharmacyTodayNetTotal' =>
+                $pharmacyTodayNetTotal,
+
             'ipTodayAdvanceTotal' =>
                 $ipTodayAdvanceTotal,
 
@@ -666,6 +990,15 @@ class FinanceDashboardController extends Controller
 
             'billingMonthReceipts' =>
                 $billingMonthReceipts,
+
+            'pharmacyMonthSalesTotal' =>
+                $pharmacyMonthSalesTotal,
+
+            'pharmacyMonthRefundTotal' =>
+                $pharmacyMonthRefundTotal,
+
+            'pharmacyMonthNetTotal' =>
+                $pharmacyMonthNetTotal,
 
             'ipMonthAdvanceTotal' =>
                 $ipMonthAdvanceTotal,
@@ -703,6 +1036,18 @@ class FinanceDashboardController extends Controller
 
             'recentVouchers' =>
                 $recentVouchers,
+
+            'liquidity' =>
+                $liquidity,
+
+            'breakEven' =>
+                $breakEven,
+
+            'financialRisk' =>
+                $financialRisk,
+
+            'dashboardCharts' =>
+                $dashboardCharts,
         ]);
     }
 }

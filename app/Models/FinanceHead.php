@@ -12,19 +12,24 @@ class FinanceHead extends Model
     use HasFactory;
 
     protected $fillable = [
-        'code',
-        'name',
-        'head_type',
-        'category',
-        'parent_id',
-        'is_active',
-        'remarks',
-        'created_by',
-    ];
+    'code',
+    'name',
+    'head_type',
+    'category',
+    'variable_percentage',
+    'cost_behavior',
+    'include_in_break_even',
+    'parent_id',
+    'is_active',
+    'remarks',
+    'created_by',
+];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+protected $casts = [
+    'variable_percentage' => 'decimal:2',
+    'include_in_break_even' => 'boolean',
+    'is_active' => 'boolean',
+];
 
     /**
      * Parent finance head.

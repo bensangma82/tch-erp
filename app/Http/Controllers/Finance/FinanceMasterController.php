@@ -202,38 +202,14 @@ class FinanceMasterController extends Controller
      */
     public function storeHead(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'code' => [
-                'required',
-                'string',
-                'max:30',
-                'alpha_dash',
-                'unique:finance_heads,code',
-            ],
-            'name' => [
-                'required',
-                'string',
-                'max:150',
-            ],
-            'head_type' => [
-                'required',
-                Rule::in(['income', 'expense']),
-            ],
-            'category' => [
-                'nullable',
-                'string',
-                'max:100',
-            ],
-            'parent_id' => [
-                'nullable',
-                'integer',
-                'exists:finance_heads,id',
-            ],
-            'remarks' => [
-                'nullable',
-                'string',
-            ],
-        ]);
+        $validated = $request->validate(
+            $this->headValidationRules()
+        );
+
+        $validated = $this->prepareHeadData(
+            $request,
+            $validated
+        );
 
         if (!empty($validated['parent_id'])) {
             $parent = FinanceHead::findOrFail(
@@ -269,43 +245,14 @@ class FinanceMasterController extends Controller
         Request $request,
         FinanceHead $financeHead
     ): RedirectResponse {
-        $validated = $request->validate([
-            'code' => [
-                'required',
-                'string',
-                'max:30',
-                'alpha_dash',
-                Rule::unique('finance_heads', 'code')
-                    ->ignore($financeHead->id),
-            ],
-            'name' => [
-                'required',
-                'string',
-                'max:150',
-            ],
-            'head_type' => [
-                'required',
-                Rule::in(['income', 'expense']),
-            ],
-            'category' => [
-                'nullable',
-                'string',
-                'max:100',
-            ],
-            'parent_id' => [
-                'nullable',
-                'integer',
-                'exists:finance_heads,id',
-            ],
-            'is_active' => [
-                'required',
-                'boolean',
-            ],
-            'remarks' => [
-                'nullable',
-                'string',
-            ],
-        ]);
+        $validated = $request->validate(
+            $this->headValidationRules($financeHead)
+        );
+
+        $validated = $this->prepareHeadData(
+            $request,
+            $validated
+        );
 
         if (
             !empty($validated['parent_id'])
@@ -342,5 +289,124 @@ class FinanceMasterController extends Controller
             'success',
             'Finance head updated successfully.'
         );
+    }
+
+    /**
+     * Validation rules for Finance Heads.
+     */
+    private function headValidationRules(
+        ?FinanceHead $financeHead = null
+    ): array {
+        $codeRule = Rule::unique('finance_heads', 'code');
+
+        if ($financeHead) {
+            $codeRule->ignore($financeHead->id);
+        }
+
+        return [
+            'code' => [
+                'required',
+                'string',
+                'max:30',
+                'alpha_dash',
+                $codeRule,
+            ],
+            'name' => [
+                'required',
+                'string',
+                'max:150',
+            ],
+            'head_type' => [
+                'required',
+                Rule::in(['income', 'expense']),
+            ],
+            'category' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+            'cost_behavior' => [
+                'nullable',
+                Rule::in([
+                    'fixed',
+                    'variable',
+                    'mixed',
+                ]),
+            ],
+            'variable_percentage' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                'max:100',
+                Rule::requiredIf(
+                    fn () =>
+                        request('head_type') === 'expense'
+                        && request('cost_behavior') === 'mixed'
+                ),
+            ],
+            'include_in_break_even' => [
+                'nullable',
+                'boolean',
+            ],
+            'parent_id' => [
+                'nullable',
+                'integer',
+                'exists:finance_heads,id',
+            ],
+            'is_active' => [
+                $financeHead ? 'required' : 'nullable',
+                'boolean',
+            ],
+            'remarks' => [
+                'nullable',
+                'string',
+            ],
+        ];
+    }
+
+    /**
+     * Normalise Finance Head classification.
+     *
+     * Income heads do not participate in expense
+     * cost-behaviour classification.
+     *
+     * Fixed expense  = 0% variable.
+     * Variable expense = 100% variable.
+     * Mixed expense = user-defined percentage.
+     */
+    private function prepareHeadData(
+        Request $request,
+        array $validated
+    ): array {
+        $costBehavior =
+            $validated['cost_behavior'] ?? null;
+
+        if ($validated['head_type'] !== 'expense') {
+            $validated['cost_behavior'] = null;
+            $validated['variable_percentage'] = null;
+            $validated['include_in_break_even'] = false;
+
+            return $validated;
+        }
+
+        $validated['include_in_break_even'] =
+            $request->boolean('include_in_break_even');
+
+        if ($costBehavior === 'fixed') {
+            $validated['variable_percentage'] = 0;
+        } elseif ($costBehavior === 'variable') {
+            $validated['variable_percentage'] = 100;
+        } elseif ($costBehavior === 'mixed') {
+            $validated['variable_percentage'] =
+                round(
+                    (float) $validated['variable_percentage'],
+                    2
+                );
+        } else {
+            $validated['cost_behavior'] = null;
+            $validated['variable_percentage'] = null;
+        }
+
+        return $validated;
     }
 }

@@ -830,6 +830,31 @@ class PharmacyGrnController extends Controller
                             );
 
 
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Base Unit Acquisition Cost
+                        |--------------------------------------------------------------------------
+                        |
+                        | Stock quantities are maintained in base units.
+                        | Purchase price on the GRN remains the supplier's
+                        | pack price, while the stock batch stores the
+                        | effective acquisition cost of ONE base unit.
+                        |
+                        | Bonus units share the cost of the paid quantity.
+                        |
+                        */
+
+                        $unitPurchaseCost =
+                            $receivedUnits > 0
+                                ? round(
+                                    $taxableAmount
+                                    / $receivedUnits,
+                                    4
+                                )
+                                : 0.0000;
+
+
                         /*
                         |--------------------------------------------------------------------------
                         | Lock Medicine + Batch Identity
@@ -921,7 +946,7 @@ class PharmacyGrnController extends Controller
                                     $newGlobalBalance,
 
                                 'purchase_price' =>
-                                    $purchasePrice,
+                                   $unitPurchaseCost,
 
                                 'selling_price' =>
                                     $sellingPrice,
@@ -962,7 +987,7 @@ class PharmacyGrnController extends Controller
                                         $expiryDate,
 
                                     'purchase_price' =>
-                                        $purchasePrice,
+                                       $unitPurchaseCost,
 
                                     'selling_price' =>
                                         $sellingPrice,

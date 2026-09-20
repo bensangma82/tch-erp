@@ -710,6 +710,62 @@
                         </div>
 
                         <div>
+    <label class="mb-1 block text-sm font-medium text-slate-700">
+        Cost Behaviour
+    </label>
+
+    <select
+        name="cost_behavior"
+        class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+    >
+        <option value="">Not classified</option>
+        <option value="fixed" @selected(old('cost_behavior') === 'fixed')>
+            Fixed
+        </option>
+        <option value="variable" @selected(old('cost_behavior') === 'variable')>
+            Variable
+        </option>
+        <option value="mixed" @selected(old('cost_behavior') === 'mixed')>
+            Mixed
+        </option>
+    </select>
+</div>
+<div>
+    <label class="mb-1 block text-sm font-medium text-slate-700">
+        Variable %
+    </label>
+
+    <input
+        type="number"
+        name="variable_percentage"
+        value="{{ old('variable_percentage') }}"
+        min="0"
+        max="100"
+        step="0.01"
+        placeholder="Only for Mixed"
+        class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+    >
+
+    <p class="mt-1 text-xs text-slate-500">
+        Required only for mixed costs.
+    </p>
+</div>
+
+<div class="flex items-center">
+    <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+        <input
+            type="checkbox"
+            name="include_in_break_even"
+            value="1"
+            @checked(old('include_in_break_even'))
+            class="rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+        >
+
+        Include in Break-even
+    </label>
+</div>
+
+                        <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">
                                 Parent Head
                             </label>
@@ -779,29 +835,12 @@
 
                         <thead>
                             <tr class="bg-white">
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Code
-                                </th>
-
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Name
-                                </th>
-
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Category
-                                </th>
-
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Parent
-                                </th>
-
-                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-                                    Status
-                                </th>
-
-                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-                                    Action
-                                </th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Code</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Category</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Parent</th>
+                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">Status</th>
+                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">Action</th>
                             </tr>
                         </thead>
 
@@ -1063,29 +1102,15 @@
 
                         <thead>
                             <tr class="bg-white">
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Code
-                                </th>
-
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Name
-                                </th>
-
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Category
-                                </th>
-
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
-                                    Parent
-                                </th>
-
-                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-                                    Status
-                                </th>
-
-                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">
-                                    Action
-                                </th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Code</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Category</th>
+                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">Cost Behaviour</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500">Variable %</th>
+                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">Break-even</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Parent</th>
+                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">Status</th>
+                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-slate-500">Action</th>
                             </tr>
                         </thead>
 
@@ -1105,6 +1130,38 @@
 
                                     <td class="px-4 py-3 text-sm text-slate-600">
                                         {{ $head->category ?: '—' }}
+                                    </td>
+
+                                    <td class="px-4 py-3 text-center text-sm">
+                                        @if($head->cost_behavior)
+                                            <span class="inline-flex rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                                                {{ ucfirst($head->cost_behavior) }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                                                Not classified
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    <td class="px-4 py-3 text-right text-sm text-slate-700">
+                                        @if($head->variable_percentage !== null)
+                                            {{ number_format((float) $head->variable_percentage, 2) }}%
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
+
+                                    <td class="px-4 py-3 text-center">
+                                        @if($head->include_in_break_even)
+                                            <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                                                Included
+                                            </span>
+                                        @else
+                                            <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                                                Excluded
+                                            </span>
+                                        @endif
                                     </td>
 
                                     <td class="px-4 py-3 text-sm text-slate-600">
@@ -1140,7 +1197,7 @@
                                     id="head-edit-{{ $head->id }}"
                                     class="hidden bg-rose-50/40"
                                 >
-                                    <td colspan="6" class="px-5 py-5">
+                                    <td colspan="9" class="px-5 py-5">
 
                                         <form
                                             method="POST"
@@ -1234,6 +1291,32 @@
 
                                                 <div>
                                                     <label class="mb-1 block text-sm font-medium text-slate-700">
+                                                        Cost Behaviour
+                                                    </label>
+
+                                                    <select name="cost_behavior" class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                        <option value="">Not classified</option>
+                                                        <option value="fixed" @selected($head->cost_behavior === 'fixed')>Fixed</option>
+                                                        <option value="variable" @selected($head->cost_behavior === 'variable')>Variable</option>
+                                                        <option value="mixed" @selected($head->cost_behavior === 'mixed')>Mixed</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label class="mb-1 block text-sm font-medium text-slate-700">Variable %</label>
+                                                    <input type="number" name="variable_percentage" value="{{ $head->variable_percentage }}" min="0" max="100" step="0.01" placeholder="Only for Mixed" class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    <p class="mt-1 text-xs text-slate-500">Fixed = 0%, Variable = 100%. Required for Mixed.</p>
+                                                </div>
+
+                                                <div class="flex items-end">
+                                                    <label class="mb-2 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                                                        <input type="checkbox" name="include_in_break_even" value="1" @checked($head->include_in_break_even) class="rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                                                        Include in Break-even
+                                                    </label>
+                                                </div>
+
+                                                <div>
+                                                    <label class="mb-1 block text-sm font-medium text-slate-700">
                                                         Parent Head
                                                     </label>
 
@@ -1314,7 +1397,7 @@
 
                                 <tr>
                                     <td
-                                        colspan="6"
+                                        colspan="9"
                                         class="px-4 py-8 text-center text-sm text-slate-500"
                                     >
                                         No expense heads found.
