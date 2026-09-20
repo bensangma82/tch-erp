@@ -460,6 +460,115 @@
             line-height: 1.4;
         }
 
+
+        .collection-panel {
+            margin-top: 14px;
+            border: 1px solid #bfdbfe;
+            background: #f8fbff;
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .collection-title {
+            margin: 0 0 4px;
+            color: var(--navy);
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .collection-help {
+            margin: 0 0 12px;
+            color: var(--muted);
+            font-size: 10.5px;
+        }
+
+        .collection-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 12px;
+        }
+
+        .collection-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .collection-field.full {
+            grid-column: 1 / -1;
+        }
+
+        .collection-field label {
+            color: #475569;
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .collection-field input,
+        .collection-field select,
+        .collection-field textarea {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: #fff;
+            color: var(--ink);
+            padding: 9px 10px;
+            font: inherit;
+            font-size: 11px;
+        }
+
+        .collection-field textarea {
+            min-height: 66px;
+            resize: vertical;
+        }
+
+        .collection-field input:focus,
+        .collection-field select:focus,
+        .collection-field textarea:focus {
+            outline: 2px solid #bfdbfe;
+            border-color: var(--blue);
+        }
+
+        .collection-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .collect-button {
+            appearance: none;
+            border: 0;
+            border-radius: 7px;
+            background: var(--green);
+            color: #fff;
+            padding: 10px 16px;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .collect-button:hover {
+            filter: brightness(0.95);
+        }
+
+        .screen-only {
+            display: block;
+        }
+
+        .collection-error {
+            margin-top: 10px;
+            padding: 9px 11px;
+            border: 1px solid #fecaca;
+            background: #fef2f2;
+            border-radius: 7px;
+            color: var(--red);
+            font-size: 10px;
+        }
+
         .signatures {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
@@ -522,6 +631,10 @@
             }
 
             .screen-toolbar {
+                display: none !important;
+            }
+
+            .screen-only {
                 display: none !important;
             }
 
@@ -597,6 +710,10 @@
 
     $activeMhisReceipts =
         $account->mhisReceipts
+            ->where('status', 'active');
+
+    $activePayments =
+        $account->payments
             ->where('status', 'active');
 
     $patientLiabilityBeforePayments =
@@ -935,7 +1052,7 @@
                             Patient Payments / Advances
                         </div>
 
-                        @if ($activeAdvances->isEmpty() && (float) $paidAmount <= 0)
+                        @if ($activeAdvances->isEmpty() && $activePayments->isEmpty())
 
                             <div class="no-data">
                                 No patient payment recorded.
@@ -981,21 +1098,29 @@
                                     @endforeach
 
 
-                                    @if ((float) $paidAmount > 0)
+                                    @foreach ($activePayments as $payment)
 
                                         <tr>
-                                            <td colspan="3">
-                                                Other patient payments
+                                            <td>
+                                                {{ $payment->payment_date?->format('d M Y') ?? '—' }}
+                                            </td>
+
+                                            <td>
+                                                {{ $payment->receipt_no }}
+                                            </td>
+
+                                            <td>
+                                                {{ strtoupper($payment->payment_mode) }}
                                             </td>
 
                                             <td class="right">
                                                 <strong>
-                                                    ₹{{ number_format((float) $paidAmount, 2) }}
+                                                    ₹{{ number_format((float) $payment->amount, 2) }}
                                                 </strong>
                                             </td>
                                         </tr>
 
-                                    @endif
+                                    @endforeach
 
                                 </tbody>
 
@@ -1202,6 +1327,102 @@
                         </div>
 
                     </div>
+
+
+                    @if ((float) $patientBalance > 0)
+
+                        <div class="collection-panel screen-only avoid-break">
+
+                            <h3 class="collection-title">
+                                Collect Patient Balance
+                            </h3>
+
+                            <p class="collection-help">
+                                Outstanding patient balance: <strong>₹{{ number_format((float) $patientBalance, 2) }}</strong>.
+                                Partial payments are allowed.
+                            </p>
+
+                            <form
+                                method="POST"
+                                action="{{ route('ip-billing.payment.store', $admission) }}"
+                            >
+                                @csrf
+
+                                <div class="collection-grid">
+
+                                    <div class="collection-field">
+                                        <label for="amount">Amount</label>
+                                        <input
+                                            id="amount"
+                                            name="amount"
+                                            type="number"
+                                            min="0.01"
+                                            max="{{ number_format((float) $patientBalance, 2, '.', '') }}"
+                                            step="0.01"
+                                            value="{{ old('amount', number_format((float) $patientBalance, 2, '.', '')) }}"
+                                            required
+                                        >
+                                    </div>
+
+                                    <div class="collection-field">
+                                        <label for="payment_mode">Payment Mode</label>
+                                        <select
+                                            id="payment_mode"
+                                            name="payment_mode"
+                                            required
+                                        >
+                                            <option value="cash" @selected(old('payment_mode', 'cash') === 'cash')>Cash</option>
+                                            <option value="upi" @selected(old('payment_mode') === 'upi')>UPI</option>
+                                            <option value="card" @selected(old('payment_mode') === 'card')>Card</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="collection-field full">
+                                        <label for="transaction_reference">Transaction Reference</label>
+                                        <input
+                                            id="transaction_reference"
+                                            name="transaction_reference"
+                                            type="text"
+                                            maxlength="255"
+                                            value="{{ old('transaction_reference') }}"
+                                            placeholder="Required for UPI or card payments"
+                                        >
+                                    </div>
+
+                                    <div class="collection-field full">
+                                        <label for="remarks">Remarks</label>
+                                        <textarea
+                                            id="remarks"
+                                            name="remarks"
+                                            maxlength="2000"
+                                            placeholder="Optional remarks"
+                                        >{{ old('remarks') }}</textarea>
+                                    </div>
+
+                                </div>
+
+                                @if ($errors->any())
+                                    <div class="collection-error">
+                                        <strong>Payment could not be recorded.</strong>
+                                        {{ $errors->first() }}
+                                    </div>
+                                @endif
+
+                                <div class="collection-actions">
+                                    <button
+                                        type="submit"
+                                        class="collect-button"
+                                        onclick="return confirm('Record this patient payment?');"
+                                    >
+                                        Receive Payment
+                                    </button>
+                                </div>
+
+                            </form>
+
+                        </div>
+
+                    @endif
 
 
                     @if ((float) $mhisOutstandingAmount > 0)

@@ -11,6 +11,10 @@ use App\Http\Controllers\Pharmacy\PharmacySupplierController;
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Finance\FinanceDashboardController;
+use App\Http\Controllers\Finance\FinanceMasterController;
+use App\Http\Controllers\Finance\FinanceVoucherController;
+use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Administration\AdministrativeRequestController;
 use App\Http\Controllers\InpatientMasterController;
@@ -309,6 +313,99 @@ Route::middleware(
     )
         ->whereNumber('bed')
         ->name('inpatient-master.beds.update');
+
+        Route::get(
+        '/admin/finance',
+        [FinanceDashboardController::class, 'index']
+    )->name('finance.dashboard');
+
+    Route::get(
+    '/admin/finance/master',
+    [FinanceMasterController::class, 'index']
+)->name('finance.master.index');
+
+
+Route::post(
+    '/admin/finance/master/accounts',
+    [FinanceMasterController::class, 'storeAccount']
+)->name('finance.master.accounts.store');
+
+
+Route::put(
+    '/admin/finance/master/accounts/{financeAccount}',
+    [FinanceMasterController::class, 'updateAccount']
+)
+    ->whereNumber('financeAccount')
+    ->name('finance.master.accounts.update');
+
+
+Route::post(
+    '/admin/finance/master/heads',
+    [FinanceMasterController::class, 'storeHead']
+)->name('finance.master.heads.store');
+
+
+Route::put(
+    '/admin/finance/master/heads/{financeHead}',
+    [FinanceMasterController::class, 'updateHead']
+)
+    ->whereNumber('financeHead')
+    ->name('finance.master.heads.update');
+
+
+    /*
+|--------------------------------------------------------------------------
+| Finance Vouchers
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/admin/finance/vouchers',
+    [FinanceVoucherController::class, 'index']
+)->name('finance.vouchers.index');
+
+Route::get(
+    '/admin/finance/vouchers/create',
+    [FinanceVoucherController::class, 'create']
+)->name('finance.vouchers.create');
+
+Route::post(
+    '/admin/finance/vouchers',
+    [FinanceVoucherController::class, 'store']
+)->name('finance.vouchers.store');
+
+Route::get(
+    '/admin/finance/vouchers/{financeVoucher}',
+    [FinanceVoucherController::class, 'show']
+)
+    ->whereNumber('financeVoucher')
+    ->name('finance.vouchers.show');
+
+Route::patch(
+    '/admin/finance/vouchers/{financeVoucher}/post',
+    [FinanceVoucherController::class, 'post']
+)
+    ->whereNumber('financeVoucher')
+    ->name('finance.vouchers.post');
+
+Route::patch(
+    '/admin/finance/vouchers/{financeVoucher}/cancel',
+    [FinanceVoucherController::class, 'cancel']
+)
+    ->whereNumber('financeVoucher')
+    ->name('finance.vouchers.cancel');
+
+    /*
+|--------------------------------------------------------------------------
+| Finance Reports
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/admin/finance/reports',
+    [FinanceReportController::class, 'index']
+)->name('finance.reports.index');
+
 
 });
     /*
@@ -867,7 +964,12 @@ Route::middleware(
             ->whereNumber('admission')
             ->name('ip-billing.advance.store');
 
-
+Route::post(
+    '/ip-billing/{admission}/payment',
+    [IpBillingController::class, 'receivePayment']
+)
+    ->whereNumber('admission')
+    ->name('ip-billing.payment.store');
         Route::post(
             '/ip-billing/{admission}/charges',
             [IpBillingController::class, 'storeCharge']

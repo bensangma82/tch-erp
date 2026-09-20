@@ -96,7 +96,15 @@ class IpBillingAccount extends Model
             ->orderBy('id');
     }
 
-
+public function payments(): HasMany
+{
+    return $this->hasMany(
+        IpBillingPayment::class,
+        'ip_billing_account_id'
+    )
+        ->orderBy('payment_date')
+        ->orderBy('id');
+}
     public function mhisClaims(): HasMany
 {
     return $this->hasMany(

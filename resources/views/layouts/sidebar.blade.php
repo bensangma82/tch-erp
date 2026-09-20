@@ -46,9 +46,13 @@
     $operationsOpen =
         $pharmacyOpen;
 
+    $financeOpen =
+        request()->routeIs('finance.*');
+
     $businessOpen =
         request()->routeIs('billing.*')
-        || request()->routeIs('ip-billing.*');
+        || request()->routeIs('ip-billing.*')
+        || $financeOpen;
 
     $masterDataOpen =
         request()->routeIs('admin.departments.*')
@@ -70,6 +74,7 @@
         operations: {{ $operationsOpen ? 'true' : 'false' }},
         pharmacy: {{ $pharmacyOpen ? 'true' : 'false' }},
         business: {{ $businessOpen ? 'true' : 'false' }},
+        finance: {{ $financeOpen ? 'true' : 'false' }},
         administration: {{ $administrationOpen ? 'true' : 'false' }},
         masterData: {{ $masterDataOpen ? 'true' : 'false' }}
     }"
@@ -101,6 +106,7 @@
             Dashboard
         </a>
 
+
         {{-- CLINICAL --}}
         @if ($canClinical)
             <div class="pt-3">
@@ -113,6 +119,7 @@
                             : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
                 >
                     <span>Clinical</span>
+
                     <span
                         class="text-xs transition-transform duration-200"
                         :class="{ 'rotate-90': clinical }"
@@ -185,6 +192,7 @@
             </div>
         @endif
 
+
         {{-- DIAGNOSTICS --}}
         @if ($canDiagnostics)
             <div class="pt-2">
@@ -197,6 +205,7 @@
                             : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
                 >
                     <span>Diagnostics</span>
+
                     <span
                         class="text-xs transition-transform duration-200"
                         :class="{ 'rotate-90': diagnostics }"
@@ -244,6 +253,7 @@
             </div>
         @endif
 
+
         {{-- OPERATIONS --}}
         @if ($canOperations)
             <div class="pt-2">
@@ -256,6 +266,7 @@
                             : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
                 >
                     <span>Operations</span>
+
                     <span
                         class="text-xs transition-transform duration-200"
                         :class="{ 'rotate-90': operations }"
@@ -279,6 +290,7 @@
                                     : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
                         >
                             <span>Pharmacy</span>
+
                             <span
                                 class="text-xs transition-transform duration-200"
                                 :class="{ 'rotate-90': pharmacy }"
@@ -420,6 +432,7 @@
             </div>
         @endif
 
+
         {{-- BUSINESS --}}
         @if ($canBusiness)
             <div class="pt-2">
@@ -432,6 +445,7 @@
                             : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
                 >
                     <span>Business</span>
+
                     <span
                         class="text-xs transition-transform duration-200"
                         :class="{ 'rotate-90': business }"
@@ -466,9 +480,83 @@
                             IP Billing
                         </a>
                     @endif
+
+
+                    {{-- FINANCE --}}
+                    @if ($isAdmin)
+
+                        <div class="my-2 border-t border-slate-800"></div>
+
+                        <button
+                            type="button"
+                            @click="finance = !finance"
+                            class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium
+                                {{ $financeOpen
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            <span>Finance</span>
+
+                            <span
+                                class="text-xs transition-transform duration-200"
+                                :class="{ 'rotate-90': finance }"
+                            >
+                                ›
+                            </span>
+                        </button>
+
+                        <div
+                            x-show="finance"
+                            x-collapse
+                            class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
+                        >
+                            <a
+                                href="{{ route('finance.dashboard') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('finance.dashboard')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Dashboard
+                            </a>
+
+                            <a
+                                href="{{ route('finance.vouchers.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('finance.vouchers.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Vouchers
+                            </a>
+
+
+                                                        <a
+                                href="{{ route('finance.reports.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('finance.reports.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Reports
+                            </a>
+
+                            <a
+                                href="{{ route('finance.master.index') }}"
+                                class="block rounded-md px-3 py-2 text-sm
+                                    {{ request()->routeIs('finance.master.*')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                            >
+                                Finance Master
+                            </a>
+                        </div>
+
+                    @endif
                 </div>
             </div>
         @endif
+
 
         {{-- ADMINISTRATION --}}
         @if ($isAdmin)
@@ -482,6 +570,7 @@
                             : 'text-slate-300 hover:bg-slate-900 hover:text-white' }}"
                 >
                     <span>Administration</span>
+
                     <span
                         class="text-xs transition-transform duration-200"
                         :class="{ 'rotate-90': administration }"
@@ -558,6 +647,7 @@
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
                     >
                         <span>Master Data</span>
+
                         <span
                             class="text-xs transition-transform duration-200"
                             :class="{ 'rotate-90': masterData }"

@@ -9,6 +9,7 @@ use App\Models\IpBillingAdvance;
 use App\Models\IpBillingCharge;
 use App\Models\IpBillingMhisClaim;
 use App\Models\IpBillingMhisReceipt;
+use App\Models\IpBillingPayment;
 use App\Models\Service;
 use App\Models\ServiceOrder;
 use App\Models\ServiceOrderItem;
@@ -45,6 +46,7 @@ class IpBillingController extends Controller
                 'billingAccount',
                 'billingAccount.charges',
                 'billingAccount.advances',
+                'billingAccount.payments',
                 'billingAccount.mhisClaims',
                 'billingAccount.mhisReceipts',
             ])
@@ -190,7 +192,16 @@ class IpBillingController extends Controller
 
 
                 $paidAmount = round(
-                    (float) $account->paid_amount,
+                    (float) $account->payments
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($payment) {
+                                return (float) $payment->amount;
+                            }
+                        ),
                     2
                 );
 
@@ -287,6 +298,7 @@ class IpBillingController extends Controller
             'charges.service',
             'charges.createdBy',
             'advances.receivedBy',
+            'payments.receivedBy',
             'mhisClaims.createdBy',
             'mhisClaims.updatedBy',
             'mhisClaims.receipts.receivedBy',
@@ -1399,7 +1411,345 @@ class IpBillingController extends Controller
     }
 
 
+/*
+|--------------------------------------------------------------------------
+| Receive IP Balance Payment
+|--------------------------------------------------------------------------
+|
+| Collects payment against the outstanding patient balance
+| of a finalized IP bill.
+|
+*/
 
+public function receivePayment(
+    Request $request,
+    Admission $admission
+) {
+    $validated = $request->validate([
+        'amount' => [
+            'required',
+            'numeric',
+            'min:0.01',
+            'max:9999999.99',
+        ],
+
+        'payment_mode' => [
+            'required',
+            'in:cash,upi,card',
+        ],
+
+        'transaction_reference' => [
+            'nullable',
+            'string',
+            'max:255',
+        ],
+
+        'remarks' => [
+            'nullable',
+            'string',
+            'max:2000',
+        ],
+    ]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPI / Card Reference
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        in_array(
+            $validated['payment_mode'],
+            ['upi', 'card'],
+            true
+        )
+        && empty(
+            trim(
+                (string) (
+                    $validated['transaction_reference']
+                    ?? ''
+                )
+            )
+        )
+    ) {
+        throw ValidationException::withMessages([
+            'transaction_reference' =>
+                'Transaction reference is required for UPI or card payments.',
+        ]);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Billing Account
+    |--------------------------------------------------------------------------
+    */
+
+    $account = IpBillingAccount::query()
+        ->where(
+            'admission_id',
+            $admission->id
+        )
+        ->firstOrFail();
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Payment Transaction
+    |--------------------------------------------------------------------------
+    */
+
+    $payment = DB::transaction(function () use (
+        $validated,
+        $admission,
+        $account
+    ) {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Lock Billing Account
+        |--------------------------------------------------------------------------
+        */
+
+        $lockedAccount = IpBillingAccount::query()
+            ->whereKey($account->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Only Finalized Bills
+        |--------------------------------------------------------------------------
+        */
+
+        if ($lockedAccount->status !== 'finalized') {
+            throw ValidationException::withMessages([
+                'amount' =>
+                    'Payment can only be collected against a finalized IP bill.',
+            ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recalculate Current Outstanding Balance
+        |--------------------------------------------------------------------------
+        |
+        | We deliberately calculate this inside the transaction
+        | so that stale balance values cannot result in overpayment.
+        |
+        */
+
+        $lockedAccount->load([
+            'charges',
+            'advances',
+            'payments',
+            'mhisClaims',
+        ]);
+
+
+        $activeCharges = $lockedAccount->charges
+            ->where(
+                'status',
+                'active'
+            );
+
+
+        $netAmount = round(
+            (float) $activeCharges->sum(
+                function ($charge) {
+                    return (float) $charge->amount;
+                }
+            ),
+            2
+        );
+
+
+        $advanceAmount = round(
+            (float) $lockedAccount->advances
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($advance) {
+                        return (float) $advance->amount;
+                    }
+                ),
+            2
+        );
+
+
+        $paidAmount = round(
+            (float) $lockedAccount->payments
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($payment) {
+                        return (float) $payment->amount;
+                    }
+                ),
+            2
+        );
+
+
+        $mhisApprovedAmount = round(
+            (float) $lockedAccount->mhisClaims
+                ->whereIn(
+                    'status',
+                    [
+                        'approved',
+                        'submitted',
+                        'settled',
+                    ]
+                )
+                ->sum(
+                    function ($claim) {
+                        return (float) $claim->approved_amount;
+                    }
+                ),
+            2
+        );
+
+
+        $currentBalance = round(
+            max(
+                $netAmount
+                - $advanceAmount
+                - $paidAmount
+                - $mhisApprovedAmount,
+                0
+            ),
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Payment Amount
+        |--------------------------------------------------------------------------
+        */
+
+        $paymentAmount = round(
+            (float) $validated['amount'],
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Prevent Overpayment
+        |--------------------------------------------------------------------------
+        */
+
+        if ($paymentAmount > $currentBalance) {
+            throw ValidationException::withMessages([
+                'amount' =>
+                    'Payment cannot exceed the outstanding patient balance of ₹' .
+                    number_format(
+                        $currentBalance,
+                        2
+                    ) .
+                    '.',
+            ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Generate Receipt Number
+        |--------------------------------------------------------------------------
+        */
+
+        $receiptNo =
+            $this->generatePaymentReceiptNumber();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Patient Payment
+        |--------------------------------------------------------------------------
+        */
+
+        $payment = IpBillingPayment::create([
+            'ip_billing_account_id' =>
+                $lockedAccount->id,
+
+            'admission_id' =>
+                $admission->id,
+
+            'patient_id' =>
+                $admission->patient_id,
+
+            'receipt_no' =>
+                $receiptNo,
+
+            'payment_date' =>
+                now(),
+
+            'amount' =>
+                $paymentAmount,
+
+            'payment_mode' =>
+                $validated['payment_mode'],
+
+            'transaction_reference' =>
+                $validated['transaction_reference']
+                ?? null,
+
+            'remarks' =>
+                $validated['remarks']
+                ?? null,
+
+            'status' =>
+                'active',
+
+            'received_by' =>
+                auth()->id(),
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recalculate Account
+        |--------------------------------------------------------------------------
+        */
+
+        $this->recalculateAccount(
+            $lockedAccount
+        );
+
+
+        return $payment;
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Redirect
+    |--------------------------------------------------------------------------
+    */
+
+    return redirect()
+        ->route(
+            'ip-billing.show',
+            $admission
+        )
+        ->with(
+            'success',
+            'Payment of ₹' .
+            number_format(
+                (float) $payment->amount,
+                2
+            ) .
+            ' received successfully. Receipt: ' .
+            $payment->receipt_no
+        );
+}
     /*
     |--------------------------------------------------------------------------
     | Add Manual IP Charge
@@ -2423,6 +2773,7 @@ class IpBillingController extends Controller
             'charges.service',
             'charges.createdBy',
             'advances.receivedBy',
+            'payments.receivedBy',
             'mhisClaims.createdBy',
             'mhisClaims.updatedBy',
             'mhisClaims.receipts.receivedBy',
@@ -2747,6 +3098,7 @@ class IpBillingController extends Controller
         $account->load([
             'charges',
             'advances',
+            'payments',
             'mhisClaims',
             'mhisReceipts',
         ]);
@@ -2783,10 +3135,6 @@ class IpBillingController extends Controller
         );
 
 
-        /*
-         * Gross subtotal = quantity × unit price before discount.
-         * Net amount = final payable line values after discounts.
-         */
         $netAmount = round(
             (float) $activeCharges->sum(
                 function ($charge) {
@@ -2813,7 +3161,16 @@ class IpBillingController extends Controller
 
 
         $paidAmount = round(
-            (float) $account->paid_amount,
+            (float) $account->payments
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($payment) {
+                        return (float) $payment->amount;
+                    }
+                ),
             2
         );
 
@@ -2861,6 +3218,9 @@ class IpBillingController extends Controller
 
             'advance_amount' =>
                 $advanceAmount,
+
+            'paid_amount' =>
+                $paidAmount,
 
             'balance_amount' =>
                 $balanceAmount,
@@ -3020,7 +3380,53 @@ class IpBillingController extends Controller
     }
 
 
+/*
+|--------------------------------------------------------------------------
+| Generate IP Balance Payment Receipt Number
+|--------------------------------------------------------------------------
+*/
 
+private function generatePaymentReceiptNumber(): string
+{
+    $prefix =
+        'IPP-' .
+        now()->format('Ymd') .
+        '-';
+
+
+    $lastPayment = IpBillingPayment::query()
+        ->where(
+            'receipt_no',
+            'like',
+            $prefix . '%'
+        )
+        ->orderByDesc('id')
+        ->first();
+
+
+    $nextNumber = 1;
+
+
+    if ($lastPayment) {
+
+        $lastSequence = (int) substr(
+            $lastPayment->receipt_no,
+            -6
+        );
+
+        $nextNumber =
+            $lastSequence + 1;
+    }
+
+
+    return $prefix .
+        str_pad(
+            $nextNumber,
+            6,
+            '0',
+            STR_PAD_LEFT
+        );
+}
 
     /*
     |--------------------------------------------------------------------------
