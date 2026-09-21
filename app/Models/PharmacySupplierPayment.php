@@ -11,6 +11,7 @@ class PharmacySupplierPayment extends Model
         'payment_no',
         'pharmacy_supplier_payable_id',
         'pharmacy_supplier_id',
+        'finance_account_id',
         'payment_date',
         'amount',
         'payment_method',
@@ -40,6 +41,13 @@ class PharmacySupplierPayment extends Model
             'pharmacy_supplier_id'
         );
     }
+    public function financeAccount(): BelongsTo
+{
+    return $this->belongsTo(
+        \App\Models\FinanceAccount::class,
+        'finance_account_id'
+    );
+}
 
     public function createdBy(): BelongsTo
     {

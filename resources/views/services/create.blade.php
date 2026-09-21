@@ -9,7 +9,7 @@
             </h2>
 
             <p class="mt-1 text-sm text-gray-500">
-                Create a laboratory test, imaging service, procedure or other billable service.
+                Create a laboratory test, imaging service, procedure, consultation or standard inpatient billable charge.
             </p>
 
         </div>
@@ -102,7 +102,7 @@
                                 >
 
                                 <p class="mt-1 text-xs text-gray-500">
-                                    Use a short unique code such as CBC, CREAT, CXR or USGABD.
+                                    Use a short unique code such as CBC, CREAT, PROC-CVC, NUR-NEB, EQP-MON or CON-GLOVE.
                                 </p>
 
                             </div>
@@ -179,6 +179,34 @@
                                         @selected(old('category') === 'consultation')
                                     >
                                         Consultation
+                                    </option>
+
+                                    <option
+                                        value="nursing"
+                                        @selected(old('category') === 'nursing')
+                                    >
+                                        Nursing
+                                    </option>
+
+                                    <option
+                                        value="equipment"
+                                        @selected(old('category') === 'equipment')
+                                    >
+                                        Equipment / Device Use
+                                    </option>
+
+                                    <option
+                                        value="consumable"
+                                        @selected(old('category') === 'consumable')
+                                    >
+                                        Consumable
+                                    </option>
+
+                                    <option
+                                        value="facility"
+                                        @selected(old('category') === 'facility')
+                                    >
+                                        Facility / Miscellaneous
                                     </option>
 
                                     <option
@@ -280,7 +308,7 @@
                                 >
 
                                 <p class="mt-1 text-xs text-gray-500">
-                                    Optional. Useful later for laboratory reporting.
+                                    Optional. Examples: per procedure, per hour, per day, each, session or test.
                                 </p>
 
                             </div>
@@ -305,6 +333,31 @@
                                 placeholder="Optional description or remarks"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-slate-500 focus:ring-slate-500"
                             >{{ old('description') }}</textarea>
+
+                        </div>
+
+
+                        {{-- CHARGE MASTER GUIDANCE --}}
+                        <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+
+                            <h4 class="text-sm font-semibold text-blue-900">
+                                Standard Charge Master
+                            </h4>
+
+                            <p class="mt-1 text-xs leading-5 text-blue-800">
+                                For inpatient billing charges, create one service for each standard billable item.
+                                The service code, name, department, unit and price will later populate the IP Billing
+                                <strong>Add Charge</strong> form automatically.
+                            </p>
+
+                            <div class="mt-3 grid gap-2 text-xs text-blue-800 sm:grid-cols-2">
+                                <div><strong>Procedure:</strong> catheter insertion, dressing, minor procedure</div>
+                                <div><strong>Nursing:</strong> nebulization, special nursing procedure</div>
+                                <div><strong>Equipment:</strong> monitor, syringe pump, ventilator use</div>
+                                <div><strong>Consumable:</strong> chargeable non-pharmacy consumables</div>
+                                <div><strong>Facility:</strong> miscellaneous hospital / facility charges</div>
+                                <div><strong>Consultation:</strong> specialist or professional consultation</div>
+                            </div>
 
                         </div>
 
@@ -364,7 +417,7 @@
                                         </div>
 
                                         <div class="mt-1 text-xs text-gray-500">
-                                            Generates a laboratory or diagnostic report.
+                                            Enable only when this service should generate a laboratory or diagnostic report.
                                         </div>
 
                                     </div>

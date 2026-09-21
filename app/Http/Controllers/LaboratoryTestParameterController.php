@@ -6,6 +6,7 @@ use App\Models\LaboratoryTestParameter;
 use App\Models\Service;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class LaboratoryTestParameterController extends Controller
 {
@@ -30,7 +31,6 @@ class LaboratoryTestParameterController extends Controller
         );
     }
 
-
     /**
      * Show parameter editor for a laboratory service.
      */
@@ -52,12 +52,21 @@ class LaboratoryTestParameterController extends Controller
             },
         ]);
 
+        $resultTypes = [
+            'numeric' => 'Numeric',
+            'text' => 'Text',
+            'positive_negative' => 'Positive / Negative',
+            'select' => 'Select / Categorical',
+        ];
+
         return view(
             'admin.laboratory-parameters.edit',
-            compact('service')
+            compact(
+                'service',
+                'resultTypes'
+            )
         );
     }
-
 
     /**
      * Save the full parameter set for a laboratory service.
@@ -73,6 +82,13 @@ class LaboratoryTestParameterController extends Controller
                     'service' => 'This service is not a laboratory investigation.',
                 ]);
         }
+
+        $resultTypes = [
+            'numeric',
+            'text',
+            'positive_negative',
+            'select',
+        ];
 
         $validated = $request->validate([
             'parameters' => [
@@ -96,6 +112,18 @@ class LaboratoryTestParameterController extends Controller
                 'nullable',
                 'string',
                 'max:100',
+            ],
+
+            'parameters.*.method' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'parameters.*.result_type' => [
+                'nullable',
+                'string',
+                Rule::in($resultTypes),
             ],
 
             'parameters.*.reference_range' => [
@@ -155,6 +183,18 @@ class LaboratoryTestParameterController extends Controller
                             )
                         ),
 
+                    'method' =>
+                        trim(
+                            (string) (
+                                $parameter['method']
+                                ?? ''
+                            )
+                        ),
+
+                    'result_type' =>
+                        $parameter['result_type']
+                        ?? 'numeric',
+
                     'reference_range' =>
                         trim(
                             (string) (
@@ -190,7 +230,6 @@ class LaboratoryTestParameterController extends Controller
                 return $parameter['parameter_name'] !== '';
             })
             ->values();
-
 
         DB::transaction(function () use (
             $service,
@@ -232,6 +271,14 @@ class LaboratoryTestParameterController extends Controller
                         ? $parameter['unit']
                         : null;
 
+                $existing->method =
+                    $parameter['method'] !== ''
+                        ? $parameter['method']
+                        : null;
+
+                $existing->result_type =
+                    $parameter['result_type'];
+
                 $existing->reference_range =
                     $parameter['reference_range'] !== ''
                         ? $parameter['reference_range']
@@ -261,7 +308,6 @@ class LaboratoryTestParameterController extends Controller
                     $existing->id;
             }
 
-
             LaboratoryTestParameter::query()
                 ->where(
                     'service_id',
@@ -276,15 +322,8 @@ class LaboratoryTestParameterController extends Controller
                         );
                     }
                 )
-                ->when(
-                    count($savedIds) === 0,
-                    function ($query) {
-                        return $query;
-                    }
-                )
                 ->delete();
         });
-
 
         return redirect()
             ->route(

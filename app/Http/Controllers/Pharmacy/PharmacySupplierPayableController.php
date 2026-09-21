@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pharmacy;
 
 use App\Http\Controllers\Controller;
+use App\Models\FinanceAccount;
 use App\Models\PharmacyGrn;
 use App\Models\PharmacyPurchaseReturnItem;
 use App\Models\PharmacySupplierPayable;
@@ -450,27 +451,36 @@ class PharmacySupplierPayableController extends Controller
     /**
      * Show one payable with payment history.
      */
-    public function show(
-        PharmacySupplierPayable $pharmacySupplierPayable
-    ): View {
+   
+/**
+ * Show one payable with payment history.
+ */
+public function show(
+    PharmacySupplierPayable $pharmacySupplierPayable
+): View {
 
-        $pharmacySupplierPayable->load([
-            'supplier',
-            'grn',
-            'createdBy',
-            'payments.createdBy',
-            'supplierCredits',
-        ]);
+    $pharmacySupplierPayable->load([
+        'supplier',
+        'grn',
+        'createdBy',
+        'payments.createdBy',
+        'payments.financeAccount',
+        'supplierCredits',
+    ]);
 
+    $financeAccounts = FinanceAccount::query()
+        ->where('is_active', true)
+        ->orderBy('name')
+        ->get();
 
-        return view(
-            'pharmacy.supplier-payables.show',
-            compact(
-                'pharmacySupplierPayable'
-            )
-        );
-    }
-
+    return view(
+        'pharmacy.supplier-payables.show',
+        compact(
+            'pharmacySupplierPayable',
+            'financeAccounts'
+        )
+    );
+}
 
 
     /**
@@ -494,6 +504,12 @@ class PharmacySupplierPayableController extends Controller
                     'numeric',
                     'gt:0',
                 ],
+
+                'finance_account_id' => [
+    'required',
+    'integer',
+    'exists:finance_accounts,id',
+],
 
                 'payment_method' => [
                     'required',
@@ -643,6 +659,9 @@ class PharmacySupplierPayableController extends Controller
 
                             'pharmacy_supplier_id' =>
                                 $payable->pharmacy_supplier_id,
+
+                                'finance_account_id' =>
+    $validated['finance_account_id'],
 
                             'payment_date' =>
                                 $validated['payment_date'],

@@ -12,6 +12,7 @@ use App\Models\IpBillingPayment;
 use App\Models\Payment;
 use App\Models\PharmacyReturn;
 use App\Models\PharmacySale;
+use App\Models\PharmacySupplierPayment;
 use App\Models\PharmacyStockBatch;
 use App\Models\PharmacySupplierPayable;
 
@@ -209,6 +210,20 @@ class FinanceHealthService
             })
             ->get();
 
+
+
+            /*
+ * Pharmacy supplier payments.
+ *
+ * These are account outflows only. They are not treated here
+ * as operating expenses because settling a supplier payable
+ * is separate from recognising inventory expense.
+ */
+$allPharmacySupplierPayments =
+    PharmacySupplierPayment::query()
+        ->whereNotNull('finance_account_id')
+        ->get();
+
         $integratedReceiptsByAccount = [];
         $integratedPaymentsByAccount = [];
 
@@ -385,7 +400,32 @@ class FinanceHealthService
                     + $allPharmacyCashRefunds;
             }
         }
+/*
+|--------------------------------------------------------------------------
+| Pharmacy Supplier Payments by Finance Account
+|--------------------------------------------------------------------------
+|
+| Supplier payments reduce the exact Finance Account selected
+| when the payment was recorded.
+|
+*/
 
+foreach ($allPharmacySupplierPayments as $supplierPayment) {
+
+    $accountId =
+        (int) $supplierPayment->finance_account_id;
+
+    if ($accountId <= 0) {
+        continue;
+    }
+
+    $integratedPaymentsByAccount[$accountId] =
+        (
+            $integratedPaymentsByAccount[$accountId]
+            ?? 0
+        )
+        + (float) $supplierPayment->amount;
+}
         /*
          * MHIS receipts are intentionally NOT assigned
          * to a Finance Account until the receiving bank

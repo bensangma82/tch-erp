@@ -38,7 +38,7 @@
                 "Segoe UI",
                 Arial,
                 sans-serif;
-            font-size: 13px;
+            font-size: 16px;
             line-height: 1.45;
         }
 
@@ -63,7 +63,7 @@
             color: #334155;
             border-radius: 8px;
             padding: 10px 15px;
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 700;
             text-decoration: none;
             cursor: pointer;
@@ -90,54 +90,95 @@
 
         .header {
             display: grid;
-            grid-template-columns: 1.5fr 1fr;
+            grid-template-columns: minmax(0, 1.18fr) minmax(360px, 0.82fr);
             gap: 28px;
             align-items: start;
-            padding-bottom: 22px;
+            padding-bottom: 18px;
             border-bottom: 2px solid var(--navy);
+        }
+
+        .brand-wrap {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        .brand-logo-box {
+            width: 72px;
+            height: 72px;
+            flex: 0 0 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+        }
+
+        .brand-logo {
+            display: block;
+            width: 72px;
+            height: 72px;
+            object-fit: contain;
+        }
+
+        .brand-copy {
+            min-width: 0;
         }
 
         .hospital-name {
             margin: 0;
-            font-size: 28px;
-            line-height: 1.12;
-            font-weight: 800;
-            letter-spacing: 0.02em;
             color: var(--navy);
+            font-size: 26px;
+            line-height: 1.05;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
         }
 
         .hospital-location {
-            margin-top: 7px;
+            margin-top: 5px;
             color: #475569;
             font-size: 13px;
             font-weight: 600;
         }
 
+        .hospital-contact {
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.35;
+            white-space: nowrap;
+        }
+
         .document-title {
             display: inline-block;
-            margin-top: 18px;
-            padding: 6px 10px;
-            background: #eef3f8;
+            margin-top: 10px;
+            padding: 5px 9px;
+            background: #f1f5f9;
             color: var(--navy);
+            border: 1px solid #e2e8f0;
             border-radius: 5px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 800;
-            letter-spacing: 0.11em;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
         }
 
         .bill-meta {
-            border: 1px solid var(--line);
-            border-radius: 10px;
+            border: 1px solid #d5dee8;
+            border-radius: 9px;
             overflow: hidden;
+            background: #ffffff;
         }
 
         .bill-meta-row {
             display: grid;
-            grid-template-columns: 120px 1fr;
-            gap: 10px;
-            padding: 9px 12px;
+            grid-template-columns: 42% 58%;
+            gap: 8px;
+            padding: 8px 11px;
             border-bottom: 1px solid var(--line);
+            align-items: center;
         }
 
         .bill-meta-row:last-child {
@@ -159,13 +200,14 @@
             font-size: 12px;
             font-weight: 700;
             color: var(--ink);
-            word-break: break-word;
+            white-space: nowrap;
         }
 
         .bill-meta .bill-number {
             color: var(--navy);
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 800;
+            letter-spacing: 0.01em;
         }
 
         .section {
@@ -174,7 +216,7 @@
 
         .section-title {
             margin: 0 0 10px;
-            font-size: 12px;
+            font-size: 15px;
             font-weight: 800;
             color: var(--navy);
             letter-spacing: 0.09em;
@@ -199,7 +241,7 @@
 
         .details-panel h3 {
             margin: 0 0 10px;
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 800;
             color: #475569;
             letter-spacing: 0.08em;
@@ -217,14 +259,14 @@
         .detail-list dt {
             margin: 0;
             color: var(--muted);
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 600;
         }
 
         .detail-list dd {
             margin: 0;
             color: var(--ink);
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 700;
         }
 
@@ -251,7 +293,7 @@
             padding: 9px 12px;
             background: #f1f5f9;
             color: var(--navy);
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 800;
         }
 
@@ -266,7 +308,7 @@
             color: #64748b;
             border-top: 1px solid var(--line);
             border-bottom: 1px solid var(--line);
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.05em;
             text-transform: uppercase;
@@ -277,7 +319,7 @@
             padding: 8px 9px;
             border-bottom: 1px solid #e9eef4;
             vertical-align: top;
-            font-size: 10.5px;
+            font-size: 13.5px;
         }
 
         tbody tr:last-child td {
@@ -291,7 +333,7 @@
 
         .code {
             color: #64748b;
-            font-size: 9.5px;
+            font-size: 12.5px;
             white-space: nowrap;
         }
 
@@ -323,7 +365,7 @@
             padding: 9px 12px;
             background: #f8fafc;
             border-bottom: 1px solid var(--line);
-            font-size: 10px;
+            font-size: 13px;
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
@@ -337,7 +379,7 @@
             gap: 18px;
             padding: 9px 12px;
             border-bottom: 1px solid #edf1f5;
-            font-size: 11px;
+            font-size: 14px;
         }
 
         .summary-row:last-child {
@@ -362,7 +404,7 @@
         .summary-row.net .summary-label,
         .summary-row.net .summary-value {
             color: var(--navy);
-            font-size: 12px;
+            font-size: 15px;
             font-weight: 800;
         }
 
@@ -376,7 +418,7 @@
         .summary-row.patient-balance .summary-label,
         .summary-row.patient-balance .summary-value {
             color: #fff;
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 800;
         }
 
@@ -390,7 +432,7 @@
         .mhis-title {
             margin: 0 0 10px;
             color: var(--violet);
-            font-size: 10px;
+            font-size: 13px;
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
@@ -405,7 +447,7 @@
 
         .mini-label {
             color: #7c3aed;
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.05em;
             text-transform: uppercase;
@@ -414,7 +456,7 @@
         .mini-value {
             margin-top: 2px;
             color: var(--ink);
-            font-size: 10.5px;
+            font-size: 13.5px;
             font-weight: 700;
         }
 
@@ -424,7 +466,7 @@
             gap: 16px;
             padding: 6px 0;
             border-top: 1px solid #ede9fe;
-            font-size: 10.5px;
+            font-size: 13.5px;
         }
 
         .mhis-stat strong {
@@ -445,7 +487,7 @@
 
         .payment-table th,
         .payment-table td {
-            font-size: 9.5px;
+            font-size: 12.5px;
             padding: 7px 8px;
         }
 
@@ -456,7 +498,7 @@
             background: #fff8ed;
             border-radius: 8px;
             color: #92400e;
-            font-size: 10px;
+            font-size: 13px;
             line-height: 1.4;
         }
 
@@ -472,14 +514,14 @@
         .collection-title {
             margin: 0 0 4px;
             color: var(--navy);
-            font-size: 12px;
+            font-size: 15px;
             font-weight: 800;
         }
 
         .collection-help {
             margin: 0 0 12px;
             color: var(--muted);
-            font-size: 10.5px;
+            font-size: 13.5px;
         }
 
         .collection-grid {
@@ -500,7 +542,7 @@
 
         .collection-field label {
             color: #475569;
-            font-size: 9.5px;
+            font-size: 12.5px;
             font-weight: 800;
             letter-spacing: 0.04em;
             text-transform: uppercase;
@@ -516,7 +558,7 @@
             color: var(--ink);
             padding: 9px 10px;
             font: inherit;
-            font-size: 11px;
+            font-size: 14px;
         }
 
         .collection-field textarea {
@@ -546,7 +588,7 @@
             background: var(--green);
             color: #fff;
             padding: 10px 16px;
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 800;
             cursor: pointer;
         }
@@ -566,7 +608,7 @@
             background: #fef2f2;
             border-radius: 7px;
             color: var(--red);
-            font-size: 10px;
+            font-size: 13px;
         }
 
         .signatures {
@@ -589,7 +631,7 @@
         .signature-label {
             padding-top: 6px;
             color: #475569;
-            font-size: 9.5px;
+            font-size: 12.5px;
             font-weight: 700;
         }
 
@@ -598,7 +640,7 @@
             padding-top: 12px;
             border-top: 1px solid var(--line);
             color: #7a8798;
-            font-size: 9px;
+            font-size: 12px;
             text-align: center;
         }
 
@@ -611,7 +653,7 @@
             padding: 18px;
             color: var(--muted);
             text-align: center;
-            font-size: 11px;
+            font-size: 14px;
         }
 
         @page {
@@ -623,7 +665,7 @@
             html,
             body {
                 background: #fff !important;
-                font-size: 11px;
+                font-size: 14px;
             }
 
             body {
@@ -652,8 +694,60 @@
                 padding-bottom: 14px;
             }
 
+            .header {
+                grid-template-columns: minmax(0, 1.15fr) minmax(78mm, 0.85fr);
+                gap: 7mm;
+                padding-bottom: 4mm;
+            }
+
+            .brand-wrap {
+                gap: 4mm;
+            }
+
+            .brand-logo-box,
+            .brand-logo {
+                width: 18mm;
+                height: 18mm;
+                flex-basis: 18mm;
+            }
+
             .hospital-name {
-                font-size: 23px;
+                font-size: 19px;
+                white-space: nowrap;
+            }
+
+            .hospital-location {
+                margin-top: 2px;
+                font-size: 10px;
+            }
+
+            .hospital-contact {
+                margin-top: 2px;
+                font-size: 8px;
+                white-space: nowrap;
+            }
+
+            .document-title {
+                margin-top: 6px;
+                padding: 3px 6px;
+                font-size: 8px;
+                border-radius: 3px;
+            }
+
+            .bill-meta-row {
+                padding: 5px 7px;
+            }
+
+            .bill-meta dt {
+                font-size: 7.5px;
+            }
+
+            .bill-meta dd {
+                font-size: 9px;
+            }
+
+            .bill-meta .bill-number {
+                font-size: 10px;
             }
 
             .section {
@@ -668,7 +762,6 @@
                 gap: 12px;
             }
 
-            .charge-group,
             .card,
             .mhis-box,
             .details-grid {
@@ -676,8 +769,30 @@
                 page-break-inside: avoid;
             }
 
+            .charge-group {
+                break-inside: auto !important;
+                page-break-inside: auto !important;
+            }
+
+            .charges-wrap {
+                overflow: visible !important;
+            }
+
+            .group-header {
+                break-after: avoid;
+                page-break-after: avoid;
+            }
+
+            table {
+                page-break-inside: auto;
+            }
+
             thead {
                 display: table-header-group;
+            }
+
+            tbody {
+                page-break-inside: auto;
             }
 
             tfoot {
@@ -746,18 +861,38 @@
 
         <header class="header">
 
-            <div>
-                <h1 class="hospital-name">
-                    TURA CHRISTIAN HOSPITAL
-                </h1>
+            <div class="brand-wrap">
 
-                <div class="hospital-location">
-                    Tura, West Garo Hills, Meghalaya
+                <div class="brand-logo-box">
+                    <img
+                        src="{{ asset('images/TCH_favicon.png') }}"
+                        alt="Tura Christian Hospital"
+                        class="brand-logo"
+                    >
                 </div>
 
-                <div class="document-title">
-                    Final Inpatient Bill
+                <div class="brand-copy">
+
+                    <h1 class="hospital-name">
+                        TURA CHRISTIAN HOSPITAL
+                    </h1>
+
+                    <div class="hospital-location">
+                        Tura, West Garo Hills, Meghalaya
+                    </div>
+
+                    <div class="hospital-contact">
+                        Email: tchcare@yahoo.com
+                        &nbsp;•&nbsp;
+                        Website: www.turachristianhospital.org
+                    </div>
+
+                    <div class="document-title">
+                        Final Inpatient Bill
+                    </div>
+
                 </div>
+
             </div>
 
 
@@ -1554,6 +1689,10 @@
             on
             {{ $account->finalized_at?->format('d M Y, h:i A') ?? '—' }}.
             This bill is generated from the Tura Christian Hospital ERP.
+            <br>
+            Email: tchcare@yahoo.com
+            &nbsp;•&nbsp;
+            Website: www.turachristianhospital.org
         </footer>
 
     </div>

@@ -438,7 +438,47 @@
 
                             </div>
 
+<div>
 
+    <label
+        for="finance_account_id"
+        class="mb-2 block text-sm font-semibold text-slate-700"
+    >
+        Paid From Finance Account *
+    </label>
+
+    <select
+        id="finance_account_id"
+        name="finance_account_id"
+        required
+        class="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+    >
+
+        <option value="">
+            Select finance account
+        </option>
+
+        @foreach ($financeAccounts as $account)
+            <option
+                value="{{ $account->id }}"
+                @selected((string) old('finance_account_id') === (string) $account->id)
+            >
+                {{ $account->name }}
+                @if ($account->code)
+                    ({{ $account->code }})
+                @endif
+            </option>
+        @endforeach
+
+    </select>
+
+    @error('finance_account_id')
+        <div class="mt-1 text-sm text-red-600">
+            {{ $message }}
+        </div>
+    @enderror
+
+</div>
                             <div>
 
                                 <label
@@ -607,7 +647,6 @@
 
                 </div>
 
-
                 <div class="overflow-x-auto">
 
                     <table class="min-w-full divide-y divide-slate-200">
@@ -629,6 +668,10 @@
                                 </th>
 
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Finance Account
+                                </th>
+
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Reference
                                 </th>
 
@@ -644,7 +687,6 @@
 
                         </thead>
 
-
                         <tbody class="divide-y divide-slate-100">
 
                             @forelse ($pharmacySupplierPayable->payments->sortByDesc('payment_date') as $payment)
@@ -655,20 +697,39 @@
                                         {{ $payment->payment_date?->format('d M Y') ?? '—' }}
                                     </td>
 
-
                                     <td class="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">
                                         {{ $payment->payment_no }}
                                     </td>
 
-
                                     <td class="px-5 py-4">
-
                                         <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                                             {{ ucwords(str_replace('_', ' ', $payment->payment_method)) }}
                                         </span>
-
                                     </td>
 
+                                    <td class="px-5 py-4">
+
+                                        @if ($payment->financeAccount)
+
+                                            <div class="text-sm font-semibold text-slate-800">
+                                                {{ $payment->financeAccount->name }}
+                                            </div>
+
+                                            @if ($payment->financeAccount->code)
+                                                <div class="mt-1 text-xs text-slate-500">
+                                                    {{ $payment->financeAccount->code }}
+                                                </div>
+                                            @endif
+
+                                        @else
+
+                                            <span class="text-sm text-slate-400">
+                                                Not mapped
+                                            </span>
+
+                                        @endif
+
+                                    </td>
 
                                     <td class="px-5 py-4">
 
@@ -677,20 +738,16 @@
                                         </div>
 
                                         @if ($payment->bank_name)
-
                                             <div class="mt-1 text-xs text-slate-500">
                                                 {{ $payment->bank_name }}
                                             </div>
-
                                         @endif
 
                                     </td>
 
-
                                     <td class="whitespace-nowrap px-5 py-4 text-right font-bold text-emerald-700">
                                         ₹{{ number_format((float) $payment->amount, 2) }}
                                     </td>
-
 
                                     <td class="px-5 py-4">
 
@@ -711,7 +768,7 @@
                                 <tr>
 
                                     <td
-                                        colspan="6"
+                                        colspan="7"
                                         class="px-6 py-12 text-center text-sm text-slate-500"
                                     >
                                         No supplier payments recorded yet.

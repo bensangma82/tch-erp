@@ -17,46 +17,107 @@
 
     <style>
 
+        :root {
+            --navy: #111827;
+            --muted: #64748b;
+            --line: #cbd5e1;
+            --soft-line: #e2e8f0;
+            --soft-bg: #f8fafc;
+            --table-bg: #f1f5f9;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, Helvetica, sans-serif;
             margin: 0;
             padding: 24px;
-            color: #111827;
+            color: var(--navy);
             background: #f8fafc;
         }
 
         .receipt {
             max-width: 980px;
             margin: 0 auto;
-            background: white;
+            background: #ffffff;
             border: 1px solid #dbe2ea;
             border-radius: 12px;
             padding: 28px;
         }
 
+        /* =========================================================
+         * HOSPITAL LETTERHEAD
+         * ========================================================= */
+
         .header {
-            text-align: center;
-            border-bottom: 2px solid #111827;
-            padding-bottom: 16px;
+            border-bottom: 2px solid var(--navy);
+            padding-bottom: 18px;
             margin-bottom: 22px;
         }
 
+        .hospital-brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+        }
+
+        .hospital-logo {
+            width: 76px;
+            height: 76px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .hospital-details {
+            text-align: left;
+        }
+
         .hospital-name {
-            font-size: 24px;
-            font-weight: 700;
+            margin: 0;
+            font-size: 26px;
+            line-height: 1.1;
+            font-weight: 800;
+            color: var(--navy);
         }
 
         .hospital-subtitle {
             margin-top: 5px;
             font-size: 13px;
+            font-weight: 600;
             color: #475569;
         }
 
-        .receipt-title {
-            margin-top: 14px;
-            font-size: 18px;
-            font-weight: 700;
+        .hospital-contact {
+            margin-top: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.45;
+            color: var(--muted);
         }
+
+        .hospital-gstin {
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #334155;
+        }
+
+        .receipt-title {
+            margin-top: 16px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            color: var(--navy);
+        }
+
+        /* =========================================================
+         * RECEIPT DETAILS
+         * ========================================================= */
 
         .grid {
             display: grid;
@@ -66,37 +127,46 @@
         }
 
         .label {
-            font-size: 11px;
-            text-transform: uppercase;
-            color: #64748b;
             margin-bottom: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            color: var(--muted);
         }
 
         .value {
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
+            color: var(--navy);
         }
+
+        /* =========================================================
+         * ITEMS TABLE
+         * ========================================================= */
 
         table {
             width: 100%;
-            border-collapse: collapse;
             margin-top: 12px;
+            border-collapse: collapse;
         }
 
         th {
-            background: #f1f5f9;
+            background: var(--table-bg);
             text-align: left;
             font-size: 10px;
+            font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 0.02em;
             color: #475569;
             padding: 9px 6px;
-            border-bottom: 1px solid #cbd5e1;
+            border-bottom: 1px solid var(--line);
             white-space: nowrap;
         }
 
         td {
             padding: 9px 6px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--soft-line);
             font-size: 12px;
             vertical-align: top;
         }
@@ -112,17 +182,22 @@
         .medicine-subtext {
             margin-top: 3px;
             font-size: 11px;
-            color: #64748b;
+            color: var(--muted);
         }
 
         .tax-note {
             margin-top: 4px;
             font-size: 10px;
-            color: #64748b;
+            color: var(--muted);
         }
+
+        /* =========================================================
+         * SUMMARY / TAX
+         * ========================================================= */
 
         .summary {
             width: 420px;
+            max-width: 100%;
             margin-left: auto;
             margin-top: 20px;
         }
@@ -141,18 +216,29 @@
         }
 
         .summary-total {
-            border-top: 2px solid #111827;
+            border-top: 2px solid var(--navy);
             margin-top: 8px;
             padding-top: 10px;
             font-size: 18px;
-            font-weight: 700;
+            font-weight: 800;
+        }
+
+        .gst-box {
+            margin-top: 18px;
+            padding: 12px;
+            border: 1px solid var(--soft-line);
+            border-radius: 8px;
+            background: var(--soft-bg);
+            font-size: 11px;
+            line-height: 1.55;
+            color: #475569;
         }
 
         .status {
             margin-top: 20px;
             padding: 12px;
             border-radius: 8px;
-            background: #f8fafc;
+            background: var(--soft-bg);
             font-size: 13px;
             line-height: 1.6;
         }
@@ -160,11 +246,16 @@
         .footer {
             margin-top: 28px;
             padding-top: 16px;
-            border-top: 1px solid #cbd5e1;
+            border-top: 1px solid var(--line);
             text-align: center;
             font-size: 11px;
-            color: #64748b;
+            line-height: 1.5;
+            color: var(--muted);
         }
+
+        /* =========================================================
+         * SCREEN ACTIONS
+         * ========================================================= */
 
         .actions {
             max-width: 980px;
@@ -176,64 +267,129 @@
 
         .button {
             text-decoration: none;
-            border: 1px solid #cbd5e1;
+            border: 1px solid var(--line);
             border-radius: 8px;
             padding: 10px 16px;
             font-size: 13px;
             font-weight: 600;
             color: #334155;
-            background: white;
+            background: #ffffff;
             cursor: pointer;
         }
 
         .button-primary {
             background: #2563eb;
             border-color: #2563eb;
-            color: white;
+            color: #ffffff;
         }
 
-        .gst-box {
-            margin-top: 18px;
-            padding: 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            background: #f8fafc;
-            font-size: 11px;
-            color: #475569;
-        }
-
+        /* =========================================================
+         * PRINT
+         * ========================================================= */
 
         @media print {
 
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+
             body {
-                background: white;
+                background: #ffffff;
                 padding: 0;
             }
 
             .receipt {
+                max-width: none;
                 border: none;
                 border-radius: 0;
-                max-width: none;
                 padding: 0;
             }
 
             .actions {
-                display: none;
+                display: none !important;
             }
 
-            .gst-box {
+            .hospital-logo {
+                width: 62px;
+                height: 62px;
+            }
+
+            .hospital-name {
+                font-size: 22px;
+            }
+
+            .hospital-subtitle {
+                font-size: 11px;
+            }
+
+            .hospital-contact,
+            .hospital-gstin {
+                font-size: 9px;
+            }
+
+            .receipt-title {
+                margin-top: 11px;
+                font-size: 15px;
+            }
+
+            .gst-box,
+            .status,
+            .summary,
+            .footer {
                 break-inside: avoid;
+                page-break-inside: avoid;
             }
 
             table {
                 page-break-inside: auto;
             }
 
+            thead {
+                display: table-header-group;
+            }
+
             tr {
                 page-break-inside: avoid;
                 page-break-after: auto;
             }
+        }
 
+        @media (max-width: 700px) {
+
+            body {
+                padding: 12px;
+            }
+
+            .receipt {
+                padding: 18px;
+            }
+
+            .hospital-brand {
+                align-items: flex-start;
+                justify-content: flex-start;
+            }
+
+            .hospital-logo {
+                width: 58px;
+                height: 58px;
+            }
+
+            .hospital-name {
+                font-size: 21px;
+            }
+
+            .hospital-contact {
+                line-height: 1.5;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .summary {
+                width: 100%;
+            }
         }
 
     </style>
@@ -249,20 +405,43 @@
 
         <div class="header">
 
-            <div class="hospital-name">
-                Tura Christian Hospital
-            </div>
+            <div class="hospital-brand">
 
-            <div class="hospital-subtitle">
-                Tura, West Garo Hills, Meghalaya
+                <img
+                    src="{{ asset('images/TCH_favicon.png') }}"
+                    alt="Tura Christian Hospital Logo"
+                    class="hospital-logo"
+                >
+
+                <div class="hospital-details">
+
+                    <div class="hospital-name">
+                        TURA CHRISTIAN HOSPITAL
+                    </div>
+
+                    <div class="hospital-subtitle">
+                        Tura, West Garo Hills, Meghalaya
+                    </div>
+
+                    <div class="hospital-contact">
+                        Email: tchcare@yahoo.com
+                        &nbsp;•&nbsp;
+                        Website: www.turachristianhospital.org
+                    </div>
+
+                    <div class="hospital-gstin">
+                        GSTIN: 17AAAAA0000A1Z5
+                    </div>
+
+                </div>
+
             </div>
 
             <div class="receipt-title">
-                Pharmacy Receipt
+                PHARMACY RECEIPT
             </div>
 
         </div>
-
 
 
         <div class="grid">
@@ -710,6 +889,14 @@
             <br>
 
             This is a computer-generated pharmacy receipt.
+
+            <br>
+
+            tchcare@yahoo.com
+            &nbsp;•&nbsp;
+            www.turachristianhospital.org
+            &nbsp;•&nbsp;
+            GSTIN: 17AAAAA0000A1Z5
 
         </div>
 

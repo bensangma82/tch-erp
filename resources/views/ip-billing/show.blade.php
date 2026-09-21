@@ -1801,22 +1801,24 @@
 
 
     @if (! $isFinalized)
-    {{-- MANUAL IP CHARGE MODAL --}}
+
+    {{-- MASTER-DRIVEN IP CHARGE MODAL --}}
     <div
         id="charge-modal"
         class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4"
         aria-hidden="true"
     >
-        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+        <div class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
 
             <div class="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+
                 <div>
                     <h3 class="text-lg font-semibold text-slate-900">
-                        Add Manual IP Charge
+                        Add Inpatient Charge
                     </h3>
 
                     <p class="mt-1 text-sm text-slate-500">
-                        Add a charge directly to this inpatient running bill.
+                        Select a standard charge from the Hospital Service Master.
                     </p>
                 </div>
 
@@ -1828,6 +1830,7 @@
                 >
                     ✕
                 </button>
+
             </div>
 
 
@@ -1838,13 +1841,14 @@
             >
                 @csrf
 
-                <input type="hidden" name="service_id" value="">
 
+                {{-- PATIENT / BILLING ACCOUNT --}}
+                <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
 
-                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="grid gap-4 sm:grid-cols-2">
+
                         <div>
-                            <div class="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-blue-700">
                                 Patient
                             </div>
 
@@ -1853,8 +1857,9 @@
                             </div>
                         </div>
 
+
                         <div>
-                            <div class="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-blue-700">
                                 IP Billing Account
                             </div>
 
@@ -1862,32 +1867,135 @@
                                 {{ $account->account_no }}
                             </div>
                         </div>
+
                     </div>
+
                 </div>
 
 
+                {{-- CHARGE MASTER SELECT --}}
                 <div>
-                    <label for="charge_description" class="block text-sm font-semibold text-slate-700">
-                        Charge Description
+
+                    <label
+                        for="charge_service_id"
+                        class="block text-sm font-semibold text-slate-700"
+                    >
+                        Charge / Service <span class="text-red-600">*</span>
                     </label>
 
-                    <input
-                        id="charge_description"
-                        type="text"
-                        name="description"
-                        value="{{ old('description') }}"
-                        maxlength="500"
+                    <select
+                        id="charge_service_id"
+                        name="service_id"
                         required
-                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                        placeholder="Example: Oxygen charge, procedure charge, consumable"
+                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
+                        <option value="">
+                            Select Charge
+                        </option>
+
+                        @foreach ($chargeServices as $service)
+
+                            <option
+                                value="{{ $service->id }}"
+                                data-code="{{ $service->code }}"
+                                data-name="{{ $service->name }}"
+                                data-category="{{ $service->category }}"
+                                data-price="{{ number_format((float) $service->price, 2, '.', '') }}"
+                                data-unit="{{ $service->unit ?? '' }}"
+                                data-department="{{ $service->department?->name ?? '' }}"
+                                @selected(old('service_id') == $service->id)
+                            >
+                                {{ $service->name }}
+                                — ₹{{ number_format((float) $service->price, 2) }}
+                            </option>
+
+                        @endforeach
+                    </select>
+
+                    <p class="mt-1 text-xs text-slate-500">
+                        Rate and service details are controlled by the Hospital Service Master.
+                    </p>
+
                 </div>
 
 
+                {{-- MASTER DETAILS --}}
+                <div
+                    id="charge-master-details"
+                    class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4"
+                >
+
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Code
+                            </div>
+
+                            <div
+                                id="charge-master-code"
+                                class="mt-1 font-mono text-sm font-semibold text-slate-900"
+                            >
+                                —
+                            </div>
+                        </div>
+
+
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Category
+                            </div>
+
+                            <div
+                                id="charge-master-category"
+                                class="mt-1 text-sm font-semibold text-slate-900"
+                            >
+                                —
+                            </div>
+                        </div>
+
+
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Department
+                            </div>
+
+                            <div
+                                id="charge-master-department"
+                                class="mt-1 text-sm font-semibold text-slate-900"
+                            >
+                                —
+                            </div>
+                        </div>
+
+
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Unit
+                            </div>
+
+                            <div
+                                id="charge-master-unit"
+                                class="mt-1 text-sm font-semibold text-slate-900"
+                            >
+                                —
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                {{-- QUANTITY / RATE / DISCOUNT --}}
                 <div class="grid gap-4 sm:grid-cols-3">
 
                     <div>
-                        <label for="charge_quantity" class="block text-sm font-semibold text-slate-700">
+
+                        <label
+                            for="charge_quantity"
+                            class="block text-sm font-semibold text-slate-700"
+                        >
                             Quantity
                         </label>
 
@@ -1900,43 +2008,57 @@
                             max="99999.99"
                             step="0.01"
                             required
-                            class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                            class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         >
+
                     </div>
 
 
                     <div>
-                        <label for="charge_unit_price" class="block text-sm font-semibold text-slate-700">
-                            Rate
+
+                        <label
+                            for="charge_unit_price"
+                            class="block text-sm font-semibold text-slate-700"
+                        >
+                            Master Rate
                         </label>
 
                         <div class="relative mt-1">
+
                             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
                                 ₹
                             </div>
 
                             <input
                                 id="charge_unit_price"
-                                type="number"
-                                name="unit_price"
-                                value="{{ old('unit_price') }}"
-                                min="0"
-                                max="9999999.99"
-                                step="0.01"
-                                required
-                                class="block w-full rounded-lg border-slate-300 pl-8 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                type="text"
+                                value=""
+                                readonly
+                                tabindex="-1"
+                                class="block w-full cursor-not-allowed rounded-lg border-slate-300 bg-slate-100 pl-8 font-semibold text-slate-900 shadow-sm"
                                 placeholder="0.00"
                             >
+
                         </div>
+
+                        <p class="mt-1 text-xs text-slate-500">
+                            Controlled by Service Master.
+                        </p>
+
                     </div>
 
 
                     <div>
-                        <label for="charge_discount" class="block text-sm font-semibold text-slate-700">
+
+                        <label
+                            for="charge_discount"
+                            class="block text-sm font-semibold text-slate-700"
+                        >
                             Discount
                         </label>
 
                         <div class="relative mt-1">
+
                             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
                                 ₹
                             </div>
@@ -1949,29 +2071,53 @@
                                 min="0"
                                 max="9999999.99"
                                 step="0.01"
-                                class="block w-full rounded-lg border-slate-300 pl-8 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                class="block w-full rounded-lg border-slate-300 pl-8 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                             >
+
                         </div>
+
                     </div>
 
                 </div>
 
 
-                <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                {{-- FINAL AMOUNT --}}
+                <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+
                     <div class="flex items-center justify-between gap-4">
-                        <div class="text-sm font-semibold text-slate-600">
-                            Final Charge Amount
+
+                        <div>
+
+                            <div class="text-sm font-semibold text-slate-600">
+                                Final Charge Amount
+                            </div>
+
+                            <div class="mt-1 text-xs text-slate-500">
+                                Quantity × master rate − discount
+                            </div>
+
                         </div>
 
-                        <div id="charge-calculated-amount" class="text-xl font-bold text-slate-900">
+
+                        <div
+                            id="charge-calculated-amount"
+                            class="text-2xl font-bold text-slate-900"
+                        >
                             ₹0.00
                         </div>
+
                     </div>
+
                 </div>
 
 
+                {{-- REMARKS --}}
                 <div>
-                    <label for="charge_remarks" class="block text-sm font-semibold text-slate-700">
+
+                    <label
+                        for="charge_remarks"
+                        class="block text-sm font-semibold text-slate-700"
+                    >
                         Remarks
                     </label>
 
@@ -1980,35 +2126,40 @@
                         name="remarks"
                         rows="3"
                         maxlength="2000"
-                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         placeholder="Optional remarks"
                     >{{ old('remarks') }}</textarea>
+
                 </div>
 
 
-                <div class="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                {{-- ACTIONS --}}
+                <div class="flex items-center justify-end gap-3 border-t border-slate-200 pt-5">
+
                     <button
                         type="button"
                         id="cancel-charge-modal"
-                        class="inline-flex justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                     >
                         Cancel
                     </button>
 
                     <button
                         type="submit"
-                        class="inline-flex justify-center rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+                        class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                         Add Charge
                     </button>
+
                 </div>
+
             </form>
 
         </div>
+
     </div>
 
-
-    @endif
+@endif
 
 
     @if (! $isFinalized)
@@ -2340,7 +2491,7 @@
             );
 
 
-            const chargeModal =
+                        const chargeModal =
                 document.getElementById('charge-modal');
 
             const openChargeButton =
@@ -2351,6 +2502,9 @@
 
             const cancelChargeButton =
                 document.getElementById('cancel-charge-modal');
+
+            const chargeService =
+                document.getElementById('charge_service_id');
 
             const chargeQuantity =
                 document.getElementById('charge_quantity');
@@ -2364,45 +2518,154 @@
             const chargeCalculatedAmount =
                 document.getElementById('charge-calculated-amount');
 
+            const chargeMasterDetails =
+                document.getElementById('charge-master-details');
 
-            function openChargeModal() {
-                chargeModal.classList.remove('hidden');
-                chargeModal.classList.add('flex');
-                chargeModal.setAttribute('aria-hidden', 'false');
-                document.body.classList.add('overflow-hidden');
+            const chargeMasterCode =
+                document.getElementById('charge-master-code');
 
-                setTimeout(function () {
-                    document.getElementById('charge_description')?.focus();
-                }, 50);
+            const chargeMasterCategory =
+                document.getElementById('charge-master-category');
+
+            const chargeMasterDepartment =
+                document.getElementById('charge-master-department');
+
+            const chargeMasterUnit =
+                document.getElementById('charge-master-unit');
+
+
+            function formatChargeCategory(value) {
+
+                if (! value) {
+                    return '—';
+                }
+
+                return value
+                    .replaceAll('_', ' ')
+                    .replace(/\b\w/g, function (character) {
+                        return character.toUpperCase();
+                    });
             }
 
 
-            function closeChargeModal() {
-                chargeModal.classList.add('hidden');
-                chargeModal.classList.remove('flex');
-                chargeModal.setAttribute('aria-hidden', 'true');
-                document.body.classList.remove('overflow-hidden');
+            function updateChargeMasterDetails() {
+
+                const selectedOption =
+                    chargeService?.selectedOptions?.[0];
+
+                if (
+                    ! selectedOption
+                    || ! selectedOption.value
+                ) {
+
+                    if (chargeUnitPrice) {
+                        chargeUnitPrice.value = '';
+                    }
+
+                    if (chargeMasterDetails) {
+                        chargeMasterDetails.classList.add('hidden');
+                    }
+
+                    if (chargeMasterCode) {
+                        chargeMasterCode.textContent = '—';
+                    }
+
+                    if (chargeMasterCategory) {
+                        chargeMasterCategory.textContent = '—';
+                    }
+
+                    if (chargeMasterDepartment) {
+                        chargeMasterDepartment.textContent = '—';
+                    }
+
+                    if (chargeMasterUnit) {
+                        chargeMasterUnit.textContent = '—';
+                    }
+
+                    recalculateMasterCharge();
+
+                    return;
+                }
+
+
+                const price =
+                    parseFloat(
+                        selectedOption.dataset.price || '0'
+                    );
+
+
+                if (chargeUnitPrice) {
+                    chargeUnitPrice.value =
+                        price.toFixed(2);
+                }
+
+
+                if (chargeMasterCode) {
+                    chargeMasterCode.textContent =
+                        selectedOption.dataset.code || '—';
+                }
+
+
+                if (chargeMasterCategory) {
+                    chargeMasterCategory.textContent =
+                        formatChargeCategory(
+                            selectedOption.dataset.category
+                        );
+                }
+
+
+                if (chargeMasterDepartment) {
+                    chargeMasterDepartment.textContent =
+                        selectedOption.dataset.department || '—';
+                }
+
+
+                if (chargeMasterUnit) {
+                    chargeMasterUnit.textContent =
+                        selectedOption.dataset.unit || '—';
+                }
+
+
+                if (chargeMasterDetails) {
+                    chargeMasterDetails.classList.remove('hidden');
+                }
+
+
+                recalculateMasterCharge();
             }
 
 
-            function recalculateManualCharge() {
+            function recalculateMasterCharge() {
 
                 const quantity =
-                    parseFloat(chargeQuantity?.value || '0');
+                    parseFloat(
+                        chargeQuantity?.value || '0'
+                    );
 
                 const unitPrice =
-                    parseFloat(chargeUnitPrice?.value || '0');
+                    parseFloat(
+                        chargeUnitPrice?.value || '0'
+                    );
 
                 const discount =
-                    parseFloat(chargeDiscount?.value || '0');
+                    parseFloat(
+                        chargeDiscount?.value || '0'
+                    );
+
+
+                const grossAmount =
+                    quantity * unitPrice;
+
 
                 const finalAmount =
                     Math.max(
-                        (quantity * unitPrice) - discount,
+                        grossAmount - discount,
                         0
                     );
 
+
                 if (chargeCalculatedAmount) {
+
                     chargeCalculatedAmount.textContent =
                         '₹' +
                         finalAmount.toLocaleString(
@@ -2412,7 +2675,51 @@
                                 maximumFractionDigits: 2
                             }
                         );
+
                 }
+
+            }
+
+
+            function openChargeModal() {
+
+                chargeModal?.classList.remove('hidden');
+                chargeModal?.classList.add('flex');
+                chargeModal?.setAttribute(
+                    'aria-hidden',
+                    'false'
+                );
+
+                document.body.classList.add(
+                    'overflow-hidden'
+                );
+
+
+                updateChargeMasterDetails();
+
+
+                setTimeout(function () {
+
+                    chargeService?.focus();
+
+                }, 50);
+
+            }
+
+
+            function closeChargeModal() {
+
+                chargeModal?.classList.add('hidden');
+                chargeModal?.classList.remove('flex');
+                chargeModal?.setAttribute(
+                    'aria-hidden',
+                    'true'
+                );
+
+                document.body.classList.remove(
+                    'overflow-hidden'
+                );
+
             }
 
 
@@ -2421,39 +2728,50 @@
                 openChargeModal
             );
 
+
             closeChargeButton?.addEventListener(
                 'click',
                 closeChargeModal
             );
+
 
             cancelChargeButton?.addEventListener(
                 'click',
                 closeChargeModal
             );
 
-            chargeQuantity?.addEventListener(
-                'input',
-                recalculateManualCharge
+
+            chargeService?.addEventListener(
+                'change',
+                updateChargeMasterDetails
             );
 
-            chargeUnitPrice?.addEventListener(
+
+            chargeQuantity?.addEventListener(
                 'input',
-                recalculateManualCharge
+                recalculateMasterCharge
             );
+
 
             chargeDiscount?.addEventListener(
                 'input',
-                recalculateManualCharge
+                recalculateMasterCharge
             );
+
 
             chargeModal?.addEventListener(
                 'click',
                 function (event) {
+
                     if (event.target === chargeModal) {
                         closeChargeModal();
                     }
+
                 }
             );
+
+
+            updateChargeMasterDetails();
 
 
             const advanceModal =

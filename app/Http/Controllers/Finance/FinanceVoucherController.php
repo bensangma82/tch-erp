@@ -278,9 +278,10 @@ class FinanceVoucherController extends Controller
             $voucher = new FinanceVoucher();
 
             $voucher->voucher_no =
-                $this->generateVoucherNumber(
-                    $validated['voucher_type']
-                );
+    $this->generateVoucherNumber(
+        $validated['voucher_type'],
+        $validated['voucher_date']
+    );
 
             $voucher->voucher_type =
                 $validated['voucher_type'];
@@ -443,51 +444,64 @@ class FinanceVoucherController extends Controller
      * PAY-20260920-00001
      * TRF-20260920-00001
      */
-    private function generateVoucherNumber(
-        string $voucherType
-    ): string {
-        $prefix = match ($voucherType) {
-            'receipt' => 'REC',
-            'payment' => 'PAY',
-            'transfer' => 'TRF',
-            default => 'VOU',
-        };
+   /**
+ * Generate the next voucher number for the voucher date.
+ *
+ * Examples:
+ * REC-20260920-00001
+ * PAY-20260920-00001
+ * TRF-20260920-00001
+ */
+private function generateVoucherNumber(
+    string $voucherType,
+    string $voucherDate
+): string {
+    $prefix = match ($voucherType) {
+        'receipt' => 'REC',
+        'payment' => 'PAY',
+        'transfer' => 'TRF',
+        default => 'VOU',
+    };
 
-        $date = now()->format('Ymd');
+    $date = \Carbon\Carbon::parse($voucherDate)
+        ->format('Ymd');
 
-        /*
-         * PostgreSQL transaction-level advisory lock.
-         * Prevents two users generating the same voucher number
-         * at the same time.
-         */
-        DB::select(
-            "SELECT pg_advisory_xact_lock(hashtext(?))",
-            ["finance-voucher-{$prefix}-{$date}"]
+    /*
+     * PostgreSQL transaction-level advisory lock.
+     *
+     * The lock is specific to voucher type and voucher date,
+     * preventing two users from generating the same voucher
+     * number concurrently.
+     */
+    DB::select(
+        "SELECT pg_advisory_xact_lock(hashtext(?))",
+        ["finance-voucher-{$prefix}-{$date}"]
+    );
+
+    $pattern = "{$prefix}-{$date}-%";
+
+    $lastVoucher = FinanceVoucher::query()
+        ->where('voucher_no', 'like', $pattern)
+        ->orderByDesc('voucher_no')
+        ->first();
+
+    $sequence = 1;
+
+    if ($lastVoucher) {
+        $lastSequence = (int) substr(
+            $lastVoucher->voucher_no,
+            -5
         );
 
-        $pattern = "{$prefix}-{$date}-%";
-
-        $lastVoucher = FinanceVoucher::query()
-            ->where('voucher_no', 'like', $pattern)
-            ->orderByDesc('voucher_no')
-            ->first();
-
-        $sequence = 1;
-
-        if ($lastVoucher) {
-            $lastSequence = (int) substr(
-                $lastVoucher->voucher_no,
-                -5
-            );
-
-            $sequence = $lastSequence + 1;
-        }
-
-        return sprintf(
-            '%s-%s-%05d',
-            $prefix,
-            $date,
-            $sequence
-        );
+        $sequence = $lastSequence + 1;
     }
+
+    return sprintf(
+        '%s-%s-%05d',
+        $prefix,
+        $date,
+        $sequence
+    );
+
+}
 }

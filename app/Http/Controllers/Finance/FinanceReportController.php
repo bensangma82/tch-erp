@@ -13,6 +13,7 @@ use App\Models\IpBillingPayment;
 use App\Models\Payment;
 use App\Models\PharmacyReturn;
 use App\Models\PharmacySale;
+use App\Models\PharmacySupplierPayment;
 use App\Services\Finance\BillingFinanceService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -105,6 +106,26 @@ class FinanceReportController extends Controller
             ->get();
 
         /*
+|--------------------------------------------------------------------------
+| Pharmacy Supplier Payments
+|--------------------------------------------------------------------------
+|
+| Supplier payments are integrated as account outflows using the
+| explicitly selected Finance Account.
+|
+| They are not automatically treated as operating expenses here because
+| payment of a supplier liability and recognition of inventory expense
+| are separate accounting events.
+|
+*/
+
+$pharmacySupplierPayments = PharmacySupplierPayment::query()
+    ->whereNotNull('finance_account_id')
+    ->whereDate('payment_date', '>=', $dateFrom)
+    ->whereDate('payment_date', '<=', $dateTo)
+    ->orderBy('payment_date')
+    ->get();
+            /*
         |--------------------------------------------------------------------------
         | Inpatient Advances
         |--------------------------------------------------------------------------
@@ -545,6 +566,35 @@ class FinanceReportController extends Controller
 
         $integratedReceiptsByAccount = [];
         $integratedPaymentsByAccount = [];
+
+        /*
+|--------------------------------------------------------------------------
+| Pharmacy Supplier Payments by Finance Account
+|--------------------------------------------------------------------------
+|
+| Each supplier payment reduces the exact Finance Account selected
+| when the payment was recorded.
+|
+*/
+
+foreach ($pharmacySupplierPayments as $supplierPayment) {
+
+    $accountId =
+        (int) $supplierPayment->finance_account_id;
+
+    if ($accountId <= 0) {
+        continue;
+    }
+
+    if (!isset(
+        $integratedPaymentsByAccount[$accountId]
+    )) {
+        $integratedPaymentsByAccount[$accountId] = 0.0;
+    }
+
+    $integratedPaymentsByAccount[$accountId] +=
+        (float) $supplierPayment->amount;
+}
 
         /*
         |--------------------------------------------------------------------------

@@ -39,6 +39,8 @@
                         'id' => $parameter->id,
                         'parameter_name' => $parameter->parameter_name,
                         'unit' => $parameter->unit,
+                        'method' => $parameter->method,
+                        'result_type' => $parameter->result_type ?: 'numeric',
                         'reference_range' => $parameter->reference_range,
                         'low_value' => $parameter->low_value,
                         'high_value' => $parameter->high_value,
@@ -55,6 +57,8 @@
                     'id' => null,
                     'parameter_name' => '',
                     'unit' => '',
+                    'method' => '',
+                    'result_type' => 'numeric',
                     'reference_range' => '',
                     'low_value' => '',
                     'high_value' => '',
@@ -178,7 +182,7 @@
                             </h3>
 
                             <p class="mt-1 text-sm text-slate-500">
-                                Configure units, reference ranges and thresholds used for automatic abnormal-result flagging.
+                                Configure parameter names, units, methods, result types, reference ranges and numeric thresholds used for result entry and automatic abnormal-result flagging.
                             </p>
                         </div>
 
@@ -196,7 +200,7 @@
 
                     <div class="overflow-x-auto">
 
-                        <table class="min-w-[1450px] w-full">
+                        <table class="min-w-[1850px] w-full">
 
                             <thead class="border-b border-slate-200 bg-white">
 
@@ -210,8 +214,16 @@
                                         Unit
                                     </th>
 
+                                    <th class="w-[190px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Method
+                                    </th>
+
+                                    <th class="w-[170px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Result Type
+                                    </th>
+
                                     <th class="w-[180px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Display Range
+                                        Reference Range
                                     </th>
 
                                     <th class="w-[130px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -283,6 +295,40 @@
                                                 class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-slate-500 focus:ring-slate-500"
                                                 placeholder="g/dL"
                                             >
+
+                                        </td>
+
+
+                                        <td class="px-4 py-3">
+
+                                            <input
+                                                type="text"
+                                                data-field="method"
+                                                name="parameters[{{ $index }}][method]"
+                                                value="{{ $parameter['method'] ?? '' }}"
+                                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                                                placeholder="e.g. Jaffe kinetic"
+                                            >
+
+                                        </td>
+
+
+                                        <td class="px-4 py-3">
+
+                                            <select
+                                                data-field="result_type"
+                                                name="parameters[{{ $index }}][result_type]"
+                                                class="result-type block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                                            >
+                                                @foreach ($resultTypes as $value => $label)
+                                                    <option
+                                                        value="{{ $value }}"
+                                                        @selected(($parameter['result_type'] ?? 'numeric') === $value)
+                                                    >
+                                                        {{ $label }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
 
                                         </td>
 
@@ -430,6 +476,17 @@
                                 </p>
                             </div>
 
+
+                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                <div class="text-sm font-semibold text-slate-800">
+                                    Result Type & Method
+                                </div>
+
+                                <p class="mt-1 text-xs leading-5 text-slate-600">
+                                    Use Numeric for measurable values. Text, Positive / Negative and Select / Categorical parameters do not require numeric thresholds. Method appears as part of the laboratory test master.
+                                </p>
+                            </div>
+
                         </div>
 
                     </div>
@@ -493,6 +550,37 @@
                     class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-slate-500 focus:ring-slate-500"
                     placeholder="g/dL"
                 >
+
+            </td>
+
+
+            <td class="px-4 py-3">
+
+                <input
+                    type="text"
+                    data-field="method"
+                    class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                    placeholder="e.g. Jaffe kinetic"
+                >
+
+            </td>
+
+
+            <td class="px-4 py-3">
+
+                <select
+                    data-field="result_type"
+                    class="result-type block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                >
+                    @foreach ($resultTypes as $value => $label)
+                        <option
+                            value="{{ $value }}"
+                            @selected($value === 'numeric')
+                        >
+                            {{ $label }}
+                        </option>
+                    @endforeach
+                </select>
 
             </td>
 
@@ -636,6 +724,58 @@
             }
 
 
+            function updateNumericFields(row) {
+
+                const resultType =
+                    row.querySelector(
+                        '[data-field="result_type"]'
+                    );
+
+                const isNumeric =
+                    ! resultType
+                    || resultType.value === 'numeric';
+
+                [
+                    'low_value',
+                    'high_value',
+                    'critical_low',
+                    'critical_high',
+                ].forEach(function (fieldName) {
+
+                    const field =
+                        row.querySelector(
+                            `[data-field="${fieldName}"]`
+                        );
+
+                    if (! field) {
+                        return;
+                    }
+
+                    field.disabled = ! isNumeric;
+
+                    if (isNumeric) {
+                        field.classList.remove(
+                            'bg-slate-100',
+                            'text-slate-400'
+                        );
+                    } else {
+                        field.classList.add(
+                            'bg-slate-100',
+                            'text-slate-400'
+                        );
+                    }
+                });
+            }
+
+
+            function updateAllNumericFields() {
+
+                rowsContainer
+                    .querySelectorAll('.parameter-row')
+                    .forEach(updateNumericFields);
+            }
+
+
             function addRow() {
 
                 const clone =
@@ -644,6 +784,7 @@
                 rowsContainer.appendChild(clone);
 
                 renumberRows();
+                updateAllNumericFields();
 
                 const rows =
                     rowsContainer.querySelectorAll('.parameter-row');
@@ -677,6 +818,15 @@
                         '[data-field="id"]'
                     ).value = '';
 
+                    const resultType =
+                        row.querySelector(
+                            '[data-field="result_type"]'
+                        );
+
+                    if (resultType) {
+                        resultType.value = 'numeric';
+                    }
+
                     const checkbox =
                         row.querySelector(
                             '[data-field="is_active"]'
@@ -699,6 +849,28 @@
             addButton?.addEventListener(
                 'click',
                 addRow
+            );
+
+
+            rowsContainer?.addEventListener(
+                'change',
+                function (event) {
+
+                    if (
+                        event.target.matches(
+                            '[data-field="result_type"]'
+                        )
+                    ) {
+                        const row =
+                            event.target.closest(
+                                '.parameter-row'
+                            );
+
+                        if (row) {
+                            updateNumericFields(row);
+                        }
+                    }
+                }
             );
 
 
@@ -728,6 +900,7 @@
 
 
             renumberRows();
+            updateAllNumericFields();
 
         });
     </script>

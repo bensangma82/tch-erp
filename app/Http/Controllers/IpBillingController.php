@@ -270,50 +270,86 @@ class IpBillingController extends Controller
     */
 
     public function show(Admission $admission)
-    {
-        $admission->load([
-            'patient',
-            'department',
-            'consultant',
-            'bed.ward',
-            'currentBedAllocation.bed.ward',
-            'bedAllocations.bed.ward',
-        ]);
+{
+    $admission->load([
+        'patient',
+        'department',
+        'consultant',
+        'bed.ward',
+        'currentBedAllocation.bed.ward',
+        'bedAllocations.bed.ward',
+    ]);
 
 
-        $account = $this->getOrCreateAccount(
-            $admission
-        );
+    $account = $this->getOrCreateAccount(
+        $admission
+    );
 
 
-        $this->recalculateAccount(
-            $account
-        );
+    $this->recalculateAccount(
+        $account
+    );
 
 
-        $account->refresh();
+    $account->refresh();
 
 
-        $account->load([
-            'charges.service',
-            'charges.createdBy',
-            'advances.receivedBy',
-            'payments.receivedBy',
-            'mhisClaims.createdBy',
-            'mhisClaims.updatedBy',
-            'mhisClaims.receipts.receivedBy',
-            'mhisReceipts.receivedBy',
-        ]);
+    $account->load([
+        'charges.service',
+        'charges.createdBy',
+        'advances.receivedBy',
+        'payments.receivedBy',
+        'mhisClaims.createdBy',
+        'mhisClaims.updatedBy',
+        'mhisClaims.receipts.receivedBy',
+        'mhisReceipts.receivedBy',
+    ]);
 
 
-        return view(
-            'ip-billing.show',
-            compact(
-                'admission',
-                'account'
-            )
-        );
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Active IP Charge Master Services
+    |--------------------------------------------------------------------------
+    |
+    | These services are available for direct inpatient billing.
+    |
+    | Laboratory and radiology are excluded because they should continue
+    | through the IP Investigation workflow.
+    |
+    */
+
+    $chargeServices = Service::query()
+        ->with('department')
+        ->where(
+            'is_active',
+            true
+        )
+        ->whereIn(
+            'category',
+            [
+                'procedure',
+                'consultation',
+                'nursing',
+                'equipment',
+                'consumable',
+                'facility',
+                'other',
+            ]
+        )
+        ->orderBy('category')
+        ->orderBy('name')
+        ->get();
+
+
+    return view(
+        'ip-billing.show',
+        compact(
+            'admission',
+            'account',
+            'chargeServices'
+        )
+    );
+}
 
 
     /*
@@ -1756,131 +1792,260 @@ public function receivePayment(
     |--------------------------------------------------------------------------
     */
 
-    public function storeCharge(
-        Request $request,
-        Admission $admission
-    ) {
-        $validated = $request->validate([
-            'service_id' => [
-                'nullable',
-                'integer',
-                'exists:services,id',
-            ],
+   public function storeCharge(
+    Request $request,
+    Admission $admission
+) {
+    $validated = $request->validate([
 
-            'description' => [
-                'required',
-                'string',
-                'max:500',
-            ],
+        'service_id' => [
+            'required',
+            'integer',
+            'exists:services,id',
+        ],
 
-            'quantity' => [
-                'required',
-                'numeric',
-                'min:0.01',
-                'max:99999.99',
-            ],
+        'quantity' => [
+            'required',
+            'numeric',
+            'min:0.01',
+            'max:99999.99',
+        ],
 
-            'unit_price' => [
-                'required',
-                'numeric',
-                'min:0',
-                'max:9999999.99',
-            ],
+        'discount' => [
+            'nullable',
+            'numeric',
+            'min:0',
+            'max:9999999.99',
+        ],
 
-            'discount' => [
-                'nullable',
-                'numeric',
-                'min:0',
-                'max:9999999.99',
-            ],
+        'remarks' => [
+            'nullable',
+            'string',
+            'max:2000',
+        ],
 
-            'remarks' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
+    ]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Load Authoritative Service Master Record
+    |--------------------------------------------------------------------------
+    |
+    | Description, code and price are deliberately NOT accepted from the
+    | browser. PostgreSQL Service Master is authoritative.
+    |
+    */
+
+    $service = Service::query()
+        ->whereKey(
+            $validated['service_id']
+        )
+        ->where(
+            'is_active',
+            true
+        )
+        ->whereIn(
+            'category',
+            [
+                'procedure',
+                'consultation',
+                'nursing',
+                'equipment',
+                'consumable',
+                'facility',
+                'other',
+            ]
+        )
+        ->first();
+
+
+    if (! $service) {
+
+        throw ValidationException::withMessages([
+            'service_id' =>
+                'The selected charge is unavailable, inactive or invalid.',
         ]);
 
-
-        $quantity = round(
-            (float) $validated['quantity'],
-            2
-        );
+    }
 
 
-        $unitPrice = round(
-            (float) $validated['unit_price'],
-            2
-        );
+    $quantity = round(
+        (float) $validated['quantity'],
+        2
+    );
 
 
-        $discount = round(
-            (float) (
-                $validated['discount']
-                ?? 0
-            ),
-            2
-        );
+    $unitPrice = round(
+        (float) $service->price,
+        2
+    );
 
 
-        $grossAmount = round(
-            $quantity * $unitPrice,
-            2
-        );
+    $discount = round(
+        (float) (
+            $validated['discount']
+            ?? 0
+        ),
+        2
+    );
 
 
-        if ($discount > $grossAmount) {
-            throw ValidationException::withMessages([
-                'discount' =>
-                    'Discount cannot be greater than the gross charge amount.',
-            ]);
-        }
+    $grossAmount = round(
+        $quantity * $unitPrice,
+        2
+    );
 
 
-        $amount = round(
-            $grossAmount - $discount,
-            2
-        );
+    if ($discount > $grossAmount) {
+
+        throw ValidationException::withMessages([
+            'discount' =>
+                'Discount cannot be greater than the gross charge amount.',
+        ]);
+
+    }
 
 
-        $account = $this->getOrCreateAccount(
-            $admission
-        );
+    $amount = round(
+        $grossAmount - $discount,
+        2
+    );
 
 
-        if ($account->status !== 'open') {
-            throw ValidationException::withMessages([
-                'description' =>
-                    'Manual charges can only be added while the IP billing account is open.',
-            ]);
-        }
+    $account = $this->getOrCreateAccount(
+        $admission
+    );
 
 
-        $charge = DB::transaction(function () use (
+    if ($account->status !== 'open') {
+
+        throw ValidationException::withMessages([
+            'service_id' =>
+                'Charges can only be added while the IP billing account is open.',
+        ]);
+
+    }
+
+
+    $charge = DB::transaction(
+        function () use (
             $validated,
             $admission,
             $account,
+            $service,
             $quantity,
             $unitPrice,
             $discount,
             $amount
         ) {
 
-            $lockedAccount = IpBillingAccount::query()
-                ->whereKey($account->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+            /*
+             * Lock account to prevent a charge being posted while
+             * finalization is occurring simultaneously.
+             */
+
+            $lockedAccount =
+                IpBillingAccount::query()
+                    ->whereKey(
+                        $account->id
+                    )
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
 
             if ($lockedAccount->status !== 'open') {
+
                 throw ValidationException::withMessages([
-                    'description' =>
-                        'Manual charges can only be added while the IP billing account is open.',
+                    'service_id' =>
+                        'The IP billing account has already been finalized.',
                 ]);
+
             }
 
 
+            /*
+             * Re-load and lock the Service Master record so the price used
+             * for billing remains authoritative inside this transaction.
+             */
+
+            $lockedService =
+                Service::query()
+                    ->whereKey(
+                        $service->id
+                    )
+                    ->lockForUpdate()
+                    ->first();
+
+
+            if (
+                ! $lockedService
+                || ! $lockedService->is_active
+                || ! in_array(
+                    $lockedService->category,
+                    [
+                        'procedure',
+                        'consultation',
+                        'nursing',
+                        'equipment',
+                        'consumable',
+                        'facility',
+                        'other',
+                    ],
+                    true
+                )
+            ) {
+
+                throw ValidationException::withMessages([
+                    'service_id' =>
+                        'The selected charge is no longer available.',
+                ]);
+
+            }
+
+
+            /*
+             * Recalculate from the locked database price.
+             */
+
+            $authoritativeUnitPrice =
+                round(
+                    (float) $lockedService->price,
+                    2
+                );
+
+
+            $authoritativeGross =
+                round(
+                    $quantity
+                    * $authoritativeUnitPrice,
+                    2
+                );
+
+
+            if (
+                $discount
+                > $authoritativeGross
+            ) {
+
+                throw ValidationException::withMessages([
+                    'discount' =>
+                        'Discount cannot be greater than the gross charge amount.',
+                ]);
+
+            }
+
+
+            $authoritativeAmount =
+                round(
+                    $authoritativeGross
+                    - $discount,
+                    2
+                );
+
+
             return IpBillingCharge::create([
+
                 'ip_billing_account_id' =>
                     $lockedAccount->id,
 
@@ -1891,40 +2056,37 @@ public function receivePayment(
                     now(),
 
                 'charge_type' =>
-                    'manual',
+                    $lockedService->category,
 
                 'service_id' =>
-                    $validated['service_id']
-                    ?? null,
+                    $lockedService->id,
 
                 'service_order_item_id' =>
                     null,
 
                 'code' =>
-                    $this->generateManualChargeCode(),
+                    $lockedService->code,
 
                 'description' =>
-                    trim(
-                        $validated['description']
-                    ),
+                    $lockedService->name,
 
                 'quantity' =>
                     $quantity,
 
                 'unit_price' =>
-                    $unitPrice,
+                    $authoritativeUnitPrice,
 
                 'discount' =>
                     $discount,
 
                 'amount' =>
-                    $amount,
+                    $authoritativeAmount,
 
                 'source_type' =>
-                    'manual',
+                    'service_master',
 
                 'source_id' =>
-                    null,
+                    $lockedService->id,
 
                 'status' =>
                     'active',
@@ -1935,32 +2097,34 @@ public function receivePayment(
 
                 'created_by' =>
                     auth()->id(),
+
             ]);
-        });
+
+        }
+    );
 
 
-        $this->recalculateAccount(
-            $account
-        );
+    $this->recalculateAccount(
+        $account
+    );
 
 
-        return redirect()
-            ->route(
-                'ip-billing.show',
-                $admission
+    return redirect()
+        ->route(
+            'ip-billing.show',
+            $admission
+        )
+        ->with(
+            'success',
+            'Charge added successfully: '
+            . $charge->description
+            . ' — ₹'
+            . number_format(
+                (float) $charge->amount,
+                2
             )
-            ->with(
-                'success',
-                'Manual charge added successfully: ' .
-                $charge->description .
-                ' — ₹' .
-                number_format(
-                    (float) $charge->amount,
-                    2
-                )
-            );
-    }
-
+        );
+}
 
 
 

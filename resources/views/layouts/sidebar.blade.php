@@ -57,6 +57,7 @@
     $masterDataOpen =
         request()->routeIs('admin.departments.*')
         || request()->routeIs('admin.employees.*')
+        || request()->routeIs('admin.laboratory-parameters.*')
         || request()->routeIs('inpatient-master.*');
 
     $administrationOpen =
@@ -679,6 +680,24 @@
                                     : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
                         >
                             Staff / Employees
+                        </a>
+
+<a
+    href="{{ route('services.index', ['scope' => 'charges']) }}"
+    class="block rounded-lg px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white"
+>
+    Charge Master
+</a>
+
+
+                        <a
+                            href="{{ route('admin.laboratory-parameters.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('admin.laboratory-parameters.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            Laboratory Parameter Master
                         </a>
 
                         <a

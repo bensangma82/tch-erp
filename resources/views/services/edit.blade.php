@@ -11,7 +11,7 @@
                 </h2>
 
                 <p class="mt-1 text-sm text-gray-500">
-                    Update service details, price and availability.
+                    Update service details, standard charge category, price, unit and availability.
                 </p>
 
             </div>
@@ -136,7 +136,7 @@
                                 >
 
                                 <p class="mt-1 text-xs text-gray-500">
-                                    Keep codes short and unique.
+                                    Keep codes short and unique. Examples: PROC-CVC, NUR-NEB, EQP-MON, FAC-O2.
                                 </p>
 
                             </div>
@@ -208,6 +208,34 @@
                                         @selected(old('category', $service->category) === 'consultation')
                                     >
                                         Consultation
+                                    </option>
+
+                                    <option
+                                        value="nursing"
+                                        @selected(old('category', $service->category) === 'nursing')
+                                    >
+                                        Nursing
+                                    </option>
+
+                                    <option
+                                        value="equipment"
+                                        @selected(old('category', $service->category) === 'equipment')
+                                    >
+                                        Equipment / Device Use
+                                    </option>
+
+                                    <option
+                                        value="consumable"
+                                        @selected(old('category', $service->category) === 'consumable')
+                                    >
+                                        Consumable
+                                    </option>
+
+                                    <option
+                                        value="facility"
+                                        @selected(old('category', $service->category) === 'facility')
+                                    >
+                                        Facility / Miscellaneous
                                     </option>
 
                                     <option
@@ -303,9 +331,13 @@
                                     type="text"
                                     name="unit"
                                     value="{{ old('unit', $service->unit) }}"
-                                    placeholder="Optional"
+                                    placeholder="e.g. each, per procedure, per hour, per day"
                                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-slate-500 focus:ring-slate-500"
                                 >
+
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Used by the inpatient charge master and billing workflow.
+                                </p>
 
                             </div>
 
@@ -329,6 +361,31 @@
                                 placeholder="Optional description or remarks"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-slate-500 focus:ring-slate-500"
                             >{{ old('description', $service->description) }}</textarea>
+
+                        </div>
+
+
+                        {{-- CHARGE MASTER GUIDANCE --}}
+                        <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+
+                            <h4 class="text-sm font-semibold text-blue-900">
+                                Standard Charge Master
+                            </h4>
+
+                            <p class="mt-1 text-xs leading-5 text-blue-800">
+                                This service can be used as a standard inpatient charge. Its code, name,
+                                department, unit and price will later populate the IP Billing
+                                <strong>Add Charge</strong> workflow automatically.
+                            </p>
+
+                            <div class="mt-3 grid gap-2 text-xs text-blue-800 sm:grid-cols-2">
+                                <div><strong>Procedure:</strong> catheter insertion, dressing, minor procedure</div>
+                                <div><strong>Nursing:</strong> nebulization, special nursing procedure</div>
+                                <div><strong>Equipment:</strong> monitor, syringe pump, ventilator use</div>
+                                <div><strong>Consumable:</strong> chargeable non-pharmacy consumables</div>
+                                <div><strong>Facility:</strong> miscellaneous hospital / facility charges</div>
+                                <div><strong>Consultation:</strong> specialist or professional consultation</div>
+                            </div>
 
                         </div>
 
@@ -399,7 +456,7 @@
                                         </div>
 
                                         <div class="mt-1 text-xs text-gray-500">
-                                            A diagnostic or laboratory report is expected.
+                                            Enable only when this service should generate a laboratory or diagnostic report.
                                         </div>
 
                                     </div>

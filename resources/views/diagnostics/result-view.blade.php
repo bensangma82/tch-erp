@@ -99,7 +99,7 @@
 
         .hospital-name {
             margin: 0;
-            font-size: 25px;
+            font-size: 28px;
             line-height: 1.05;
             font-weight: 800;
             letter-spacing: -0.025em;
@@ -108,13 +108,22 @@
 
         .hospital-address {
             margin-top: 5px;
+            font-size: 15px;
+            color: #64748b;
+        }
+
+
+        .hospital-contact {
+            margin-top: 4px;
             font-size: 12px;
+            line-height: 1.3;
+            font-weight: 600;
             color: #64748b;
         }
 
         .department-name {
             margin-top: 8px;
-            font-size: 10px;
+            font-size: 13px;
             line-height: 1.2;
             font-weight: 800;
             letter-spacing: 0.14em;
@@ -127,7 +136,7 @@
         }
 
         .report-heading-title {
-            font-size: 22px;
+            font-size: 25px;
             line-height: 1.05;
             font-weight: 800;
             letter-spacing: -0.025em;
@@ -141,7 +150,7 @@
             padding: 4px 10px;
             background: #eaf1f8;
             color: #16375d;
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.12em;
             text-transform: uppercase;
@@ -149,7 +158,7 @@
 
         .report-time {
             margin-top: 6px;
-            font-size: 10px;
+            font-size: 13px;
             color: #64748b;
         }
 
@@ -164,7 +173,7 @@
             padding: 8px 13px;
             background: #f6f8fb;
             border-bottom: 1px solid #dce4ee;
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.14em;
             text-transform: uppercase;
@@ -185,7 +194,7 @@
 
         .meta-label {
             margin-bottom: 2px;
-            font-size: 8px;
+            font-size: 11px;
             line-height: 1.2;
             font-weight: 800;
             letter-spacing: 0.09em;
@@ -194,7 +203,7 @@
         }
 
         .meta-value {
-            font-size: 11px;
+            font-size: 14px;
             line-height: 1.3;
             font-weight: 650;
             color: #172033;
@@ -231,7 +240,7 @@
         }
 
         .result-panel-title {
-            font-size: 10px;
+            font-size: 13px;
             font-weight: 800;
             letter-spacing: 0.15em;
             text-transform: uppercase;
@@ -239,7 +248,7 @@
         }
 
         .result-panel-status {
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.1em;
             text-transform: uppercase;
@@ -257,7 +266,7 @@
             background: #fafbfd;
             border-bottom: 1px solid #dfe6ee;
             text-align: left;
-            font-size: 8px;
+            font-size: 11px;
             line-height: 1.2;
             font-weight: 800;
             letter-spacing: 0.09em;
@@ -268,7 +277,7 @@
         .result-table td {
             padding: 8px 11px;
             border-bottom: 1px solid #edf1f5;
-            font-size: 11px;
+            font-size: 14px;
             line-height: 1.25;
             color: #253247;
             vertical-align: middle;
@@ -302,7 +311,7 @@
             justify-content: center;
             border-radius: 999px;
             padding: 2px 7px;
-            font-size: 8px;
+            font-size: 11px;
             font-weight: 800;
         }
 
@@ -331,7 +340,7 @@
 
         .comment-title {
             margin-bottom: 4px;
-            font-size: 8px;
+            font-size: 11px;
             font-weight: 800;
             letter-spacing: 0.1em;
             text-transform: uppercase;
@@ -340,7 +349,7 @@
 
         .comment-text {
             white-space: pre-wrap;
-            font-size: 10px;
+            font-size: 13px;
             line-height: 1.45;
             color: #2b3748;
         }
@@ -354,7 +363,7 @@
         }
 
         .footer-note {
-            font-size: 8px;
+            font-size: 11px;
             line-height: 1.5;
             color: #7a8797;
         }
@@ -363,7 +372,7 @@
             padding-top: 22px;
             border-top: 1px solid #6b7d92;
             text-align: center;
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 700;
             color: #465870;
         }
@@ -635,6 +644,13 @@
 
                             <div class="hospital-address">
                                 Tura, West Garo Hills, Meghalaya
+                            </div>
+
+
+                            <div class="hospital-contact">
+                                Email: tchcare@yahoo.com
+                                &nbsp;•&nbsp;
+                                Website: www.turachristianhospital.org
                             </div>
 
                             <div class="department-name">
@@ -950,7 +966,7 @@
 
                                                 @if ($item->remarks)
 
-                                                    <div style="margin-top:2px; font-size:8px; color:#7b8ba0;">
+                                                    <div style="margin-top:2px; font-size: 11px; color:#7b8ba0;">
                                                         {{ $item->remarks }}
                                                     </div>
 
@@ -992,14 +1008,14 @@
 
                         @elseif ($result?->result_text)
 
-                            <div style="padding:12px 14px; white-space:pre-wrap; font-size:11px; line-height:1.5;">
+                            <div style="padding:12px 14px; white-space:pre-wrap; font-size: 14px; line-height:1.5;">
                                 {{ $result->result_text }}
                             </div>
 
 
                         @else
 
-                            <div style="padding:12px 14px; font-size:11px; color:#a16207;">
+                            <div style="padding:12px 14px; font-size: 14px; color:#a16207;">
                                 No laboratory result details are available.
                             </div>
 
@@ -1056,6 +1072,10 @@
                             <div class="footer-note" style="margin-top:7px;">
                                 Generated electronically from TCH Hospital ERP.
                                 Laboratory values should be interpreted in the appropriate clinical context.
+                                <br>
+                                Email: tchcare@yahoo.com
+                                &nbsp;•&nbsp;
+                                Website: www.turachristianhospital.org
                             </div>
 
                         </div>

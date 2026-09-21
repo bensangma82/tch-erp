@@ -12,6 +12,7 @@ use App\Models\IpBillingPayment;
 use App\Models\Payment;
 use App\Models\PharmacyReturn;
 use App\Models\PharmacySale;
+use App\Models\PharmacySupplierPayment;
 use App\Services\Finance\BillingFinanceService;
 use App\Services\Finance\FinanceHealthService;
 use Illuminate\View\View;
@@ -57,6 +58,34 @@ class FinanceDashboardController extends Controller
             ->whereYear('voucher_date', $year)
             ->whereMonth('voucher_date', $month)
             ->sum('amount');
+
+            /*
+|--------------------------------------------------------------------------
+| Pharmacy Supplier Payments
+|--------------------------------------------------------------------------
+|
+| Supplier payments are real cash/bank outflows from the selected
+| Finance Account. They are included in dashboard payment totals,
+| but are not automatically classified as operating expenses.
+|
+*/
+
+$supplierTodayPayments =
+    (float) PharmacySupplierPayment::query()
+        ->whereNotNull('finance_account_id')
+        ->whereDate('payment_date', $today)
+        ->sum('amount');
+
+$supplierMonthPayments =
+    (float) PharmacySupplierPayment::query()
+        ->whereNotNull('finance_account_id')
+        ->whereYear('payment_date', $year)
+        ->whereMonth('payment_date', $month)
+        ->sum('amount');
+
+$todayPayments += $supplierTodayPayments;
+
+$monthPayments += $supplierMonthPayments;
 
         /*
         |--------------------------------------------------------------------------

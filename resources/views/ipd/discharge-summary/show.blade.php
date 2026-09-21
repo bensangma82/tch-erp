@@ -46,7 +46,7 @@
                 Helvetica,
                 sans-serif;
 
-            font-size: 11px;
+            font-size: 14px;
             line-height: 1.35;
         }
 
@@ -84,7 +84,7 @@
 
             color: #334155;
 
-            font-size: 12px;
+            font-size: 15px;
             font-weight: 700;
 
             text-decoration: none;
@@ -190,7 +190,7 @@
         .hospital-name {
             color: #101a31;
 
-            font-size: 23px;
+            font-size: 26px;
             font-weight: 800;
 
             letter-spacing: 0.35px;
@@ -203,8 +203,20 @@
 
             color: #58667a;
 
-            font-size: 10px;
+            font-size: 13px;
             font-weight: 500;
+        }
+
+
+        .hospital-contact {
+            margin-top: 3px;
+
+            color: #64748b;
+
+            font-size: 11.5px;
+            font-weight: 600;
+
+            line-height: 1.3;
         }
 
 
@@ -221,7 +233,7 @@
         .document-type {
             color: #17233d;
 
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 800;
 
             line-height: 1.45;
@@ -235,7 +247,7 @@
 
             color: #64748b;
 
-            font-size: 8px;
+            font-size: 11px;
             font-weight: 700;
         }
 
@@ -295,7 +307,7 @@
 
             color: #526074;
 
-            font-size: 7.8px;
+            font-size: 10.8px;
             font-weight: 800;
 
             text-transform: uppercase;
@@ -342,7 +354,7 @@
         .detail-label {
             color: #768397;
 
-            font-size: 7.2px;
+            font-size: 10.2px;
             font-weight: 800;
 
             line-height: 1.1;
@@ -357,7 +369,7 @@
 
             color: #172033;
 
-            font-size: 9.7px;
+            font-size: 12.7px;
             font-weight: 700;
 
             line-height: 1.22;
@@ -403,7 +415,7 @@
 
             color: #172033;
 
-            font-size: 8.2px;
+            font-size: 11.2px;
             font-weight: 800;
 
             letter-spacing: 0.3px;
@@ -415,7 +427,7 @@
 
             color: #94a3b8;
 
-            font-size: 9px;
+            font-size: 12px;
         }
 
 
@@ -430,7 +442,7 @@
         .mini-label {
             color: #7a8799;
 
-            font-size: 7px;
+            font-size: 10px;
             font-weight: 800;
 
             text-transform: uppercase;
@@ -443,7 +455,7 @@
 
             color: #172033;
 
-            font-size: 9.2px;
+            font-size: 12.2px;
             font-weight: 800;
         }
 
@@ -469,7 +481,7 @@
         .diagnosis-heading {
             color: #536174;
 
-            font-size: 7.8px;
+            font-size: 10.8px;
             font-weight: 800;
 
             text-transform: uppercase;
@@ -482,7 +494,7 @@
 
             color: #101827;
 
-            font-size: 10.8px;
+            font-size: 13.8px;
             font-weight: 700;
 
             line-height: 1.4;
@@ -532,7 +544,7 @@
 
             color: #17233d;
 
-            font-size: 8.5px;
+            font-size: 11.5px;
             font-weight: 800;
 
             text-transform: uppercase;
@@ -555,13 +567,30 @@
 
             color: #263244;
 
-            font-size: 10.3px;
+            font-size: 13.3px;
             line-height: 1.4;
 
             white-space: pre-line;
             overflow-wrap: anywhere;
 
             text-align: left;
+        }
+
+
+        .clinical-content-justified {
+            text-align: justify;
+            text-justify: inter-word;
+        }
+
+
+        .medication-content.two-columns {
+            column-count: 2;
+            column-gap: 28px;
+            column-rule: 1px solid #e2e8f0;
+        }
+
+        .medication-content.two-columns {
+            white-space: pre-line;
         }
 
 
@@ -647,7 +676,7 @@
         .review-label {
             color: #748195;
 
-            font-size: 7.2px;
+            font-size: 10.2px;
             font-weight: 800;
 
             text-transform: uppercase;
@@ -660,7 +689,7 @@
 
             color: #172033;
 
-            font-size: 9.8px;
+            font-size: 12.8px;
             font-weight: 800;
         }
 
@@ -670,7 +699,7 @@
 
             color: #64748b;
 
-            font-size: 7.8px;
+            font-size: 10.8px;
         }
 
 
@@ -721,7 +750,7 @@
         .signature-name {
             color: #172033;
 
-            font-size: 10px;
+            font-size: 13px;
             font-weight: 800;
         }
 
@@ -731,7 +760,7 @@
 
             color: #64748b;
 
-            font-size: 7.8px;
+            font-size: 10.8px;
         }
 
 
@@ -740,7 +769,7 @@
 
             color: #758297;
 
-            font-size: 7.2px;
+            font-size: 10.2px;
             font-weight: 800;
 
             text-transform: uppercase;
@@ -762,7 +791,7 @@
 
             color: #8a96a8;
 
-            font-size: 6.8px;
+            font-size: 9.8px;
 
             text-align: center;
         }
@@ -895,6 +924,20 @@
         ?: '—';
 
 
+    $medicationLineCount =
+        $medicationRecommendation !== '—'
+            ? count(
+                array_filter(
+                    preg_split(
+                        '/\r\n|\r|\n/',
+                        trim($medicationRecommendation)
+                    ),
+                    fn ($line) => trim($line) !== ''
+                )
+            )
+            : 0;
+
+
     $reviewDate =
         $summary->review_date
             ? $summary->review_date->format('d M Y')
@@ -1018,6 +1061,13 @@
 
                 <div class="hospital-subtitle">
                     Tura, West Garo Hills, Meghalaya
+                </div>
+
+
+                <div class="hospital-contact">
+                    Email: tchcare@yahoo.com
+                    &nbsp;•&nbsp;
+                    Website: www.turachristianhospital.org
                 </div>
 
             </div>
@@ -1371,53 +1421,51 @@
                 </div>
 
 
-                <div class="clinical-content">{{ $summaryBrief }}</div>
+                <div class="clinical-content clinical-content-justified">{{ $summaryBrief }}</div>
 
             </div>
 
 
 
-            {{-- CONDITION + MEDICATION --}}
+            {{-- CONDITION AT DISCHARGE --}}
 
             <div class="clinical-section">
 
-                <div class="clinical-two-column">
+                <div class="clinical-heading-row">
 
-
-                    <div class="clinical-half">
-
-                        <div class="clinical-heading-row">
-
-                            <div class="clinical-heading">
-                                Condition at Discharge
-                            </div>
-
-                        </div>
-
-
-                        <div class="clinical-content">{{ $summary->condition_at_discharge ?: '—' }}</div>
-
+                    <div class="clinical-heading">
+                        Condition at Discharge
                     </div>
 
-
-
-                    <div class="clinical-half">
-
-                        <div class="clinical-heading-row">
-
-                            <div class="clinical-heading">
-                                Medication Recommendation
-                            </div>
-
-                        </div>
-
-
-                        <div class="clinical-content">{{ $medicationRecommendation }}</div>
-
-                    </div>
-
+                    <div class="clinical-heading-line"></div>
 
                 </div>
+
+
+                <div class="clinical-content">{{ $summary->condition_at_discharge ?: '—' }}</div>
+
+            </div>
+
+
+
+            {{-- MEDICATION RECOMMENDATION --}}
+
+            <div class="clinical-section">
+
+                <div class="clinical-heading-row">
+
+                    <div class="clinical-heading">
+                        Medication Recommendation
+                    </div>
+
+                    <div class="clinical-heading-line"></div>
+
+                </div>
+
+
+                <div
+                    class="clinical-content medication-content {{ $medicationLineCount > 5 ? 'two-columns' : '' }}"
+                >{{ $medicationRecommendation }}</div>
 
             </div>
 
@@ -1501,17 +1549,8 @@
                 <div class="signature-line"></div>
 
                 <div class="signature-name">
-                    {{ $consultantName }}
+                    {{ $consultantName }}@if ($consultant?->qualification), {{ $consultant->qualification }}@endif
                 </div>
-
-
-                @if ($consultant?->qualification)
-
-                    <div class="signature-qualification">
-                        {{ $consultant->qualification }}
-                    </div>
-
-                @endif
 
 
                 <div class="signature-designation">
@@ -1536,6 +1575,11 @@
             Discharge Summary
             &nbsp;•&nbsp;
             UHID {{ $patient?->uhid ?? '—' }}
+
+            &nbsp;•&nbsp;
+            tchcare@yahoo.com
+            &nbsp;•&nbsp;
+            www.turachristianhospital.org
 
         </div>
 
