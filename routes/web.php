@@ -95,31 +95,26 @@ Route::middleware([
 
     /*
     |--------------------------------------------------------------------------
-    | System Administration - User Management
+    | System Administration - User Management / Role Permissions
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:admin'
-    )->group(function () {
+    Route::middleware('role:admin')->group(function () {
 
         Route::get(
             '/admin/users',
             [UserController::class, 'index']
         )->name('admin.users.index');
 
-
         Route::get(
             '/admin/users/create',
             [UserController::class, 'create']
         )->name('admin.users.create');
 
-
         Route::post(
             '/admin/users',
             [UserController::class, 'store']
         )->name('admin.users.store');
-
 
         Route::get(
             '/admin/users/{user}/edit',
@@ -128,14 +123,12 @@ Route::middleware([
             ->whereNumber('user')
             ->name('admin.users.edit');
 
-
         Route::put(
             '/admin/users/{user}',
             [UserController::class, 'update']
         )
             ->whereNumber('user')
             ->name('admin.users.update');
-
 
         Route::put(
             '/admin/users/{user}/password',
@@ -144,7 +137,6 @@ Route::middleware([
             ->whereNumber('user')
             ->name('admin.users.password');
 
-
         Route::patch(
             '/admin/users/{user}/status',
             [UserController::class, 'toggleStatus']
@@ -152,115 +144,116 @@ Route::middleware([
             ->whereNumber('user')
             ->name('admin.users.status');
 
-            Route::middleware('role:admin')->group(function () {
 
-    Route::get(
-        '/admin/role-permissions',
-        [RolePermissionController::class, 'index']
-    )->name('admin.role-permissions.index');
+        /*
+        |--------------------------------------------------------------------------
+        | Role & Permission Dashboard
+        |--------------------------------------------------------------------------
+        */
 
-    Route::post(
-        '/admin/role-permissions',
-        [RolePermissionController::class, 'update']
-    )->name('admin.role-permissions.update');
+        Route::get(
+            '/admin/role-permissions',
+            [RolePermissionController::class, 'index']
+        )->name('admin.role-permissions.index');
 
-});
+        Route::post(
+            '/admin/role-permissions',
+            [RolePermissionController::class, 'update']
+        )->name('admin.role-permissions.update');
 
-       /*
-|--------------------------------------------------------------------------
-| Admin - Department Master
-|--------------------------------------------------------------------------
-*/
-
-Route::middleware(
-    'role:admin,hr'
-)->prefix('admin')->name('admin.')->group(function () {
-
-    Route::get(
-        '/departments',
-        [DepartmentController::class, 'index']
-    )->name('departments.index');
-
-    Route::get(
-        '/departments/create',
-        [DepartmentController::class, 'create']
-    )->name('departments.create');
-
-    Route::post(
-        '/departments',
-        [DepartmentController::class, 'store']
-    )->name('departments.store');
-
-    Route::get(
-        '/departments/{department}/edit',
-        [DepartmentController::class, 'edit']
-    )
-        ->whereNumber('department')
-        ->name('departments.edit');
-
-    Route::put(
-        '/departments/{department}',
-        [DepartmentController::class, 'update']
-    )
-        ->whereNumber('department')
-        ->name('departments.update');
+    });
 
 
     /*
     |--------------------------------------------------------------------------
-    | Admin - Employee / Staff Master
+    | Admin / HR - Department & Employee Masters
     |--------------------------------------------------------------------------
     */
 
-    Route::get(
-        '/employees',
-        [EmployeeController::class, 'index']
-    )->name('employees.index');
+    Route::middleware('role:admin,hr')
+        ->prefix('admin')
+        ->name('admin.')
+        ->group(function () {
 
-    Route::get(
-        '/employees/create',
-        [EmployeeController::class, 'create']
-    )->name('employees.create');
+            Route::get(
+                '/departments',
+                [DepartmentController::class, 'index']
+            )->name('departments.index');
 
-    Route::post(
-        '/employees',
-        [EmployeeController::class, 'store']
-    )->name('employees.store');
+            Route::get(
+                '/departments/create',
+                [DepartmentController::class, 'create']
+            )->name('departments.create');
 
-    Route::get(
-        '/employees/{employee}/edit',
-        [EmployeeController::class, 'edit']
-    )
-        ->whereNumber('employee')
-        ->name('employees.edit');
+            Route::post(
+                '/departments',
+                [DepartmentController::class, 'store']
+            )->name('departments.store');
 
-    Route::put(
-        '/employees/{employee}',
-        [EmployeeController::class, 'update']
-    )
-        ->whereNumber('employee')
-        ->name('employees.update');
-});
-       
-       
-       
-            /*
-        |--------------------------------------------------------------------------
-        | Bed Tariff Master
-        |--------------------------------------------------------------------------
-        */
+            Route::get(
+                '/departments/{department}/edit',
+                [DepartmentController::class, 'edit']
+            )
+                ->whereNumber('department')
+                ->name('departments.edit');
+
+            Route::put(
+                '/departments/{department}',
+                [DepartmentController::class, 'update']
+            )
+                ->whereNumber('department')
+                ->name('departments.update');
+
+
+            Route::get(
+                '/employees',
+                [EmployeeController::class, 'index']
+            )->name('employees.index');
+
+            Route::get(
+                '/employees/create',
+                [EmployeeController::class, 'create']
+            )->name('employees.create');
+
+            Route::post(
+                '/employees',
+                [EmployeeController::class, 'store']
+            )->name('employees.store');
+
+            Route::get(
+                '/employees/{employee}/edit',
+                [EmployeeController::class, 'edit']
+            )
+                ->whereNumber('employee')
+                ->name('employees.edit');
+
+            Route::put(
+                '/employees/{employee}',
+                [EmployeeController::class, 'update']
+            )
+                ->whereNumber('employee')
+                ->name('employees.update');
+
+        });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin - Bed Tariff Master
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin')->group(function () {
 
         Route::get(
             '/admin/bed-tariffs',
             [BedTariffController::class, 'index']
         )->name('admin.bed-tariffs.index');
 
-
         Route::post(
             '/admin/bed-tariffs',
             [BedTariffController::class, 'store']
         )->name('admin.bed-tariffs.store');
-
 
         Route::patch(
             '/admin/bed-tariffs/{bedTariff}/deactivate',
