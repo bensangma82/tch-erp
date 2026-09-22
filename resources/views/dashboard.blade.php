@@ -9,6 +9,12 @@
     $isLaboratory = $user->hasRole('laboratory');
     $isRadiology  = $user->hasRole('radiology');
     $isDoctor     = $user->hasRole('doctor');
+    $isFinance    = $user->hasRole('finance');
+
+    $showFinancialSnapshot =
+        $isAdmin
+        || $isFinance
+        || $user->hasPermission('finance.dashboard');
 
     /*
     |--------------------------------------------------------------------------
@@ -159,7 +165,7 @@
             <section
                 class="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
                 style="
-                    min-height: 250px;
+                    min-height: 215px;
 
                     background-image:
                         linear-gradient(
@@ -176,7 +182,7 @@
                 "
             >
 
-                <div class="relative z-10 flex min-h-[250px] flex-col justify-between p-7 text-white sm:p-9 lg:p-10">
+                <div class="relative z-10 flex min-h-[215px] flex-col justify-between p-6 text-white sm:p-7 lg:p-8">
 
                     <div>
 
@@ -185,23 +191,23 @@
                         </div>
 
 
-                        <h1 class="mt-5 max-w-xl text-4xl font-light leading-tight tracking-tight sm:text-5xl">
+                        <h1 class="mt-3 max-w-xl text-4xl font-light leading-tight tracking-tight sm:text-5xl">
                             Healing Together
                         </h1>
 
 
-                        <p class="mt-2 text-xl font-light text-blue-50 sm:text-2xl">
+                        <p class="mt-1 text-xl font-light text-blue-50 sm:text-2xl">
                             for a Healthier Tomorrow
                         </p>
 
 
-                        <div class="mt-5 h-1 w-16 rounded-full bg-teal-400"></div>
+                        <div class="mt-4 h-1 w-16 rounded-full bg-teal-400"></div>
 
                     </div>
 
 
 
-                    <div class="mt-8 flex flex-wrap gap-x-8 gap-y-4 text-xs sm:text-sm">
+                    <div class="mt-5 flex flex-wrap gap-x-8 gap-y-3 text-xs sm:text-sm">
 
 
                         {{-- PEOPLE --}}
@@ -819,6 +825,370 @@
                 @endif
 
             </div>
+
+
+
+
+            {{-- ========================================================= --}}
+            {{-- FINANCIAL SNAPSHOT --}}
+            {{-- ========================================================= --}}
+
+            @if ($showFinancialSnapshot)
+
+                @php
+                    $dashboardMonthCollections =
+                        (float) ($monthCollections ?? 0);
+
+                    $dashboardTodayCollections =
+                        (float) ($todayCollections ?? 0);
+
+                    $dashboardMonthPayments =
+                        (float) ($monthFinancePayments ?? 0);
+
+                    $dashboardMonthNet =
+                        (float) ($monthFinancialNet ?? 0);
+
+                    $dashboardMhisOutstanding =
+                        (float) ($mhisOutstanding ?? 0);
+
+                    $mixItems = [
+                        [
+                            'label' => 'OPD / Investigations',
+                            'amount' => (float) ($billingMonthReceipts ?? 0),
+                            'id' => 'finance-billing-month',
+                        ],
+                        [
+                            'label' => 'Direct Pharmacy',
+                            'amount' => (float) ($pharmacyMonthNet ?? 0),
+                            'id' => 'finance-pharmacy-month',
+                        ],
+                        [
+                            'label' => 'IP Patient Collections',
+                            'amount' => (float) ($ipMonthCollections ?? 0),
+                            'id' => 'finance-ip-month',
+                        ],
+                        [
+                            'label' => 'MHIS Received',
+                            'amount' => (float) ($mhisMonthReceipts ?? 0),
+                            'id' => 'finance-mhis-month',
+                        ],
+                    ];
+
+                    $mixMaximum =
+                        max(
+                            1,
+                            ...array_map(
+                                fn ($item) => max(0, $item['amount']),
+                                $mixItems
+                            )
+                        );
+                @endphp
+
+
+                <section class="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+                    {{-- HEADER --}}
+                    <div class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+
+                        <div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+
+                                <h3 class="text-lg font-bold text-slate-900">
+                                    Financial Overview
+                                </h3>
+
+                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                                    {{ now()->format('F Y') }}
+                                </span>
+
+                            </div>
+
+                            <p class="mt-1 text-sm text-slate-500">
+                                Collections, payments and receivables from live ERP transactions.
+                            </p>
+
+                        </div>
+
+
+                        @if (Route::has('finance.dashboard'))
+
+                            <a
+                                href="{{ route('finance.dashboard') }}"
+                                class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                            >
+                                Finance Dashboard
+
+                                <svg
+                                    class="ml-2 h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M5 12h14M13 6l6 6-6 6"
+                                    />
+                                </svg>
+                            </a>
+
+                        @endif
+
+                    </div>
+
+
+                    {{-- TOP SUMMARY --}}
+                    <div class="grid lg:grid-cols-[1.35fr_1fr]">
+
+                        {{-- PRIMARY MONTH SUMMARY --}}
+                        <div class="border-b border-slate-100 p-6 lg:border-b-0 lg:border-r">
+
+                            <div class="rounded-2xl bg-slate-900 p-5 text-white shadow-sm">
+
+                                <div class="flex items-start justify-between gap-4">
+
+                                    <div>
+
+                                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                                            Total Collections
+                                        </div>
+
+                                        <div
+                                            id="finance-month-collections"
+                                            class="mt-1 text-4xl font-bold tracking-tight sm:text-[2.75rem]"
+                                        >
+                                            ₹{{ number_format($dashboardMonthCollections, 2) }}
+                                        </div>
+
+                                        <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-300">
+                                            <span>Actual receipts recorded this month</span>
+
+                                            <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300 shadow-[0_0_14px_rgba(52,211,153,0.18)]">
+                                                <span class="relative flex h-1.5 w-1.5">
+                                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+                                                    <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                                                </span>
+                                                Live ERP
+                                            </span>
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xl font-bold ring-1 ring-white/10">
+                                        ₹
+                                    </div>
+
+                                </div>
+
+
+                                <div class="mt-4 grid gap-3 sm:grid-cols-2">
+
+                                    <div class="rounded-xl border border-white/10 bg-white/[0.08] px-4 py-2.5">
+
+                                        <div class="text-xs text-slate-400">
+                                            Today
+                                        </div>
+
+                                        <div
+                                            id="finance-today-collections"
+                                            class="mt-1 text-xl font-bold text-white"
+                                        >
+                                            ₹{{ number_format($dashboardTodayCollections, 2) }}
+                                        </div>
+
+                                        <div class="mt-1 text-[11px] text-slate-400">
+                                            Collections received today
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="rounded-xl border border-white/10 bg-white/[0.08] px-4 py-2.5">
+
+                                        <div class="text-xs text-slate-400">
+                                            Collection Surplus / Deficit
+                                        </div>
+
+                                        <div
+                                            id="finance-month-net"
+                                            class="mt-1 text-xl font-bold
+                                                {{
+                                                    $dashboardMonthNet >= 0
+                                                        ? 'text-emerald-300'
+                                                        : 'text-rose-300'
+                                                }}"
+                                        >
+                                            {{ $dashboardMonthNet < 0 ? '-' : '' }}₹{{ number_format(abs($dashboardMonthNet), 2) }}
+                                        </div>
+
+                                        <div class="mt-1 text-[11px] text-slate-400">
+                                            Collections less posted payments
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        {{-- SECONDARY METRICS --}}
+                        <div class="grid gap-3 p-6 sm:grid-cols-2 lg:grid-cols-1">
+
+                            <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+
+                                <div>
+
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                        Posted Payments
+                                    </div>
+
+                                    <div
+                                        id="finance-month-payments"
+                                        class="mt-1.5 text-2xl font-bold text-slate-900"
+                                    >
+                                        ₹{{ number_format($dashboardMonthPayments, 2) }}
+                                    </div>
+
+                                    <div class="mt-1 text-xs text-slate-500">
+                                        Finance payment vouchers this month
+                                    </div>
+
+                                </div>
+
+                                <div class="ml-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-700">
+                                    <svg
+                                        class="h-5 w-5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="1.8"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M12 5v14M7 14l5 5 5-5"
+                                        />
+                                    </svg>
+                                </div>
+
+                            </div>
+
+
+                            <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+
+                                <div>
+
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                        MHIS Outstanding
+                                    </div>
+
+                                    <div
+                                        id="finance-mhis-outstanding"
+                                        class="mt-1.5 text-2xl font-bold text-slate-900"
+                                    >
+                                        ₹{{ number_format($dashboardMhisOutstanding, 2) }}
+                                    </div>
+
+                                    <div class="mt-1 text-xs text-slate-500">
+                                        Approved amount not yet received
+                                    </div>
+
+                                </div>
+
+                                <div class="ml-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 font-bold text-violet-700">
+                                    M
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    {{-- COLLECTION MIX --}}
+                    <div class="border-t border-slate-100 px-6 py-5">
+
+                        <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+
+                            <div>
+
+                                <h4 class="text-sm font-bold text-slate-900">
+                                    Collection Mix
+                                </h4>
+
+                                <p class="mt-1 text-xs text-slate-500">
+                                    Source-wise contribution to this month's collections
+                                </p>
+
+                            </div>
+
+                            <div class="text-xs text-slate-400">
+                                Actual receipts only
+                            </div>
+
+                        </div>
+
+
+                        <div class="grid gap-5 lg:grid-cols-2">
+
+                            @foreach ($mixItems as $item)
+
+                                @php
+                                    $mixWidth =
+                                        max(
+                                            0,
+                                            min(
+                                                100,
+                                                ($item['amount'] / $mixMaximum) * 100
+                                            )
+                                        );
+                                @endphp
+
+                                <div>
+
+                                    <div class="flex items-center justify-between gap-4">
+
+                                        <span class="text-sm font-medium text-slate-600">
+                                            {{ $item['label'] }}
+                                        </span>
+
+                                        <span
+                                            id="{{ $item['id'] }}"
+                                            class="text-sm font-bold text-slate-900"
+                                        >
+                                            ₹{{ number_format($item['amount'], 2) }}
+                                        </span>
+
+                                    </div>
+
+
+                                    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+
+                                        <div
+                                            class="h-full rounded-full bg-slate-800 transition-all duration-500"
+                                            style="width: {{ $mixWidth }}%"
+                                        ></div>
+
+                                    </div>
+
+                                </div>
+
+                            @endforeach
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+            @endif
 
 
 
@@ -1446,6 +1816,52 @@
             }
 
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | Currency formatter
+            |--------------------------------------------------------------------------
+            */
+
+            function formatCurrency(value) {
+
+                const number =
+                    Number(value) || 0;
+
+                const absolute =
+                    Math.abs(number);
+
+                const formatted =
+                    new Intl.NumberFormat(
+                        'en-IN',
+                        {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        }
+                    ).format(absolute);
+
+                return (
+                    number < 0
+                        ? '-₹'
+                        : '₹'
+                ) + formatted;
+            }
+
+
+            function setCurrency(id, value) {
+
+                const element =
+                    document.getElementById(id);
+
+                if (!element) {
+                    return;
+                }
+
+                element.textContent =
+                    formatCurrency(value);
+            }
+
+
             /*
             |--------------------------------------------------------------------------
             | Update metric
@@ -1900,6 +2316,61 @@
                         'metric-awaiting-payment',
                         data.awaitingPayment
                     );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Financial Snapshot
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (data.showFinancialSnapshot) {
+
+                        setCurrency(
+                            'finance-today-collections',
+                            data.todayCollections
+                        );
+
+                        setCurrency(
+                            'finance-month-collections',
+                            data.monthCollections
+                        );
+
+                        setCurrency(
+                            'finance-month-payments',
+                            data.monthFinancePayments
+                        );
+
+                        setCurrency(
+                            'finance-month-net',
+                            data.monthFinancialNet
+                        );
+
+                        setCurrency(
+                            'finance-mhis-outstanding',
+                            data.mhisOutstanding
+                        );
+
+                        setCurrency(
+                            'finance-billing-month',
+                            data.billingMonthReceipts
+                        );
+
+                        setCurrency(
+                            'finance-pharmacy-month',
+                            data.pharmacyMonthNet
+                        );
+
+                        setCurrency(
+                            'finance-ip-month',
+                            data.ipMonthCollections
+                        );
+
+                        setCurrency(
+                            'finance-mhis-month',
+                            data.mhisMonthReceipts
+                        );
+                    }
 
 
 
