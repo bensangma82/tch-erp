@@ -892,17 +892,21 @@
                         @endif
 
 
-                        <a
-                            href="{{ route('admin.role-permissions.index') }}"
-                            class="block rounded-md px-3 py-1.5 text-[12.5px] transition
-                                {{
-                                    request()->routeIs('admin.role-permissions.*')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
-                                }}"
-                        >
-                            Role & Permissions
-                        </a>
+                        @if (Route::has('admin.role-permissions.index'))
+
+                            <a
+                                href="{{ route('admin.role-permissions.index') }}"
+                                class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+                                    {{
+                                        request()->routeIs('admin.role-permissions.*')
+                                            ? 'bg-slate-800 text-white'
+                                            : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+                                    }}"
+                            >
+                                Role & Permissions
+                            </a>
+
+                        @endif
 
                     @endif
 
