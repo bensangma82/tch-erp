@@ -3,18 +3,100 @@
 
     $isAdmin = $user->isAdmin();
 
+    /*
+    |--------------------------------------------------------------------------
+    | Functional role flags
+    |--------------------------------------------------------------------------
+    */
     $canReception = $isAdmin || $user->hasRole('reception');
     $canNursing = $isAdmin || $user->hasRole('nursing');
     $canBilling = $isAdmin || $user->hasRole('billing');
+    $canFinance = $isAdmin || $user->hasRole('finance');
     $canLaboratory = $isAdmin || $user->hasRole('laboratory');
     $canRadiology = $isAdmin || $user->hasRole('radiology');
     $canPharmacy = $isAdmin || $user->hasRole('pharmacy');
     $canDoctor = $isAdmin || $user->hasRole('doctor');
 
+    $canStores = $isAdmin || $user->hasRole('stores');
+    $canHr = $isAdmin || $user->hasRole('hr');
+    $canMedicalRecords = $isAdmin || $user->hasRole('medical_records');
+    $canEmergency = $isAdmin || $user->hasRole('emergency');
+    $canIpd = $isAdmin || $user->hasRole('ipd');
+    $canManagement = $isAdmin || $user->hasRole('management');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hybrid role + permission visibility
+    |--------------------------------------------------------------------------
+    |
+    | Roles keep broad module access.
+    | Permissions refine what appears inside those modules.
+    |
+    | If a role has not yet been configured in role_permission, the existing
+    | role-based sidebar remains unchanged so current users do not suddenly
+    | lose access while permissions are being rolled out.
+    |
+    */
+    $rolePermissionsConfigured =
+        $isAdmin
+        || \Illuminate\Support\Facades\DB::table('role_permission')
+            ->where('role', $user->role)
+            ->exists();
+
+    $canUsePermission = function (string $permission) use (
+        $user,
+        $isAdmin,
+        $rolePermissionsConfigured
+    ): bool {
+        return $isAdmin
+            || ! $rolePermissionsConfigured
+            || $user->hasPermission($permission);
+    };
+
+    $canPatientsView = $canUsePermission('patients.view');
+    $canOpdView = $canUsePermission('opd.view');
+    $canNursingView = $canUsePermission('nursing.view');
+    $canEmergencyView = $canUsePermission('emergency.view');
+    $canIpdView = $canUsePermission('ipd.view');
+
+    $canLaboratoryView = $canUsePermission('laboratory.view');
+    $canRadiologyView = $canUsePermission('radiology.view');
+
+    $canPharmacyView = $canUsePermission('pharmacy.view');
+
+    $canBillingView = $canUsePermission('billing.view');
+    $canIpBillingView = $canUsePermission('ip-billing.view');
+
+    $canFinanceDashboard = $canUsePermission('finance.dashboard');
+    $canFinanceVouchers = $canUsePermission('finance.vouchers.view');
+    $canFinanceReports = $canUsePermission('finance.reports');
+    $canFinanceMaster = $canUsePermission('finance.master');
+
+    $canAdministrationView = $canUsePermission('administration.view');
+    $canSystemServices = $canUsePermission('system.services');
+    $canSystemUsers = $canUsePermission('system.users');
+    $canHrDepartments = $canUsePermission('hr.departments');
+    $canHrEmployees = $canUsePermission('hr.employees');
+    $canLabParameters = $canUsePermission('laboratory.parameters');
+    $canInpatientMaster = $canUsePermission('system.inpatient-master');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sidebar section visibility
+    |--------------------------------------------------------------------------
+    |
+    | Keep these aligned with routes/web.php.
+    |
+    */
     $canClinical =
         $canReception
         || $canNursing
-        || $canDoctor;
+        || $canDoctor
+        || $canMedicalRecords
+        || $canEmergency
+        || $canIpd
+        || $canManagement;
 
     $canDiagnostics =
         $canLaboratory
@@ -22,12 +104,21 @@
 
     $canOperations =
         $canPharmacy
-        || $isAdmin;
+        || $canStores;
 
     $canBusiness =
         $canBilling
-        || $isAdmin;
+        || $canFinance;
 
+    $canAdministration =
+        $isAdmin
+        || $canHr;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Open section state
+    |--------------------------------------------------------------------------
+    */
     $clinicalOpen =
         request()->routeIs('patients.*')
         || request()->routeIs('opd.*')
@@ -134,7 +225,7 @@
                     x-collapse
                     class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
                 >
-                    @if ($canReception || $canNursing || $canDoctor)
+                    @if (($canReception || $canNursing || $canDoctor || $canMedicalRecords) && $canPatientsView)
                         <a
                             href="{{ route('patients.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -145,6 +236,20 @@
                             Patients
                         </a>
 
+                        @if ($canOpdView)
+                        <a
+                            href="{{ route('opd.index') }}"
+                            class="block rounded-md px-3 py-2 text-sm
+                                {{ request()->routeIs('opd.*')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+                        >
+                            OPD
+                        </a>
+                        @endif
+                    @endif
+
+                    @if ($canManagement && ! $canReception && ! $canNursing && ! $canDoctor && ! $canMedicalRecords && $canOpdView)
                         <a
                             href="{{ route('opd.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -156,7 +261,7 @@
                         </a>
                     @endif
 
-                    @if ($canNursing)
+                    @if ($canNursing && $canNursingView)
                         <a
                             href="{{ route('nursing.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -168,7 +273,7 @@
                         </a>
                     @endif
 
-                    @if ($canReception || $canNursing || $canDoctor)
+                    @if (($canReception || $canNursing || $canDoctor || $canEmergency) && $canEmergencyView)
                         <a
                             href="{{ route('emergency.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -178,7 +283,9 @@
                         >
                             Emergency
                         </a>
+                    @endif
 
+                    @if (($canReception || $canNursing || $canDoctor || $canIpd) && $canIpdView)
                         <a
                             href="{{ route('ipd.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -220,7 +327,7 @@
                     x-collapse
                     class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
                 >
-                    @if ($canLaboratory)
+                    @if ($canLaboratory && $canLaboratoryView)
                         <a
                             href="{{ route('laboratory.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -236,7 +343,7 @@
                         </a>
                     @endif
 
-                    @if ($canRadiology)
+                    @if ($canRadiology && $canRadiologyView)
                         <a
                             href="{{ route('imaging.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -281,7 +388,7 @@
                     x-collapse
                     class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
                 >
-                    @if ($canPharmacy)
+                    @if ($canPharmacy && $canPharmacyView)
                         <button
                             type="button"
                             @click="pharmacy = !pharmacy"
@@ -429,6 +536,13 @@
                             </a>
                         </div>
                     @endif
+
+                    @if ($canStores && ! $canPharmacy)
+                        <div class="rounded-md px-3 py-2 text-sm text-slate-500">
+                            Stores / Inventory
+                            <span class="float-right text-[10px] uppercase">Setup pending</span>
+                        </div>
+                    @endif
                 </div>
             </div>
         @endif
@@ -461,6 +575,7 @@
                     class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
                 >
                     @if ($canBilling)
+                        @if ($canBillingView)
                         <a
                             href="{{ route('billing.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -470,7 +585,9 @@
                         >
                             Billing Counter
                         </a>
+                        @endif
 
+                        @if ($canIpBillingView)
                         <a
                             href="{{ route('ip-billing.index') }}"
                             class="block rounded-md px-3 py-2 text-sm
@@ -480,11 +597,12 @@
                         >
                             IP Billing
                         </a>
+                        @endif
                     @endif
 
 
                     {{-- FINANCE --}}
-                    @if ($isAdmin)
+                    @if ($canFinance)
 
                         <div class="my-2 border-t border-slate-800"></div>
 
@@ -511,6 +629,7 @@
                             x-collapse
                             class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
                         >
+                            @if ($canFinanceDashboard)
                             <a
                                 href="{{ route('finance.dashboard') }}"
                                 class="block rounded-md px-3 py-2 text-sm
@@ -520,7 +639,9 @@
                             >
                                 Dashboard
                             </a>
+                            @endif
 
+                            @if ($canFinanceVouchers)
                             <a
                                 href="{{ route('finance.vouchers.index') }}"
                                 class="block rounded-md px-3 py-2 text-sm
@@ -530,9 +651,11 @@
                             >
                                 Vouchers
                             </a>
+                            @endif
 
 
-                                                        <a
+                                                        @if ($canFinanceReports)
+                            <a
                                 href="{{ route('finance.reports.index') }}"
                                 class="block rounded-md px-3 py-2 text-sm
                                     {{ request()->routeIs('finance.reports.*')
@@ -541,7 +664,9 @@
                             >
                                 Reports
                             </a>
+                            @endif
 
+                            @if ($canFinanceMaster)
                             <a
                                 href="{{ route('finance.master.index') }}"
                                 class="block rounded-md px-3 py-2 text-sm
@@ -551,6 +676,7 @@
                             >
                                 Finance Master
                             </a>
+                            @endif
                         </div>
 
                     @endif
@@ -560,7 +686,7 @@
 
 
         {{-- ADMINISTRATION --}}
-        @if ($isAdmin)
+        @if ($canAdministration)
             <div class="pt-2">
                 <button
                     type="button"
@@ -585,6 +711,7 @@
                     x-collapse
                     class="ml-3 mt-1 space-y-1 border-l border-slate-800 pl-3"
                 >
+                    @if ($isAdmin)
                     {{-- ADMINISTRATION WORKFLOW --}}
                     <a
                         href="{{ route('administration.dashboard') }}"
@@ -639,6 +766,16 @@
                         User Management
                     </a>
 
+                    @endif
+<a
+    href="{{ route('admin.role-permissions.index') }}"
+    class="block rounded-md px-3 py-2 text-sm
+        {{ request()->routeIs('admin.role-permissions.*')
+            ? 'bg-slate-800 text-white'
+            : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}"
+>
+    Role & Permissions
+</a>
                     <button
                         type="button"
                         @click="masterData = !masterData"
@@ -682,6 +819,7 @@
                             Staff / Employees
                         </a>
 
+                        @if ($isAdmin)
 <a
     href="{{ route('services.index', ['scope' => 'charges']) }}"
     class="block rounded-lg px-3 py-2.5 text-sm text-slate-200 transition hover:bg-white/10 hover:text-white"
@@ -709,6 +847,7 @@
                         >
                             Inpatient Setup
                         </a>
+                        @endif
                     </div>
                 </div>
             </div>

@@ -10,6 +10,7 @@ use App\Http\Controllers\Pharmacy\PharmacyPurchaseOrderController;
 use App\Http\Controllers\Pharmacy\PharmacySupplierController;
 
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Finance\FinanceMasterController;
@@ -151,6 +152,20 @@ Route::middleware([
             ->whereNumber('user')
             ->name('admin.users.status');
 
+            Route::middleware('role:admin')->group(function () {
+
+    Route::get(
+        '/admin/role-permissions',
+        [RolePermissionController::class, 'index']
+    )->name('admin.role-permissions.index');
+
+    Route::post(
+        '/admin/role-permissions',
+        [RolePermissionController::class, 'update']
+    )->name('admin.role-permissions.update');
+
+});
+
        /*
 |--------------------------------------------------------------------------
 | Admin - Department Master
@@ -158,7 +173,7 @@ Route::middleware([
 */
 
 Route::middleware(
-    'role:admin'
+    'role:admin,hr'
 )->prefix('admin')->name('admin.')->group(function () {
 
     Route::get(
@@ -314,7 +329,20 @@ Route::middleware(
         ->whereNumber('bed')
         ->name('inpatient-master.beds.update');
 
-        Route::get(
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Finance / Accounts
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'role:admin,finance'
+)->group(function () {
+
+    Route::get(
         '/admin/finance',
         [FinanceDashboardController::class, 'index']
     )->name('finance.dashboard');
@@ -415,7 +443,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception'
+        'role:reception,nursing,medical_records,emergency'
     )->group(function () {
 
         Route::get(
@@ -439,7 +467,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,nursing,billing,laboratory,radiology,doctor'
+        'role:reception,nursing,billing,laboratory,radiology,doctor,medical_records,emergency,ipd'
     )->group(function () {
 
         Route::get(
@@ -465,7 +493,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception'
+        'role:reception,medical_records'
     )->group(function () {
 
         Route::get(
@@ -491,7 +519,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception'
+        'role:reception,nursing,emergency'
     )->group(function () {
 
         Route::get(
@@ -516,7 +544,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,nursing,doctor'
+        'role:reception,nursing,doctor,emergency,ipd'
     )->group(function () {
 
         Route::get(
@@ -545,7 +573,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:nursing'
+        'role:nursing,emergency'
     )->group(function () {
 
         Route::get(
@@ -575,7 +603,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,doctor'
+        'role:reception,doctor,emergency'
     )->group(function () {
 
         Route::get(
@@ -604,7 +632,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,nursing,doctor,admin'
+        'role:reception,nursing,doctor,admin,ipd'
     )->group(function () {
 
         Route::get(
@@ -727,7 +755,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,nursing,billing,doctor'
+        'role:reception,nursing,billing,doctor,medical_records,management'
     )->group(function () {
 
         Route::get(
@@ -753,7 +781,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception'
+        'role:reception,medical_records'
     )->group(function () {
 
         Route::get(
@@ -777,7 +805,7 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,billing'
+        'role:reception,billing,finance'
     )->group(function () {
 
         Route::get(

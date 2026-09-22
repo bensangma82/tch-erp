@@ -31,7 +31,7 @@
 
     <div class="py-6">
 
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-8">
 
 
             {{-- SUCCESS MESSAGE --}}
@@ -44,7 +44,7 @@
             @endif
 
 
-            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
 
 
                 {{-- TABLE HEADER --}}
@@ -82,7 +82,7 @@
 
                 <div class="overflow-x-auto">
 
-                    <table class="min-w-full divide-y divide-gray-200">
+                    <table class="w-full min-w-[1500px] divide-y divide-gray-200">
 
                         <thead class="bg-white">
 
@@ -96,15 +96,15 @@
                                     UHID / MRD
                                 </th>
 
-                                <th class="min-w-[180px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="min-w-[210px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Patient
                                 </th>
 
-                                <th class="min-w-[160px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="min-w-[190px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Department
                                 </th>
 
-                                <th class="min-w-[200px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="min-w-[230px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Doctor
                                 </th>
 
@@ -120,7 +120,7 @@
                                     Payment
                                 </th>
 
-                                <th class="min-w-[170px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="min-w-[280px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Actions
                                 </th>
 
@@ -152,7 +152,7 @@
 
 
                                     {{-- QUEUE --}}
-                                    <td class="px-5 py-4">
+                                    <td class="px-5 py-5 align-top">
 
                                         <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-base font-bold text-white">
                                             {{ $encounter->queue_number }}
@@ -162,7 +162,7 @@
 
 
                                     {{-- UHID / MRD --}}
-                                    <td class="min-w-[190px] px-5 py-4">
+                                    <td class="min-w-[190px] px-5 py-5 align-top">
 
                                         <div class="whitespace-nowrap text-sm font-semibold text-gray-900">
                                             {{ $encounter->patient->uhid }}
@@ -177,7 +177,7 @@
 
 
                                     {{-- PATIENT --}}
-                                    <td class="min-w-[180px] px-5 py-4">
+                                    <td class="min-w-[210px] px-5 py-5 align-top">
 
                                         <a
                                             href="{{ route('patients.show', $encounter->patient) }}"
@@ -209,7 +209,7 @@
 
 
                                     {{-- DEPARTMENT --}}
-                                    <td class="min-w-[160px] px-5 py-4 text-sm text-gray-700">
+                                    <td class="min-w-[190px] px-5 py-5 align-top text-sm text-gray-700">
 
                                         {{ $encounter->department?->name ?? '—' }}
 
@@ -217,7 +217,7 @@
 
 
                                     {{-- DOCTOR --}}
-                                    <td class="min-w-[200px] px-5 py-4">
+                                    <td class="min-w-[230px] px-5 py-5 align-top">
 
                                         <div class="text-sm text-gray-700">
                                             {{ $encounter->doctor?->full_name ?? 'Unassigned' }}
@@ -235,7 +235,7 @@
 
 
                                     {{-- VISIT --}}
-                                    <td class="px-5 py-4 text-sm text-gray-700">
+                                    <td class="px-5 py-5 align-top text-sm text-gray-700">
 
                                         {{ ucwords(
                                             str_replace(
@@ -249,7 +249,7 @@
 
 
                                     {{-- STATUS --}}
-                                    <td class="min-w-[170px] px-5 py-4">
+                                    <td class="min-w-[280px] whitespace-nowrap px-5 py-5 align-top">
 
                                         @if ($status === 'waiting')
 
@@ -297,7 +297,7 @@
 
 
                                     {{-- PAYMENT --}}
-                                    <td class="min-w-[130px] px-5 py-4">
+                                    <td class="min-w-[130px] px-5 py-5 align-top">
 
                                         @if ($invoice)
 
@@ -367,9 +367,9 @@
 
 
                                     {{-- ACTIONS --}}
-                                    <td class="min-w-[170px] px-5 py-4">
+                                    <td class="min-w-[170px] px-5 py-5 align-top">
 
-                                        <div class="flex flex-col items-start gap-2">
+                                        <div class="flex min-w-[240px] flex-col items-start gap-2">
 
 
                                             {{-- PRINT OPD CARD --}}

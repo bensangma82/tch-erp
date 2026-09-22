@@ -174,15 +174,47 @@ class PatientController extends Controller
             );
 
 
-        if (
-            $firstName
+        /*
+        |--------------------------------------------------------------------------
+        | Possible duplicate check
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        |
+        | Do not run an empty grouped WHERE condition.
+        |
+        | The previous code entered the duplicate query whenever ANY of
+        | first name, last name, DOB or phone was present. If only a field
+        | such as last_name was supplied, none of the actual matching rules
+        | inside the query were added. PostgreSQL/Laravel could therefore
+        | return the latest patients, making unrelated patients appear as
+        | "possible duplicates".
+        |
+        | Only run the query when at least one real duplicate rule exists:
+        |
+        | 1. Same phone number
+        | 2. Same first + last name
+        | 3. Same first name + DOB
+        |
+        */
+
+        $hasDuplicateCriteria =
+            ! empty($phone)
             ||
-            $lastName
+            (
+                $firstName !== ''
+                &&
+                $lastName !== ''
+            )
             ||
-            $dob
-            ||
-            $phone
-        ) {
+            (
+                $firstName !== ''
+                &&
+                ! empty($dob)
+            );
+
+
+        if ($hasDuplicateCriteria) {
 
             $duplicates =
                 Patient::query()
@@ -195,7 +227,8 @@ class PatientController extends Controller
                         ) {
 
                             /*
-                             * Same phone.
+                             * Rule 1:
+                             * Same normalized phone number.
                              */
 
                             if ($phone) {
@@ -208,13 +241,14 @@ class PatientController extends Controller
 
 
                             /*
+                             * Rule 2:
                              * Same first + last name.
                              */
 
                             if (
-                                $firstName
+                                $firstName !== ''
                                 &&
-                                $lastName
+                                $lastName !== ''
                             ) {
 
                                 $query->orWhere(
@@ -239,11 +273,12 @@ class PatientController extends Controller
 
 
                             /*
-                             * Same first name + DOB.
+                             * Rule 3:
+                             * Same first name + date of birth.
                              */
 
                             if (
-                                $firstName
+                                $firstName !== ''
                                 &&
                                 $dob
                             ) {

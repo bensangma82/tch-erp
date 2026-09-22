@@ -15,6 +15,7 @@ use Illuminate\Notifications\Notifiable;
     'email',
     'password',
     'role',
+    'designation',
     'is_active',
 ])]
 
@@ -87,37 +88,152 @@ class User extends Authenticatable
     }
 
 
+    /**
+     * Check whether this user has a specific permission.
+     *
+     * Permission may come from:
+     * 1. Admin override
+     * 2. Direct user permission
+     * 3. Role-level permission
+     */
     public function hasPermission(string $permission): bool
     {
         /*
-         * Admin retains full system override.
-         */
+        |--------------------------------------------------------------------------
+        | Admin Override
+        |--------------------------------------------------------------------------
+        */
+
         if ($this->isAdmin()) {
             return true;
         }
 
 
-        return $this->permissions()
+        /*
+        |--------------------------------------------------------------------------
+        | Direct User Permission
+        |--------------------------------------------------------------------------
+        */
+
+        $hasDirectPermission = $this->permissions()
             ->where(
-                'name',
+                'permissions.name',
                 $permission
             )
+            ->exists();
+
+
+        if ($hasDirectPermission) {
+            return true;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Role Permission
+        |--------------------------------------------------------------------------
+        */
+
+        return Permission::query()
+            ->where(
+                'permissions.name',
+                $permission
+            )
+            ->whereExists(function ($query) {
+
+                $query
+                    ->selectRaw('1')
+                    ->from('role_permission')
+                    ->whereColumn(
+                        'role_permission.permission_id',
+                        'permissions.id'
+                    )
+                    ->where(
+                        'role_permission.role',
+                        $this->role
+                    );
+            })
             ->exists();
     }
 
 
+    /**
+     * Check whether this user has at least one permission
+     * from the supplied list.
+     *
+     * Permission may come from:
+     * 1. Admin override
+     * 2. Direct user permission
+     * 3. Role-level permission
+     */
     public function hasAnyPermission(array $permissions): bool
     {
+        /*
+        |--------------------------------------------------------------------------
+        | Admin Override
+        |--------------------------------------------------------------------------
+        */
+
         if ($this->isAdmin()) {
             return true;
         }
 
 
-        return $this->permissions()
+        /*
+        |--------------------------------------------------------------------------
+        | Empty Permission List
+        |--------------------------------------------------------------------------
+        */
+
+        if (empty($permissions)) {
+            return false;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Direct User Permissions
+        |--------------------------------------------------------------------------
+        */
+
+        $hasDirectPermission = $this->permissions()
             ->whereIn(
-                'name',
+                'permissions.name',
                 $permissions
             )
+            ->exists();
+
+
+        if ($hasDirectPermission) {
+            return true;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Role Permissions
+        |--------------------------------------------------------------------------
+        */
+
+        return Permission::query()
+            ->whereIn(
+                'permissions.name',
+                $permissions
+            )
+            ->whereExists(function ($query) {
+
+                $query
+                    ->selectRaw('1')
+                    ->from('role_permission')
+                    ->whereColumn(
+                        'role_permission.permission_id',
+                        'permissions.id'
+                    )
+                    ->where(
+                        'role_permission.role',
+                        $this->role
+                    );
+            })
             ->exists();
     }
 

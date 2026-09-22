@@ -22,7 +22,7 @@
                     auth()->user()?->role,
                     [
                         'reception',
-                        'admin',
+                        'admin', 'nursing', 'emergency'
                     ],
                     true
                 )
@@ -128,7 +128,7 @@
 
     <div class="min-h-screen bg-slate-50 py-6">
 
-        <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto w-full max-w-[1800px] space-y-6 px-4 sm:px-6 lg:px-8">
 
 
             {{-- ========================================================= --}}
@@ -270,7 +270,7 @@
             {{-- EMERGENCY QUEUE --}}
             {{-- ========================================================= --}}
 
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                 <div class="border-b border-slate-100 px-6 py-5">
 
@@ -307,41 +307,37 @@
 
                 <div class="overflow-x-auto">
 
-                    <table class="min-w-[1300px] w-full divide-y divide-slate-200">
+                    <table class="min-w-[1250px] w-full divide-y divide-slate-200">
 
                         <thead class="bg-slate-50">
 
                             <tr>
 
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="min-w-[240px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Emergency No
                                 </th>
 
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="min-w-[260px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Patient
                                 </th>
 
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="min-w-[150px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Arrival
                                 </th>
 
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Chief Complaint
-                                </th>
-
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="min-w-[140px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Triage
                                 </th>
 
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="min-w-[180px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Vitals
                                 </th>
 
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="min-w-[190px] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Status
                                 </th>
 
-                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="min-w-[160px] px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Action
                                 </th>
 
@@ -402,7 +398,7 @@
 
                                     {{-- EMERGENCY NUMBER --}}
 
-                                    <td class="px-4 py-4 align-top">
+                                    <td class="min-w-[240px] px-4 py-4 align-top">
 
                                         <div class="font-semibold text-slate-900">
                                             {{ $visit->emergency_no }}
@@ -437,7 +433,7 @@
 
                                     {{-- PATIENT --}}
 
-                                    <td class="px-4 py-4 align-top">
+                                    <td class="min-w-[260px] px-4 py-4 align-top">
 
                                         <div class="font-semibold text-slate-900">
                                             {{ $patient?->full_name ?? 'Unknown Patient' }}
@@ -490,7 +486,7 @@
 
                                     {{-- ARRIVAL --}}
 
-                                    <td class="px-4 py-4 align-top text-sm text-slate-700">
+                                    <td class="min-w-[150px] px-4 py-4 align-top text-sm text-slate-700">
 
                                         <div class="font-medium">
                                             {{ $visit->arrival_at?->format('d M Y') ?? '—' }}
@@ -504,21 +500,9 @@
 
 
 
-                                    {{-- CHIEF COMPLAINT --}}
-
-                                    <td class="max-w-xs px-4 py-4 align-top text-sm text-slate-700">
-
-                                        <div class="line-clamp-3">
-                                            {{ $visit->chief_complaint ?: '—' }}
-                                        </div>
-
-                                    </td>
-
-
-
                                     {{-- TRIAGE --}}
 
-                                    <td class="px-4 py-4 align-top">
+                                    <td class="min-w-[140px] px-4 py-4 align-top">
 
                                         @if ($triage)
 
@@ -547,7 +531,7 @@
 
                                     {{-- VITALS --}}
 
-                                    <td class="px-4 py-4 align-top text-xs text-slate-600">
+                                    <td class="min-w-[180px] px-4 py-4 align-top text-xs text-slate-600">
 
                                         @if ($triage)
 
@@ -609,7 +593,7 @@
 
                                     {{-- STATUS --}}
 
-                                    <td class="px-4 py-4 align-top">
+                                    <td class="min-w-[190px] px-4 py-4 align-top">
 
                                         <span
                                             class="inline-flex rounded-full px-3 py-1 text-xs font-semibold {{ $statusClass }}"
@@ -632,7 +616,7 @@
 
                                     {{-- ACTION --}}
 
-                                    <td class="px-4 py-4 text-right align-top">
+                                    <td class="min-w-[160px] whitespace-nowrap px-4 py-4 text-right align-top">
 
                                         <a
                                             href="{{ route('emergency.show', $visit) }}"
@@ -651,7 +635,7 @@
                                 <tr>
 
                                     <td
-                                        colspan="8"
+                                        colspan="7"
                                         class="px-6 py-12 text-center"
                                     >
 

@@ -563,37 +563,58 @@ class UserController extends Controller
 
 
     /**
-     * Available ERP roles.
-     */
-    private function roles(): array
-    {
-        return [
+ * Available ERP roles.
+ */
+private function roles(): array
+{
+    return [
 
-            'admin' =>
-                'Administrator',
+        'admin' =>
+            'Administrator',
 
-            'reception' =>
-                'Reception',
+        'reception' =>
+            'Reception',
 
-            'nursing' =>
-                'Nursing',
+        'nursing' =>
+            'Nursing',
 
-            'billing' =>
-                'Billing',
+        'doctor' =>
+            'Doctor',
 
-            'laboratory' =>
-                'Laboratory',
+        'billing' =>
+            'Billing',
 
-            'radiology' =>
-                'Radiology',
+        'finance' =>
+            'Finance / Accounts',
 
-            'pharmacy' =>
-                'Pharmacy',
+        'laboratory' =>
+            'Laboratory',
 
-            'doctor' =>
-                'Doctor',
-        ];
-    }
+        'radiology' =>
+            'Radiology',
+
+        'pharmacy' =>
+            'Pharmacy',
+
+        'stores' =>
+            'Stores / Inventory',
+
+        'hr' =>
+            'HR',
+
+        'medical_records' =>
+            'Medical Records',
+
+        'emergency' =>
+            'Emergency',
+
+        'ipd' =>
+            'IPD / Ward',
+
+        'management' =>
+            'Management / Read Only',
+    ];
+}
 
 
     /**
