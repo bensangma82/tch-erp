@@ -259,16 +259,23 @@
                         {{-- BED TRANSFER --}}
                         {{-- ========================================================= --}}
 
-                        @if ($admission->status === 'admitted')
+                                          @if ($admission->status === 'admitted')
 
-                            <a
-                                href="{{ route('ipd.transfer.create', $admission) }}"
-                                class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-                            >
-                                Transfer Bed
-                            </a>
+    <a
+        href="{{ route('ipd.transfer.create', $admission) }}"
+        class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+    >
+        Transfer Bed
+    </a>
 
-                        @endif
+    <a
+        href="{{ route('ip-billing.investigations.create', $admission) }}"
+        class="inline-flex items-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
+    >
+        Order Investigation
+    </a>
+
+@endif
 
 
                         {{-- ========================================================= --}}
