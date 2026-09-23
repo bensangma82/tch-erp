@@ -10,11 +10,15 @@ class RolePermissionSeeder extends Seeder
 {
     public function run(): void
     {
+        /*
+        |--------------------------------------------------------------------------
+        | Permission Catalogue
+        |--------------------------------------------------------------------------
+        */
+
         $permissions = [
 
-            // ---------------------------------------------------------
             // PATIENTS
-            // ---------------------------------------------------------
             [
                 'name' => 'patients.view',
                 'label' => 'View Patients',
@@ -34,9 +38,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'View and print patient registration cards.',
             ],
 
-            // ---------------------------------------------------------
             // OPD
-            // ---------------------------------------------------------
             [
                 'name' => 'opd.view',
                 'label' => 'View OPD',
@@ -56,9 +58,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'View and print OPD encounter cards.',
             ],
 
-            // ---------------------------------------------------------
             // NURSING
-            // ---------------------------------------------------------
             [
                 'name' => 'nursing.view',
                 'label' => 'View Nursing Station',
@@ -72,9 +72,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Create and update nursing vital signs.',
             ],
 
-            // ---------------------------------------------------------
             // EMERGENCY
-            // ---------------------------------------------------------
             [
                 'name' => 'emergency.view',
                 'label' => 'View Emergency',
@@ -100,9 +98,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Admit an emergency patient into IPD.',
             ],
 
-            // ---------------------------------------------------------
             // IPD
-            // ---------------------------------------------------------
             [
                 'name' => 'ipd.view',
                 'label' => 'View IPD',
@@ -134,9 +130,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Create or edit clinical discharge summaries.',
             ],
 
-            // ---------------------------------------------------------
             // BILLING
-            // ---------------------------------------------------------
             [
                 'name' => 'billing.view',
                 'label' => 'View OPD Billing',
@@ -162,9 +156,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Post charges, advances, payments, investigations and finalize bills.',
             ],
 
-            // ---------------------------------------------------------
             // FINANCE
-            // ---------------------------------------------------------
             [
                 'name' => 'finance.dashboard',
                 'label' => 'View Finance Dashboard',
@@ -208,9 +200,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Manage finance accounts and heads.',
             ],
 
-            // ---------------------------------------------------------
             // LABORATORY
-            // ---------------------------------------------------------
             [
                 'name' => 'laboratory.view',
                 'label' => 'View Laboratory Worklist',
@@ -236,9 +226,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Manage laboratory test parameter masters.',
             ],
 
-            // ---------------------------------------------------------
             // RADIOLOGY
-            // ---------------------------------------------------------
             [
                 'name' => 'radiology.view',
                 'label' => 'View Radiology Worklist',
@@ -252,9 +240,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Create and update imaging reports.',
             ],
 
-            // ---------------------------------------------------------
             // PHARMACY
-            // ---------------------------------------------------------
             [
                 'name' => 'pharmacy.view',
                 'label' => 'View Pharmacy',
@@ -274,21 +260,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Process medicine returns from patients.',
             ],
 
-            // Existing detailed pharmacy permissions are preserved:
-            // pharmacy.po.create
-            // pharmacy.po.approve
-            // pharmacy.grn.create
-            // pharmacy.purchase-return.create
-            // pharmacy.supplier-payment.record
-            // pharmacy.stock-adjustment.create
-            // pharmacy.disposal.create
-            // pharmacy.stock-audit.create
-            // pharmacy.stock-audit.approve
-            // pharmacy.stock-audit.post
-
-            // ---------------------------------------------------------
             // STORES
-            // ---------------------------------------------------------
             [
                 'name' => 'stores.view',
                 'label' => 'View Stores / Inventory',
@@ -302,9 +274,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Create, issue and receive internal stock transfers.',
             ],
 
-            // ---------------------------------------------------------
             // HR
-            // ---------------------------------------------------------
             [
                 'name' => 'hr.view',
                 'label' => 'View HR',
@@ -324,9 +294,7 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Create and update hospital departments.',
             ],
 
-            // ---------------------------------------------------------
-            // ADMINISTRATION / SYSTEM
-            // ---------------------------------------------------------
+            // ADMINISTRATION
             [
                 'name' => 'administration.view',
                 'label' => 'View Administration',
@@ -357,6 +325,8 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'administration',
                 'description' => 'Start and complete assigned administrative work.',
             ],
+
+            // SYSTEM
             [
                 'name' => 'system.users',
                 'label' => 'Manage ERP Users',
@@ -377,7 +347,13 @@ class RolePermissionSeeder extends Seeder
             ],
         ];
 
-                foreach ($permissions as $data) {
+        /*
+        |--------------------------------------------------------------------------
+        | Create / Update Permission Catalogue
+        |--------------------------------------------------------------------------
+        */
+
+        foreach ($permissions as $data) {
             Permission::updateOrCreate(
                 ['name' => $data['name']],
                 $data
@@ -386,62 +362,208 @@ class RolePermissionSeeder extends Seeder
 
         /*
         |--------------------------------------------------------------------------
-        | Default Nursing Role Permissions
+        | Default Role Permissions
+        |--------------------------------------------------------------------------
+        */
+
+        $rolePermissions = [
+
+            'reception' => [
+                'patients.view',
+                'patients.create',
+                'patients.card',
+                'opd.view',
+                'opd.create',
+                'opd.card',
+                'billing.view',
+                'billing.collect',
+                'emergency.view',
+                'emergency.create',
+            ],
+
+            'nursing' => [
+                'patients.view',
+                'opd.view',
+                'nursing.view',
+                'nursing.vitals',
+                'emergency.view',
+                'emergency.triage',
+                'ipd.view',
+                'ipd.transfer',
+                'ipd.discharge-summary.view',
+            ],
+
+            'doctor' => [
+                'patients.view',
+                'opd.view',
+                'nursing.view',
+                'emergency.view',
+                'ipd.view',
+                'ipd.discharge-summary.view',
+                'ipd.discharge-summary.edit',
+                'laboratory.view',
+                'radiology.view',
+            ],
+
+            'billing' => [
+                'patients.view',
+                'opd.view',
+                'billing.view',
+                'billing.collect',
+                'ip-billing.view',
+                'ip-billing.manage',
+            ],
+
+            'finance' => [
+                'billing.view',
+                'ip-billing.view',
+                'finance.dashboard',
+                'finance.vouchers.view',
+                'finance.vouchers.create',
+                'finance.vouchers.post',
+                'finance.vouchers.cancel',
+                'finance.reports',
+                'finance.master',
+            ],
+
+            'laboratory' => [
+                'patients.view',
+                'opd.view',
+                'ipd.view',
+                'laboratory.view',
+                'laboratory.sample',
+                'laboratory.results',
+                'laboratory.parameters',
+            ],
+
+            'radiology' => [
+                'patients.view',
+                'opd.view',
+                'ipd.view',
+                'radiology.view',
+                'radiology.report',
+            ],
+
+            'pharmacy' => [
+                'patients.view',
+                'pharmacy.view',
+                'pharmacy.dispense',
+                'pharmacy.returns',
+                'pharmacy.po.create',
+                'pharmacy.po.approve',
+                'pharmacy.grn.create',
+                'pharmacy.purchase-return.create',
+                'pharmacy.supplier-payment.record',
+                'pharmacy.stock-adjustment.create',
+                'pharmacy.disposal.create',
+                'pharmacy.stock-audit.create',
+                'pharmacy.stock-audit.approve',
+                'pharmacy.stock-audit.post',
+                'stores.view',
+                'stores.transfer',
+            ],
+
+            'stores' => [
+                'stores.view',
+                'stores.transfer',
+                'pharmacy.view',
+                'pharmacy.grn.create',
+                'pharmacy.stock-adjustment.create',
+                'pharmacy.disposal.create',
+                'pharmacy.stock-audit.create',
+            ],
+
+            'hr' => [
+                'hr.view',
+                'hr.employees',
+                'hr.departments',
+            ],
+
+            'medical_records' => [
+                'patients.view',
+                'patients.card',
+                'opd.view',
+                'opd.card',
+                'ipd.view',
+                'ipd.discharge-summary.view',
+            ],
+
+            'emergency' => [
+                'patients.view',
+                'patients.create',
+                'emergency.view',
+                'emergency.create',
+                'emergency.triage',
+                'emergency.admit',
+                'nursing.view',
+                'nursing.vitals',
+                'ipd.view',
+            ],
+
+            'ipd' => [
+                'patients.view',
+                'nursing.view',
+                'nursing.vitals',
+                'ipd.view',
+                'ipd.transfer',
+                'ipd.close',
+                'ipd.discharge-summary.view',
+                'ipd.discharge-summary.edit',
+                'ip-billing.view',
+            ],
+
+            'management' => [
+                'patients.view',
+                'opd.view',
+                'emergency.view',
+                'ipd.view',
+                'ipd.discharge-summary.view',
+                'billing.view',
+                'ip-billing.view',
+                'finance.dashboard',
+                'finance.reports',
+                'laboratory.view',
+                'radiology.view',
+                'pharmacy.view',
+                'stores.view',
+                'hr.view',
+                'administration.view',
+            ],
+        ];
+
+        /*
+        |--------------------------------------------------------------------------
+        | Apply Baseline Role Permissions
         |--------------------------------------------------------------------------
         |
-        | These permissions represent the baseline Nursing role used by the ERP.
-        | updateOrInsert makes this seeder safe to run repeatedly and does not
-        | remove additional permissions that may have been assigned manually.
+        | These 14 standard roles are reset to the baseline above whenever
+        | this seeder is run.
         |
         */
 
-        $nursingPermissions = [
-            'billing.collect',
-            'billing.view',
-
-            'emergency.admit',
-            'emergency.create',
-            'emergency.triage',
-            'emergency.view',
-
-            'ip-billing.manage',
-            'ip-billing.view',
-
-            'ipd.close',
-            'ipd.discharge-summary.edit',
-            'ipd.discharge-summary.view',
-            'ipd.transfer',
-            'ipd.view',
-
-            'nursing.view',
-            'nursing.vitals',
-
-            'opd.card',
-            'opd.create',
-            'opd.view',
-
-            'patients.card',
-            'patients.create',
-            'patients.view',
-        ];
-
-        $permissionIds = Permission::query()
-            ->whereIn('name', $nursingPermissions)
-            ->pluck('id');
-
         $now = now();
 
-        foreach ($permissionIds as $permissionId) {
-            DB::table('role_permission')->updateOrInsert(
-                [
-                    'role' => 'nursing',
-                    'permission_id' => $permissionId,
-                ],
-                [
-                    'updated_at' => $now,
-                    'created_at' => $now,
-                ]
-            );
-        }
+        DB::transaction(function () use ($rolePermissions, $now) {
+
+            foreach ($rolePermissions as $role => $permissionNames) {
+
+                $permissionIds = Permission::query()
+                    ->whereIn('name', $permissionNames)
+                    ->pluck('id');
+
+                DB::table('role_permission')
+                    ->where('role', $role)
+                    ->delete();
+
+                foreach ($permissionIds as $permissionId) {
+                    DB::table('role_permission')->insert([
+                        'role' => $role,
+                        'permission_id' => $permissionId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
+            }
+        });
     }
 }
