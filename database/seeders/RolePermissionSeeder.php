@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Permission;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class RolePermissionSeeder extends Seeder
 {
@@ -376,10 +377,70 @@ class RolePermissionSeeder extends Seeder
             ],
         ];
 
-        foreach ($permissions as $data) {
+                foreach ($permissions as $data) {
             Permission::updateOrCreate(
                 ['name' => $data['name']],
                 $data
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Default Nursing Role Permissions
+        |--------------------------------------------------------------------------
+        |
+        | These permissions represent the baseline Nursing role used by the ERP.
+        | updateOrInsert makes this seeder safe to run repeatedly and does not
+        | remove additional permissions that may have been assigned manually.
+        |
+        */
+
+        $nursingPermissions = [
+            'billing.collect',
+            'billing.view',
+
+            'emergency.admit',
+            'emergency.create',
+            'emergency.triage',
+            'emergency.view',
+
+            'ip-billing.manage',
+            'ip-billing.view',
+
+            'ipd.close',
+            'ipd.discharge-summary.edit',
+            'ipd.discharge-summary.view',
+            'ipd.transfer',
+            'ipd.view',
+
+            'nursing.view',
+            'nursing.vitals',
+
+            'opd.card',
+            'opd.create',
+            'opd.view',
+
+            'patients.card',
+            'patients.create',
+            'patients.view',
+        ];
+
+        $permissionIds = Permission::query()
+            ->whereIn('name', $nursingPermissions)
+            ->pluck('id');
+
+        $now = now();
+
+        foreach ($permissionIds as $permissionId) {
+            DB::table('role_permission')->updateOrInsert(
+                [
+                    'role' => 'nursing',
+                    'permission_id' => $permissionId,
+                ],
+                [
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]
             );
         }
     }
