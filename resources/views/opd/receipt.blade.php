@@ -3,17 +3,82 @@
     $invoice = $payment->invoice;
     $encounter = $payment->encounter;
 
-    $barcodeGenerator = new \Picqer\Barcode\BarcodeGeneratorSVG();
+    /*
+    |--------------------------------------------------------------------------
+    | Visit / referral details
+    |--------------------------------------------------------------------------
+    */
 
-    $receiptBarcode = $barcodeGenerator->getBarcode(
-        $payment->receipt_no,
-        $barcodeGenerator::TYPE_CODE_128,
-        1.5,
-        45
-    );
+    $visitType = $encounter?->visit_type;
+
+    $visitTypeLabel = match ($visitType) {
+        'new' => 'New Visit',
+        'follow_up' => 'Follow-up',
+        'review' => 'Review',
+        'referral' => 'Referral',
+        default => $visitType
+            ? ucwords(str_replace('_', ' ', $visitType))
+            : '—',
+    };
+
+    $referredBy = trim((string) ($encounter?->referred_by ?? ''));
+
+    $isInternalReferral =
+        $visitType === 'referral'
+        &&
+        str_starts_with(
+            $referredBy,
+            'Internal referral from '
+        );
+
+    $referredFromDepartment = null;
+    $referringDoctorName = null;
+
+    if ($isInternalReferral) {
+
+        $referralDetails = trim(
+            substr(
+                $referredBy,
+                strlen('Internal referral from ')
+            )
+        );
+
+        $parts = explode(
+            ' - ',
+            $referralDetails,
+            2
+        );
+
+        $referredFromDepartment =
+            trim($parts[0] ?? '');
+
+        $referringDoctorName =
+            isset($parts[1])
+                ? trim($parts[1])
+                : null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Barcode
+    |--------------------------------------------------------------------------
+    */
+
+    $barcodeGenerator =
+        new \Picqer\Barcode\BarcodeGeneratorSVG();
+
+    $receiptBarcode =
+        $barcodeGenerator->getBarcode(
+            $payment->receipt_no,
+            $barcodeGenerator::TYPE_CODE_128,
+            1.5,
+            45
+        );
 @endphp
 
+
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
@@ -28,6 +93,7 @@
     <title>
         Receipt - {{ $payment->receipt_no }}
     </title>
+
 
     <style>
 
@@ -79,11 +145,13 @@
 
         .label {
             color: #555;
+            flex-shrink: 0;
         }
 
         .value {
             text-align: right;
             font-weight: 600;
+            overflow-wrap: anywhere;
         }
 
         .section-title {
@@ -93,9 +161,24 @@
             text-transform: uppercase;
         }
 
+        .referral-box {
+            margin: 8px 0;
+            padding: 7px;
+            border: 1px solid #aaa;
+            background: #fafafa;
+        }
+
+        .referral-title {
+            margin-bottom: 5px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
         .amount-row {
             display: flex;
             justify-content: space-between;
+            gap: 10px;
             margin-bottom: 5px;
             font-size: 11px;
         }
@@ -146,6 +229,7 @@
             font-size: 14px;
         }
 
+
         @media print {
 
             @page {
@@ -178,6 +262,11 @@
 
     <div class="receipt">
 
+
+        {{-- ========================================================= --}}
+        {{-- HOSPITAL HEADER --}}
+        {{-- ========================================================= --}}
+
         <div class="hospital">
             TURA CHRISTIAN HOSPITAL
         </div>
@@ -189,6 +278,11 @@
 
         <div class="divider"></div>
 
+
+
+        {{-- ========================================================= --}}
+        {{-- RECEIPT DETAILS --}}
+        {{-- ========================================================= --}}
 
         <div class="row">
 
@@ -231,6 +325,11 @@
 
         <div class="divider"></div>
 
+
+
+        {{-- ========================================================= --}}
+        {{-- PATIENT --}}
+        {{-- ========================================================= --}}
 
         <div class="section-title">
             Patient
@@ -305,6 +404,19 @@
         <div class="row">
 
             <div class="label">
+                Visit Type
+            </div>
+
+            <div class="value">
+                {{ $isInternalReferral ? 'Internal Referral' : $visitTypeLabel }}
+            </div>
+
+        </div>
+
+
+        <div class="row">
+
+            <div class="label">
                 Queue No.
             </div>
 
@@ -315,8 +427,92 @@
         </div>
 
 
+
+        {{-- ========================================================= --}}
+        {{-- INTERNAL REFERRAL DETAILS --}}
+        {{-- ========================================================= --}}
+
+        @if ($isInternalReferral)
+
+            <div class="referral-box">
+
+                <div class="referral-title">
+                    Internal Referral
+                </div>
+
+
+                <div class="row">
+
+                    <div class="label">
+                        Referred From
+                    </div>
+
+                    <div class="value">
+                        {{ $referredFromDepartment ?: '—' }}
+                    </div>
+
+                </div>
+
+
+                @if ($referringDoctorName)
+
+                    <div class="row">
+
+                        <div class="label">
+                            Referring Doctor
+                        </div>
+
+                        <div class="value">
+                            {{ $referringDoctorName }}
+                        </div>
+
+                    </div>
+
+                @endif
+
+
+                <div class="row">
+
+                    <div class="label">
+                        Referral Fee
+                    </div>
+
+                    <div class="value">
+                        ₹100.00
+                    </div>
+
+                </div>
+
+            </div>
+
+        @elseif (
+            $visitType === 'referral'
+            &&
+            $referredBy !== ''
+        )
+
+            <div class="row">
+
+                <div class="label">
+                    Referred By
+                </div>
+
+                <div class="value">
+                    {{ $referredBy }}
+                </div>
+
+            </div>
+
+        @endif
+
+
         <div class="divider"></div>
 
+
+
+        {{-- ========================================================= --}}
+        {{-- PAYMENT DETAILS --}}
+        {{-- ========================================================= --}}
 
         <div class="section-title">
             Payment Details
@@ -414,7 +610,13 @@
 
         @if ($payment->remarks)
 
-            <div style="margin-top: 7px; font-size: 9px; color: #555;">
+            <div
+                style="
+                    margin-top: 7px;
+                    font-size: 9px;
+                    color: #555;
+                "
+            >
                 {{ $payment->remarks }}
             </div>
 
@@ -423,6 +625,11 @@
 
         <div class="divider"></div>
 
+
+
+        {{-- ========================================================= --}}
+        {{-- RECEIVED BY --}}
+        {{-- ========================================================= --}}
 
         <div class="row">
 
@@ -437,6 +644,11 @@
         </div>
 
 
+
+        {{-- ========================================================= --}}
+        {{-- BARCODE --}}
+        {{-- ========================================================= --}}
+
         <div class="barcode">
 
             {!! $receiptBarcode !!}
@@ -448,12 +660,22 @@
         </div>
 
 
+
+        {{-- ========================================================= --}}
+        {{-- FOOTER --}}
+        {{-- ========================================================= --}}
+
         <div class="footer">
             Thank you. Please retain this receipt for hospital records.
         </div>
 
     </div>
 
+
+
+    {{-- ========================================================= --}}
+    {{-- PRINT BUTTON --}}
+    {{-- ========================================================= --}}
 
     <div class="actions">
 

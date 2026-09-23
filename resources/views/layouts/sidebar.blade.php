@@ -128,6 +128,9 @@
     $financeOpen =
         request()->routeIs('finance.*');
 
+        $hrOpen =
+    request()->routeIs('admin.hr.*');
+
     $businessOpen =
         request()->routeIs('billing.*')
         || request()->routeIs('ip-billing.*')
@@ -180,6 +183,7 @@
         pharmacy: {{ $pharmacyOpen ? 'true' : 'false' }},
         business: {{ $businessOpen ? 'true' : 'false' }},
         finance: {{ $financeOpen ? 'true' : 'false' }},
+        hr: {{ $hrOpen ? 'true' : 'false' }},
         administration: {{ $administrationOpen ? 'true' : 'false' }},
         masterData: {{ $masterDataOpen ? 'true' : 'false' }}
     }"
@@ -797,7 +801,162 @@
 
         @endif
 
+                     {{-- HUMAN RESOURCES --}}
+@if ($canHr)
 
+    <div>
+
+                   <button
+    type="button"
+    @click="hr = !hr"
+    class="group flex w-full items-center gap-3 rounded-md px-3 py-1.5 font-medium transition
+        {{
+            $hrOpen
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+
+    <svg
+        class="h-5 w-5 shrink-0"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="1.8"
+    >
+        <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
+        />
+
+        <circle
+            cx="9"
+            cy="7"
+            r="4"
+        />
+
+        <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M22 21v-2a4 4 0 0 0-3-3.87"
+        />
+
+        <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M16 3.13a4 4 0 0 1 0 7.75"
+        />
+    </svg>
+
+
+    <span class="flex-1 text-left text-[13px]">
+        Human Resources
+    </span>
+
+
+    <svg
+        class="h-3.5 w-3.5 transition-transform duration-200"
+        :class="{ 'rotate-90': hr }"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+    >
+        <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M9 5l7 7-7 7"
+        />
+    </svg>
+
+</button>
+
+
+        <div
+            x-show="hr"
+            x-collapse
+            class="ml-3 mt-0.5 space-y-0.5 border-l border-slate-800 pl-3"
+        >
+
+            <a
+                href="{{ route('admin.hr.index') }}"
+                class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+                    {{
+                        request()->routeIs('admin.hr.index')
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+                    }}"
+            >
+                HR Dashboard
+            </a>
+
+
+            <a
+                href="{{ route('admin.hr.leave-requests.index') }}"
+                class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+                    {{
+                        request()->routeIs('admin.hr.leave-requests.*')
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+                    }}"
+            >
+                Leave Requests
+            </a>
+
+
+            <a
+                href="{{ route('admin.hr.leave-balances.index') }}"
+                class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+                    {{
+                        request()->routeIs('admin.hr.leave-balances.*')
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+                    }}"
+            >
+                Leave Balances
+            </a>
+
+
+            <a
+                href="{{ route('admin.hr.leave-types.index') }}"
+                class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+                    {{
+                        request()->routeIs('admin.hr.leave-types.*')
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+                    }}"
+            >
+                Leave Type Master
+            </a>
+                        <a
+    href="{{ route('admin.hr.contracts.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.hr.contracts.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Contract Management
+</a>
+
+              <a
+    href="{{ route('admin.hr.documents.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.hr.documents.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Employee Documents
+</a>
+        </div>
+
+    </div>
+
+@endif
         {{-- ADMINISTRATION --}}
         @if ($canAdministration)
 

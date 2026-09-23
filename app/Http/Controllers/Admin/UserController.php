@@ -121,6 +121,30 @@ class UserController extends Controller
         ]);
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Protect Super Administrator Assignment
+        |--------------------------------------------------------------------------
+        |
+        | Only an existing Super Administrator may create another
+        | Super Administrator account.
+        |
+        */
+
+        if (
+            $validated['role'] === 'super_admin'
+            &&
+            ! $this->currentUserIsSuperAdmin()
+        ) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'role' =>
+                        'Only a Super Administrator can assign the Super Administrator role.',
+                ]);
+        }
+
+
         $user = DB::transaction(
             function () use (
                 $validated
@@ -234,6 +258,21 @@ class UserController extends Controller
         User $user
     ): View {
 
+        /*
+        |--------------------------------------------------------------------------
+        | Protect Super Administrator Account
+        |--------------------------------------------------------------------------
+        |
+        | Ordinary administrators must not be able to open the edit screen
+        | for a Super Administrator account.
+        |
+        */
+
+        $this->ensureCanManageUser(
+            $user
+        );
+
+
         $roles = $this->roles();
 
         $designations = $this->designations();
@@ -275,6 +314,17 @@ class UserController extends Controller
         Request $request,
         User $user
     ): RedirectResponse {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Protect Super Administrator Account
+        |--------------------------------------------------------------------------
+        */
+
+        $this->ensureCanManageUser(
+            $user
+        );
+
 
         $validated = $request->validate([
 
@@ -333,8 +383,55 @@ class UserController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Protect Existing Super Administrator Role
+        |--------------------------------------------------------------------------
+        |
+        | Once an account is a Super Administrator, this administration
+        | screen must not be used to downgrade it.
+        |
+        */
+
+        if (
+            $user->isSuperAdmin()
+            &&
+            $validated['role'] !== 'super_admin'
+        ) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'role' =>
+                        'The Super Administrator role cannot be removed from this account.',
+                ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Protect Super Administrator Assignment
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $validated['role'] === 'super_admin'
+            &&
+            ! $this->currentUserIsSuperAdmin()
+        ) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'role' =>
+                        'Only a Super Administrator can assign the Super Administrator role.',
+                ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
         | Protect Current Administrator
         |--------------------------------------------------------------------------
+        |
+        | Existing administrator behaviour is preserved.
+        |
         */
 
         if (
@@ -342,16 +439,21 @@ class UserController extends Controller
             ===
             $user->id
             &&
-            $validated['role']
-            !==
-            'admin'
+            ! in_array(
+                $validated['role'],
+                [
+                    'admin',
+                    'super_admin',
+                ],
+                true
+            )
         ) {
 
             return back()
                 ->withInput()
                 ->withErrors([
                     'role' =>
-                        'You cannot remove your own administrator role.',
+                        'You cannot remove your own administrator access.',
                 ]);
         }
 
@@ -471,6 +573,21 @@ class UserController extends Controller
         User $user
     ): RedirectResponse {
 
+        /*
+        |--------------------------------------------------------------------------
+        | Protect Super Administrator Account
+        |--------------------------------------------------------------------------
+        |
+        | Ordinary administrators must not be able to reset the password of
+        | a Super Administrator.
+        |
+        */
+
+        $this->ensureCanManageUser(
+            $user
+        );
+
+
         $validated =
             $request->validate([
 
@@ -513,6 +630,29 @@ class UserController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Protect Super Administrator Account
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $user->isSuperAdmin()
+            &&
+            ! $this->currentUserIsSuperAdmin()
+        ) {
+
+            return redirect()
+                ->route(
+                    'admin.users.index'
+                )
+                ->with(
+                    'error',
+                    'Only a Super Administrator can change the status of a Super Administrator account.'
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
         | Prevent Self-Deactivation
         |--------------------------------------------------------------------------
         */
@@ -530,6 +670,33 @@ class UserController extends Controller
                 ->with(
                     'error',
                     'You cannot deactivate your own account.'
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Keep Existing Super Administrator Active
+        |--------------------------------------------------------------------------
+        |
+        | Even another Super Administrator cannot deactivate a protected
+        | Super Administrator through this screen.
+        |
+        */
+
+        if (
+            $user->isSuperAdmin()
+            &&
+            $user->is_active
+        ) {
+
+            return redirect()
+                ->route(
+                    'admin.users.index'
+                )
+                ->with(
+                    'error',
+                    'A Super Administrator account cannot be deactivated from User Management.'
                 );
         }
 
@@ -563,58 +730,119 @@ class UserController extends Controller
 
 
     /**
- * Available ERP roles.
- */
-private function roles(): array
-{
-    return [
+     * Determine whether the currently authenticated user is a
+     * Super Administrator.
+     */
+    private function currentUserIsSuperAdmin(): bool
+    {
+        $currentUser = auth()->user();
 
-        'admin' =>
-            'Administrator',
+        return $currentUser
+            instanceof User
+            &&
+            $currentUser->isSuperAdmin();
+    }
 
-        'reception' =>
-            'Reception',
 
-        'nursing' =>
-            'Nursing',
+    /**
+     * Ensure the current authenticated user is allowed to manage
+     * the supplied user account.
+     */
+    private function ensureCanManageUser(
+        User $user
+    ): void {
 
-        'doctor' =>
-            'Doctor',
+        if (
+            $user->isSuperAdmin()
+            &&
+            ! $this->currentUserIsSuperAdmin()
+        ) {
+            abort(
+                403,
+                'Only a Super Administrator can manage a Super Administrator account.'
+            );
+        }
+    }
 
-        'billing' =>
-            'Billing',
 
-        'finance' =>
-            'Finance / Accounts',
+    /**
+     * Available ERP roles.
+     */
+    private function roles(): array
+    {
+        $roles = [
 
-        'laboratory' =>
-            'Laboratory',
+            'admin' =>
+                'Administrator',
 
-        'radiology' =>
-            'Radiology',
+            'reception' =>
+                'Reception',
 
-        'pharmacy' =>
-            'Pharmacy',
+            'nursing' =>
+                'Nursing',
 
-        'stores' =>
-            'Stores / Inventory',
+            'doctor' =>
+                'Doctor',
 
-        'hr' =>
-            'HR',
+            'billing' =>
+                'Billing',
 
-        'medical_records' =>
-            'Medical Records',
+            'finance' =>
+                'Finance / Accounts',
 
-        'emergency' =>
-            'Emergency',
+            'laboratory' =>
+                'Laboratory',
 
-        'ipd' =>
-            'IPD / Ward',
+            'radiology' =>
+                'Radiology',
 
-        'management' =>
-            'Management / Read Only',
-    ];
-}
+            'pharmacy' =>
+                'Pharmacy',
+
+            'stores' =>
+                'Stores / Inventory',
+
+            'hr' =>
+                'HR',
+
+            'medical_records' =>
+                'Medical Records',
+
+            'emergency' =>
+                'Emergency',
+
+            'ipd' =>
+                'IPD / Ward',
+
+            'management' =>
+                'Management / Read Only',
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Super Administrator Role
+        |--------------------------------------------------------------------------
+        |
+        | The role is intentionally hidden from ordinary administrators.
+        | Only an existing Super Administrator can see or assign it.
+        |
+        */
+
+        if (
+            $this->currentUserIsSuperAdmin()
+        ) {
+            $roles = [
+                'super_admin' =>
+                    'Super Administrator',
+
+                ...$roles,
+            ];
+        }
+
+
+        return $roles;
+    }
 
 
     /**

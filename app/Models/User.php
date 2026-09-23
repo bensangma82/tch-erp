@@ -51,14 +51,49 @@ class User extends Authenticatable
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * Check whether the user has a specific role.
+     *
+     * Super Administrator is treated as an administrator for compatibility
+     * with existing role-based checks throughout the ERP.
+     */
     public function hasRole(string $role): bool
     {
+        if ($this->isSuperAdmin()) {
+            return in_array(
+                $role,
+                [
+                    'super_admin',
+                    'admin',
+                ],
+                true
+            );
+        }
+
         return $this->role === $role;
     }
 
 
+    /**
+     * Check whether the user has any one of the supplied roles.
+     *
+     * Super Administrator automatically satisfies checks for either
+     * "super_admin" or "admin".
+     */
     public function hasAnyRole(array $roles): bool
     {
+        if ($this->isSuperAdmin()) {
+            return ! empty(
+                array_intersect(
+                    $roles,
+                    [
+                        'super_admin',
+                        'admin',
+                    ]
+                )
+            );
+        }
+
         return in_array(
             $this->role,
             $roles,
@@ -67,9 +102,31 @@ class User extends Authenticatable
     }
 
 
+    /**
+     * Determine whether the user is the system-level Super Administrator.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'super_admin';
+    }
+
+
+    /**
+     * Determine whether the user has administrator-level access.
+     *
+     * Super Administrator is intentionally included so all existing
+     * $user->isAdmin() checks continue to grant full system access.
+     */
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return in_array(
+            $this->role,
+            [
+                'admin',
+                'super_admin',
+            ],
+            true
+        );
     }
 
 
@@ -92,7 +149,7 @@ class User extends Authenticatable
      * Check whether this user has a specific permission.
      *
      * Permission may come from:
-     * 1. Admin override
+     * 1. Super Administrator / Administrator override
      * 2. Direct user permission
      * 3. Role-level permission
      */
@@ -100,7 +157,7 @@ class User extends Authenticatable
     {
         /*
         |--------------------------------------------------------------------------
-        | Admin Override
+        | Administrator Override
         |--------------------------------------------------------------------------
         */
 
@@ -162,7 +219,7 @@ class User extends Authenticatable
      * from the supplied list.
      *
      * Permission may come from:
-     * 1. Admin override
+     * 1. Super Administrator / Administrator override
      * 2. Direct user permission
      * 3. Role-level permission
      */
@@ -170,7 +227,7 @@ class User extends Authenticatable
     {
         /*
         |--------------------------------------------------------------------------
-        | Admin Override
+        | Administrator Override
         |--------------------------------------------------------------------------
         */
 

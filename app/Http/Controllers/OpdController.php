@@ -8,14 +8,12 @@ use App\Models\Encounter;
 use App\Models\Invoice;
 use App\Models\Patient;
 use App\Models\Payment;
+use App\Models\Service;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class OpdController extends Controller
 {
-    /**
-     * Show today's OPD encounters.
-     */
     public function index()
     {
         $encounters = Encounter::with([
@@ -25,88 +23,105 @@ class OpdController extends Controller
                 'payments',
                 'invoices',
             ])
-            ->where(
-                'encounter_type',
-                'OPD'
-            )
-            ->whereDate(
-                'encounter_date',
-                today()
-            )
+            ->where('encounter_type', 'OPD')
+            ->whereDate('encounter_date', today())
             ->orderBy('queue_number')
             ->get();
 
-        return view(
-            'opd.index',
-            compact('encounters')
-        );
+        return view('opd.index', compact('encounters'));
     }
 
-
-    /**
-     * Show OPD registration form.
-     */
     public function create(Request $request)
     {
         $patient = null;
+        $recentVisits = collect();
 
         if ($request->filled('patient_id')) {
+            $patient = Patient::findOrFail($request->patient_id);
 
-            $patient = Patient::findOrFail(
-                $request->patient_id
-            );
+            $recentVisits = Encounter::query()
+                ->where('patient_id', $patient->id)
+                ->where('encounter_type', 'OPD')
+                ->whereDate('encounter_date', '>=', today()->subDays(7))
+                ->with([
+                    'department',
+                    'doctor',
+                ])
+                ->orderByDesc('encounter_date')
+                ->orderByDesc('id')
+                ->get();
         }
 
         $departments = Department::query()
-            ->where(
-                'type',
-                'clinical'
-            )
-            ->where(
-                'is_active',
-                true
-            )
+            ->where('type', 'clinical')
+            ->where('is_active', true)
             ->orderBy('name')
             ->get();
 
         $doctors = Employee::query()
-            ->where(
-                'is_doctor',
-                true
-            )
-            ->where(
-                'is_active',
-                true
-            )
+            ->where('is_doctor', true)
+            ->where('is_active', true)
             ->with('department')
             ->orderBy('first_name')
             ->get();
+
+        $internalReferralService = Service::query()
+            ->where('code', 'INT-REF')
+            ->where('is_active', true)
+            ->first();
+
+        $internalReferralFee = $internalReferralService
+            ? (float) $internalReferralService->price
+            : null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Department OPD consultation fees
+        |--------------------------------------------------------------------------
+        |
+        | During rollout, only departments with an active OPD-CONS-* service
+        | are automated. Other departments can still use the manual fee until
+        | their Service Master entry is created.
+        |
+        */
+        $departmentConsultationFees = Service::query()
+            ->where('category', 'consultation')
+            ->where('is_active', true)
+            ->where('code', 'like', 'OPD-CONS-%')
+            ->whereNotNull('department_id')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('department_id')
+            ->map(function ($services) {
+                if ($services->count() !== 1) {
+                    return null;
+                }
+
+                return [
+                    'service_id' => $services->first()->id,
+                    'code' => $services->first()->code,
+                    'name' => $services->first()->name,
+                    'price' => (float) $services->first()->price,
+                ];
+            })
+            ->filter();
 
         return view(
             'opd.create',
             compact(
                 'patient',
                 'departments',
-                'doctors'
+                'doctors',
+                'recentVisits',
+                'internalReferralFee',
+                'departmentConsultationFees'
             )
         );
     }
 
-
-    /**
-     * Register OPD encounter,
-     * create invoice and record payment.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
-
-            /*
-            |--------------------------------------------------------------------------
-            | Patient / OPD
-            |--------------------------------------------------------------------------
-            */
-
             'patient_id' => [
                 'required',
                 'exists:patients,id',
@@ -127,6 +142,23 @@ class OpdController extends Controller
                 'in:new,follow_up,review,referral',
             ],
 
+            'referral_type' => [
+                'nullable',
+                'in:internal,external',
+                'required_if:visit_type,referral',
+            ],
+
+            'referred_from_department_id' => [
+                'nullable',
+                'exists:departments,id',
+                'required_if:referral_type,internal',
+            ],
+
+            'referring_doctor_id' => [
+                'nullable',
+                'exists:employees,id',
+            ],
+
             'referred_by' => [
                 'nullable',
                 'string',
@@ -138,13 +170,6 @@ class OpdController extends Controller
                 'string',
                 'max:1000',
             ],
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Charges
-            |--------------------------------------------------------------------------
-            */
 
             'consultation_fee' => [
                 'required',
@@ -159,13 +184,6 @@ class OpdController extends Controller
                 'min:0',
                 'max:999999.99',
             ],
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Payment
-            |--------------------------------------------------------------------------
-            */
 
             'payment_mode' => [
                 'required',
@@ -187,17 +205,191 @@ class OpdController extends Controller
             ],
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Internal referral rule
+        |--------------------------------------------------------------------------
+        */
+        $isInternalReferral =
+            $validated['visit_type'] === 'referral'
+            &&
+            ($validated['referral_type'] ?? null) === 'internal';
+
+        $internalReferralService = null;
+        $internalReferralFee = null;
+
+        if ($isInternalReferral) {
+            $internalReferralService = Service::query()
+                ->where('code', 'INT-REF')
+                ->where('is_active', true)
+                ->first();
+
+            if (! $internalReferralService) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'visit_type' =>
+                            'Internal referral fee is not configured in Service Master. Please create or activate service code INT-REF.',
+                    ]);
+            }
+
+            $internalReferralFee =
+                round(
+                    (float) $internalReferralService->price,
+                    2
+                );
+
+            $sourceDepartmentId =
+                (int) $validated['referred_from_department_id'];
+
+            $destinationDepartmentId =
+                (int) $validated['department_id'];
+
+            if ($sourceDepartmentId === $destinationDepartmentId) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'referred_from_department_id' =>
+                            'For an internal referral, the referring department and destination department must be different.',
+                    ]);
+            }
+
+            $sourceDepartment =
+                Department::findOrFail($sourceDepartmentId);
+
+            $referralText =
+                'Internal referral from '
+                . $sourceDepartment->name;
+
+            if (! empty($validated['referring_doctor_id'])) {
+                $referringDoctor =
+                    Employee::findOrFail(
+                        $validated['referring_doctor_id']
+                    );
+
+                $referralText .=
+                    ' - '
+                    . $referringDoctor->full_name;
+            }
+
+            $validated['referred_by'] =
+                $referralText;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normal department consultation service
+        |--------------------------------------------------------------------------
+        |
+        | The backend is authoritative whenever an active OPD-CONS-* service
+        | exists for the selected department.
+        |
+        */
+        $departmentConsultationService = null;
+        $departmentConsultationFee = null;
+
+        if (! $isInternalReferral) {
+            $departmentConsultationServices = Service::query()
+                ->where('category', 'consultation')
+                ->where('is_active', true)
+                ->where('code', 'like', 'OPD-CONS-%')
+                ->where(
+                    'department_id',
+                    $validated['department_id']
+                )
+                ->get();
+
+            if ($departmentConsultationServices->count() > 1) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'department_id' =>
+                            'More than one active OPD consultation service is configured for this department. Please keep only one active OPD-CONS-* service in Service Master.',
+                    ]);
+            }
+
+            $departmentConsultationService =
+                $departmentConsultationServices->first();
+
+            if ($departmentConsultationService) {
+                $departmentConsultationFee =
+                    round(
+                        (float) $departmentConsultationService->price,
+                        2
+                    );
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Automatic 7-day free follow-up check
+        |--------------------------------------------------------------------------
+        |
+        | Internal referral has precedence over free follow-up.
+        |
+        */
+        $lastSameDepartmentVisit = null;
+        $isFreeFollowUp = false;
+
+        if (! $isInternalReferral) {
+            $lastSameDepartmentVisit = Encounter::query()
+                ->where(
+                    'patient_id',
+                    $validated['patient_id']
+                )
+                ->where(
+                    'encounter_type',
+                    'OPD'
+                )
+                ->where(
+                    'department_id',
+                    $validated['department_id']
+                )
+                ->whereDate(
+                    'encounter_date',
+                    '>=',
+                    today()->subDays(7)
+                )
+                ->whereDate(
+                    'encounter_date',
+                    '<=',
+                    today()
+                )
+                ->latest('encounter_date')
+                ->latest('id')
+                ->first();
+
+            $isFreeFollowUp =
+                $lastSameDepartmentVisit !== null;
+        }
+
+        if ($isFreeFollowUp) {
+            $validated['visit_type'] =
+                'follow_up';
+        }
 
         /*
         |--------------------------------------------------------------------------
         | Server-side amount calculation
         |--------------------------------------------------------------------------
         */
-
-        $consultationFee = round(
-            (float) $validated['consultation_fee'],
-            2
-        );
+        if ($isInternalReferral) {
+            $consultationFee = $internalReferralFee;
+        } elseif ($isFreeFollowUp) {
+            $consultationFee = 0.00;
+        } elseif ($departmentConsultationService) {
+            $consultationFee = $departmentConsultationFee;
+        } else {
+            /*
+             * Temporary fallback during Service Master rollout.
+             * Once every clinical department has an OPD-CONS-* service,
+             * this manual fallback can be removed.
+             */
+            $consultationFee = round(
+                (float) $validated['consultation_fee'],
+                2
+            );
+        }
 
         $registrationFee = round(
             (float) $validated['registration_fee'],
@@ -214,18 +406,10 @@ class OpdController extends Controller
             2
         );
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Prevent overpayment for non-cash payments
-        |--------------------------------------------------------------------------
-        */
-
         if (
             $validated['payment_mode'] !== 'cash' &&
             $amountReceived > $totalAmount
         ) {
-
             return back()
                 ->withInput()
                 ->withErrors([
@@ -233,13 +417,6 @@ class OpdController extends Controller
                         'Amount received cannot be greater than the total bill for this payment mode.',
                 ]);
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Calculate amount applied, balance and change
-        |--------------------------------------------------------------------------
-        */
 
         $paymentApplied = min(
             $amountReceived,
@@ -256,36 +433,15 @@ class OpdController extends Controller
             0
         );
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Invoice status
-        |--------------------------------------------------------------------------
-        */
-
         if ($totalAmount <= 0) {
-
             $invoiceStatus = 'paid';
-
         } elseif ($paymentApplied <= 0) {
-
             $invoiceStatus = 'unpaid';
-
         } elseif ($paymentApplied < $totalAmount) {
-
             $invoiceStatus = 'partial';
-
         } else {
-
             $invoiceStatus = 'paid';
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Create Encounter + Invoice + Payment
-        |--------------------------------------------------------------------------
-        */
 
         $result = DB::transaction(
             function () use (
@@ -297,27 +453,12 @@ class OpdController extends Controller
                 $changeAmount,
                 $invoiceStatus
             ) {
-
-                /*
-                |--------------------------------------------------------------------------
-                | Queue number
-                |--------------------------------------------------------------------------
-                */
-
                 $queueNumber =
                     $this->generateQueueNumber(
                         (int) $validated['department_id']
                     );
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | Create OPD encounter
-                |--------------------------------------------------------------------------
-                */
-
                 $encounter = Encounter::create([
-
                     'encounter_no' =>
                         $this->generateEncounterNumber(),
 
@@ -358,15 +499,7 @@ class OpdController extends Controller
                         auth()->id(),
                 ]);
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | Create invoice
-                |--------------------------------------------------------------------------
-                */
-
                 $invoice = Invoice::create([
-
                     'invoice_no' =>
                         $this->generateInvoiceNumber(),
 
@@ -404,24 +537,15 @@ class OpdController extends Controller
                         auth()->id(),
                 ]);
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | Record payment
-                |--------------------------------------------------------------------------
-                */
-
                 $payment = null;
 
                 if ($paymentApplied > 0) {
-
                     $remarks = null;
 
                     if (
                         $validated['payment_mode'] === 'cash' &&
                         $changeAmount > 0
                     ) {
-
                         $remarks =
                             'Cash tendered: ₹'
                             . number_format(
@@ -439,9 +563,7 @@ class OpdController extends Controller
                             );
                     }
 
-
                     $payment = Payment::create([
-
                         'receipt_no' =>
                             $this->generateReceiptNumber(),
 
@@ -465,7 +587,7 @@ class OpdController extends Controller
 
                         'transaction_reference' =>
                             $validated['transaction_reference']
-                                ?? null,
+                            ?? null,
 
                         'remarks' =>
                             $remarks,
@@ -475,29 +597,14 @@ class OpdController extends Controller
                     ]);
                 }
 
-
                 return [
-                    'encounter' =>
-                        $encounter,
-
-                    'invoice' =>
-                        $invoice,
-
-                    'payment' =>
-                        $payment,
-
-                    'change_amount' =>
-                        $changeAmount,
+                    'encounter' => $encounter,
+                    'invoice' => $invoice,
+                    'payment' => $payment,
+                    'change_amount' => $changeAmount,
                 ];
             }
         );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Success message
-        |--------------------------------------------------------------------------
-        */
 
         $encounter =
             $result['encounter'];
@@ -511,7 +618,6 @@ class OpdController extends Controller
         $changeAmount =
             $result['change_amount'];
 
-
         $message =
             'OPD registration completed. '
             . 'Queue number: '
@@ -519,17 +625,34 @@ class OpdController extends Controller
             . '. Invoice: '
             . $invoice->invoice_no;
 
+        if ($isInternalReferral) {
+            $message .=
+                '. Internal referral fee ₹'
+                . number_format(
+                    (float) $internalReferralFee,
+                    2
+                )
+                . ' applied.';
+        } elseif ($isFreeFollowUp) {
+            $message .=
+                '. Free follow-up consultation applied.';
+        } elseif ($departmentConsultationService) {
+            $message .=
+                '. Consultation fee ₹'
+                . number_format(
+                    (float) $departmentConsultationFee,
+                    2
+                )
+                . ' applied from Service Master.';
+        }
 
         if ($payment) {
-
             $message .=
                 '. Receipt: '
                 . $payment->receipt_no;
         }
 
-
         if ($changeAmount > 0) {
-
             $message .=
                 '. Change to return: ₹'
                 . number_format(
@@ -538,11 +661,7 @@ class OpdController extends Controller
                 );
         }
 
-
-        if (
-            (float) $invoice->balance_amount > 0
-        ) {
-
+        if ((float) $invoice->balance_amount > 0) {
             $message .=
                 '. Balance due: ₹'
                 . number_format(
@@ -551,19 +670,11 @@ class OpdController extends Controller
                 );
         }
 
-
         return redirect()
             ->route('opd.index')
-            ->with(
-                'success',
-                $message
-            );
+            ->with('success', $message);
     }
 
-
-    /**
-     * Show printable OPD payment receipt.
-     */
     public function receipt(Payment $payment)
     {
         $payment->load([
@@ -580,10 +691,6 @@ class OpdController extends Controller
         );
     }
 
-
-    /**
-     * Show printable OPD card.
-     */
     public function card(Encounter $encounter)
     {
         $encounter->load([
@@ -599,32 +706,22 @@ class OpdController extends Controller
         );
     }
 
-
-    /**
-     * Generate encounter number.
-     *
-     * Example:
-     * ENC-20260909-000001
-     */
     private function generateEncounterNumber(): string
     {
-        $date =
-            now()->format('Ymd');
+        $date = now()->format('Ymd');
 
-        $last =
-            Encounter::withTrashed()
-                ->where(
-                    'encounter_no',
-                    'like',
-                    "ENC-{$date}-%"
-                )
-                ->orderByDesc('id')
-                ->first();
+        $last = Encounter::withTrashed()
+            ->where(
+                'encounter_no',
+                'like',
+                "ENC-{$date}-%"
+            )
+            ->orderByDesc('id')
+            ->first();
 
         $nextNumber = 1;
 
         if ($last) {
-
             $parts =
                 explode(
                     '-',
@@ -642,32 +739,22 @@ class OpdController extends Controller
         );
     }
 
-
-    /**
-     * Generate invoice number.
-     *
-     * Example:
-     * INV-20260909-000001
-     */
     private function generateInvoiceNumber(): string
     {
-        $date =
-            now()->format('Ymd');
+        $date = now()->format('Ymd');
 
-        $last =
-            Invoice::query()
-                ->where(
-                    'invoice_no',
-                    'like',
-                    "INV-{$date}-%"
-                )
-                ->orderByDesc('id')
-                ->first();
+        $last = Invoice::query()
+            ->where(
+                'invoice_no',
+                'like',
+                "INV-{$date}-%"
+            )
+            ->orderByDesc('id')
+            ->first();
 
         $nextNumber = 1;
 
         if ($last) {
-
             $parts =
                 explode(
                     '-',
@@ -685,32 +772,22 @@ class OpdController extends Controller
         );
     }
 
-
-    /**
-     * Generate receipt number.
-     *
-     * Example:
-     * RCP-20260909-000001
-     */
     private function generateReceiptNumber(): string
     {
-        $date =
-            now()->format('Ymd');
+        $date = now()->format('Ymd');
 
-        $last =
-            Payment::query()
-                ->where(
-                    'receipt_no',
-                    'like',
-                    "RCP-{$date}-%"
-                )
-                ->orderByDesc('id')
-                ->first();
+        $last = Payment::query()
+            ->where(
+                'receipt_no',
+                'like',
+                "RCP-{$date}-%"
+            )
+            ->orderByDesc('id')
+            ->first();
 
         $nextNumber = 1;
 
         if ($last) {
-
             $parts =
                 explode(
                     '-',
@@ -728,30 +805,23 @@ class OpdController extends Controller
         );
     }
 
-
-    /**
-     * Generate today's queue number
-     * for a department.
-     */
     private function generateQueueNumber(
         int $departmentId
     ): int {
-
-        $lastQueue =
-            Encounter::query()
-                ->where(
-                    'encounter_type',
-                    'OPD'
-                )
-                ->where(
-                    'department_id',
-                    $departmentId
-                )
-                ->whereDate(
-                    'encounter_date',
-                    today()
-                )
-                ->max('queue_number');
+        $lastQueue = Encounter::query()
+            ->where(
+                'encounter_type',
+                'OPD'
+            )
+            ->where(
+                'department_id',
+                $departmentId
+            )
+            ->whereDate(
+                'encounter_date',
+                today()
+            )
+            ->max('queue_number');
 
         return ($lastQueue ?? 0) + 1;
     }

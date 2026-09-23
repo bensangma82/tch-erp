@@ -232,6 +232,29 @@
                 </div>
 
 
+                {{-- ========================================================= --}}
+                {{-- FOLLOW-UP ELIGIBILITY --}}
+                {{-- ========================================================= --}}
+
+                @if ($patient)
+
+                    <div
+                        id="followupEligibilityBox"
+                        class="hidden rounded-xl border px-5 py-4"
+                    >
+                        <div
+                            id="followupEligibilityTitle"
+                            class="font-semibold"
+                        ></div>
+
+                        <div
+                            id="followupEligibilityText"
+                            class="mt-1 text-sm"
+                        ></div>
+                    </div>
+
+                @endif
+
 
                 {{-- ========================================================= --}}
                 {{-- OPD DETAILS --}}
@@ -365,7 +388,6 @@
                                 </span>
                             </label>
 
-
                             <select
                                 id="visit_type"
                                 name="visit_type"
@@ -406,9 +428,142 @@
                         </div>
 
 
+                        {{-- REFERRAL TYPE --}}
+                        <div
+                            id="referralTypeContainer"
+                            class="hidden"
+                        >
 
-                        {{-- REFERRED BY --}}
-                        <div>
+                            <label
+                                for="referral_type"
+                                class="mb-1 block text-sm font-medium text-gray-700"
+                            >
+                                Referral Type
+                            </label>
+
+                            <select
+                                id="referral_type"
+                                name="referral_type"
+                                class="w-full rounded-lg border-gray-300"
+                            >
+
+                                <option value="">
+                                    Select Referral Type
+                                </option>
+
+                                <option
+                                    value="internal"
+                                    @selected(old('referral_type') === 'internal')
+                                >
+                                    Internal Referral
+                                </option>
+
+                                <option
+                                    value="external"
+                                    @selected(old('referral_type') === 'external')
+                                >
+                                    External Referral
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        {{-- INTERNAL REFERRAL SOURCE DEPARTMENT --}}
+                        <div
+                            id="internalReferralDepartmentContainer"
+                            class="hidden"
+                        >
+
+                            <label
+                                for="referred_from_department_id"
+                                class="mb-1 block text-sm font-medium text-gray-700"
+                            >
+                                Referred From Department
+                            </label>
+
+                            <select
+                                id="referred_from_department_id"
+                                name="referred_from_department_id"
+                                class="w-full rounded-lg border-gray-300"
+                            >
+
+                                <option value="">
+                                    Select Source Department
+                                </option>
+
+                                @foreach ($departments as $department)
+
+                                    <option
+                                        value="{{ $department->id }}"
+                                        @selected(
+                                            old('referred_from_department_id')
+                                            == $department->id
+                                        )
+                                    >
+                                        {{ $department->name }}
+                                    </option>
+
+                                @endforeach
+
+                            </select>
+
+                        </div>
+
+
+                        {{-- INTERNAL REFERRING DOCTOR --}}
+                        <div
+                            id="internalReferringDoctorContainer"
+                            class="hidden"
+                        >
+
+                            <label
+                                for="referring_doctor_id"
+                                class="mb-1 block text-sm font-medium text-gray-700"
+                            >
+                                Referring Doctor
+                            </label>
+
+                            <select
+                                id="referring_doctor_id"
+                                name="referring_doctor_id"
+                                class="w-full rounded-lg border-gray-300"
+                            >
+
+                                <option value="">
+                                    Select Referring Doctor
+                                </option>
+
+                                @foreach ($doctors as $doctor)
+
+                                    <option
+                                        value="{{ $doctor->id }}"
+                                        data-department="{{ $doctor->department_id }}"
+                                        @selected(
+                                            old('referring_doctor_id')
+                                            == $doctor->id
+                                        )
+                                    >
+                                        {{ $doctor->full_name }}
+
+                                        @if ($doctor->speciality)
+                                            — {{ $doctor->speciality }}
+                                        @endif
+                                    </option>
+
+                                @endforeach
+
+                            </select>
+
+                        </div>
+
+
+                        {{-- EXTERNAL REFERRED BY --}}
+                        <div
+                            id="externalReferralContainer"
+                            class="hidden"
+                        >
 
                             <label
                                 for="referred_by"
@@ -417,13 +572,12 @@
                                 Referred By
                             </label>
 
-
                             <input
                                 id="referred_by"
                                 type="text"
                                 name="referred_by"
                                 value="{{ old('referred_by') }}"
-                                placeholder="Doctor / hospital / self"
+                                placeholder="External doctor / hospital"
                                 class="w-full rounded-lg border-gray-300"
                             >
 
@@ -471,7 +625,7 @@
                         </h3>
 
                         <p class="mt-1 text-xs text-gray-500">
-                            Enter the charges applicable to this visit.
+                            Consultation fees are loaded automatically from Service Master where configured.
                         </p>
 
                     </div>
@@ -875,6 +1029,98 @@
         {
             /*
             |--------------------------------------------------------------------------
+            | Recent OPD visits for automatic follow-up eligibility
+            |--------------------------------------------------------------------------
+            */
+
+            @php
+                $recentVisitsForJs = $recentVisits->map(function ($visit) {
+                    return [
+                        'department_id' => (string) $visit->department_id,
+                        'department_name' => $visit->department?->name,
+                        'doctor_name' => $visit->doctor?->full_name,
+                        'encounter_date' => $visit->encounter_date
+                            ? $visit->encounter_date->format('Y-m-d')
+                            : null,
+                        'display_date' => $visit->encounter_date
+                            ? $visit->encounter_date->format('d M Y')
+                            : null,
+                        'free_until' => $visit->encounter_date
+                            ? $visit->encounter_date->copy()->addDays(7)->format('d M Y')
+                            : null,
+                    ];
+                })->values();
+            @endphp
+
+            const recentVisits = @json($recentVisitsForJs);
+
+            const internalReferralFee =
+                @json($internalReferralFee !== null
+                    ? (float) $internalReferralFee
+                    : null);
+
+            const departmentConsultationFees =
+                @json($departmentConsultationFees);
+
+            const visitType =
+                document.getElementById(
+                    'visit_type'
+                );
+
+
+            const referralType =
+                document.getElementById(
+                    'referral_type'
+                );
+
+            const referralTypeContainer =
+                document.getElementById(
+                    'referralTypeContainer'
+                );
+
+            const internalReferralDepartmentContainer =
+                document.getElementById(
+                    'internalReferralDepartmentContainer'
+                );
+
+            const internalReferringDoctorContainer =
+                document.getElementById(
+                    'internalReferringDoctorContainer'
+                );
+
+            const externalReferralContainer =
+                document.getElementById(
+                    'externalReferralContainer'
+                );
+
+            const referredFromDepartment =
+                document.getElementById(
+                    'referred_from_department_id'
+                );
+
+            const referringDoctor =
+                document.getElementById(
+                    'referring_doctor_id'
+                );
+
+            const followupEligibilityBox =
+                document.getElementById(
+                    'followupEligibilityBox'
+                );
+
+            const followupEligibilityTitle =
+                document.getElementById(
+                    'followupEligibilityTitle'
+                );
+
+            const followupEligibilityText =
+                document.getElementById(
+                    'followupEligibilityText'
+                );
+
+
+            /*
+            |--------------------------------------------------------------------------
             | Doctor filtering
             |--------------------------------------------------------------------------
             */
@@ -952,7 +1198,11 @@
             {
                 departmentSelect.addEventListener(
                     'change',
-                    filterDoctors
+                    function ()
+                    {
+                        filterDoctors();
+                        updateReferralFields();
+                    }
                 );
 
                 filterDoctors();
@@ -1055,6 +1305,391 @@
                 return '₹' +
                     Number(value)
                         .toFixed(2);
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Automatic 7-day follow-up display
+            |--------------------------------------------------------------------------
+            */
+
+            function isInternalReferral()
+            {
+                return (
+                    visitType &&
+                    visitType.value === 'referral' &&
+                    referralType &&
+                    referralType.value === 'internal'
+                );
+            }
+
+
+            function updateReferralFields()
+            {
+                const isReferral =
+                    visitType &&
+                    visitType.value === 'referral';
+
+                const type =
+                    referralType
+                        ? referralType.value
+                        : '';
+
+                if (referralTypeContainer)
+                {
+                    referralTypeContainer.classList.toggle(
+                        'hidden',
+                        !isReferral
+                    );
+                }
+
+                const showInternal =
+                    isReferral &&
+                    type === 'internal';
+
+                const showExternal =
+                    isReferral &&
+                    type === 'external';
+
+                if (internalReferralDepartmentContainer)
+                {
+                    internalReferralDepartmentContainer.classList.toggle(
+                        'hidden',
+                        !showInternal
+                    );
+                }
+
+                if (internalReferringDoctorContainer)
+                {
+                    internalReferringDoctorContainer.classList.toggle(
+                        'hidden',
+                        !showInternal
+                    );
+                }
+
+                if (externalReferralContainer)
+                {
+                    externalReferralContainer.classList.toggle(
+                        'hidden',
+                        !showExternal
+                    );
+                }
+
+                if (referralType)
+                {
+                    referralType.required =
+                        isReferral;
+                }
+
+                if (referredFromDepartment)
+                {
+                    referredFromDepartment.required =
+                        showInternal;
+                }
+
+                if (showInternal && consultationFee)
+                {
+                    if (internalReferralFee === null)
+                    {
+                        consultationFee.value =
+                            '0.00';
+
+                        consultationFee.readOnly =
+                            true;
+
+                        consultationFee.className =
+                            'w-full rounded-lg border-red-300 bg-red-50 pl-8 font-semibold text-red-800';
+
+                        if (followupEligibilityBox)
+                        {
+                            followupEligibilityBox.className =
+                                'rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-800';
+                        }
+
+                        if (followupEligibilityTitle)
+                        {
+                            followupEligibilityTitle.textContent =
+                                'INTERNAL REFERRAL FEE NOT CONFIGURED';
+                        }
+
+                        if (followupEligibilityText)
+                        {
+                            followupEligibilityText.textContent =
+                                'Service code INT-REF is missing or inactive in Service Master.';
+                        }
+
+                        if (amountReceived)
+                        {
+                            amountReceived.value =
+                                numberValue(
+                                    registrationFee
+                                ).toFixed(2);
+                        }
+
+                        calculatePayment();
+
+                        return;
+                    }
+
+                    consultationFee.value =
+                        Number(
+                            internalReferralFee
+                        ).toFixed(2);
+
+                    consultationFee.readOnly =
+                        true;
+
+                    consultationFee.className =
+                        'w-full rounded-lg border-amber-300 bg-amber-50 pl-8 font-semibold text-amber-800';
+
+                    if (followupEligibilityBox)
+                    {
+                        followupEligibilityBox.className =
+                            'rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-800';
+                    }
+
+                    if (followupEligibilityTitle)
+                    {
+                        followupEligibilityTitle.textContent =
+                            'INTERNAL REFERRAL — ' +
+                            currency(
+                                internalReferralFee
+                            );
+                    }
+
+                    if (followupEligibilityText)
+                    {
+                        followupEligibilityText.textContent =
+                            'Internal departmental referral charge from Service Master applies. This overrides the 7-day free follow-up rule.';
+                    }
+
+                    if (amountReceived)
+                    {
+                        amountReceived.value =
+                            (
+                                Number(
+                                    internalReferralFee
+                                ) +
+                                numberValue(
+                                    registrationFee
+                                )
+                            ).toFixed(2);
+                    }
+
+                    calculatePayment();
+
+                    return;
+                }
+
+                updateFollowupEligibility();
+            }
+
+
+            function updateFollowupEligibility()
+            {
+                if (
+                    !departmentSelect ||
+                    !consultationFee
+                )
+                {
+                    return;
+                }
+
+                if (isInternalReferral())
+                {
+                    return;
+                }
+
+                const departmentId =
+                    String(
+                        departmentSelect.value || ''
+                    );
+
+                if (!departmentId)
+                {
+                    if (followupEligibilityBox)
+                    {
+                        followupEligibilityBox.className =
+                            'hidden rounded-xl border px-5 py-4';
+                    }
+
+                    consultationFee.readOnly = false;
+                    consultationFee.className =
+                        'w-full rounded-lg border-gray-300 pl-8';
+
+                    return;
+                }
+
+                const eligibleVisit =
+                    recentVisits.find(
+                        function (visit)
+                        {
+                            return String(
+                                visit.department_id
+                            ) === departmentId;
+                        }
+                    );
+
+                if (eligibleVisit)
+                {
+                    consultationFee.value =
+                        '0.00';
+
+                    consultationFee.readOnly =
+                        true;
+
+                    consultationFee.className =
+                        'w-full rounded-lg border-green-300 bg-green-50 pl-8 font-semibold text-green-800';
+
+                    if (
+                        visitType &&
+                        visitType.value !== 'referral'
+                    )
+                    {
+                        visitType.value =
+                            'follow_up';
+                    }
+
+                    if (followupEligibilityBox)
+                    {
+                        followupEligibilityBox.className =
+                            'rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-green-800';
+                    }
+
+                    if (followupEligibilityTitle)
+                    {
+                        followupEligibilityTitle.textContent =
+                            'FREE FOLLOW-UP ELIGIBLE';
+                    }
+
+                    if (followupEligibilityText)
+                    {
+                        let message =
+                            'Previous ' +
+                            (eligibleVisit.department_name || 'department') +
+                            ' visit: ' +
+                            (eligibleVisit.display_date || 'recent visit') +
+                            '. Consultation fee: ₹0.00.';
+
+                        if (eligibleVisit.doctor_name)
+                        {
+                            message +=
+                                ' Previous doctor: ' +
+                                eligibleVisit.doctor_name +
+                                '.';
+                        }
+
+                        if (eligibleVisit.free_until)
+                        {
+                            message +=
+                                ' Free follow-up valid through ' +
+                                eligibleVisit.free_until +
+                                '.';
+                        }
+
+                        followupEligibilityText.textContent =
+                            message;
+                    }
+
+                    if (amountReceived)
+                    {
+                        amountReceived.value =
+                            numberValue(
+                                registrationFee
+                            ).toFixed(2);
+                    }
+
+                    calculatePayment();
+
+                    return;
+                }
+
+                const configuredService =
+                    departmentConsultationFees
+                        ? departmentConsultationFees[departmentId]
+                        : null;
+
+                if (configuredService)
+                {
+                    const configuredFee =
+                        Number(
+                            configuredService.price || 0
+                        );
+
+                    consultationFee.value =
+                        configuredFee.toFixed(2);
+
+                    consultationFee.readOnly =
+                        true;
+
+                    consultationFee.className =
+                        'w-full rounded-lg border-blue-300 bg-blue-50 pl-8 font-semibold text-blue-800';
+
+                    if (followupEligibilityBox)
+                    {
+                        followupEligibilityBox.className =
+                            'rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-blue-800';
+                    }
+
+                    if (followupEligibilityTitle)
+                    {
+                        followupEligibilityTitle.textContent =
+                            'SERVICE MASTER CONSULTATION FEE — ' +
+                            currency(
+                                configuredFee
+                            );
+                    }
+
+                    if (followupEligibilityText)
+                    {
+                        followupEligibilityText.textContent =
+                            'No free follow-up applies. The consultation fee has been loaded automatically from Service Master (' +
+                            (configuredService.code || 'OPD consultation service') +
+                            ').';
+                    }
+
+                    if (amountReceived)
+                    {
+                        amountReceived.value =
+                            (
+                                configuredFee +
+                                numberValue(
+                                    registrationFee
+                                )
+                            ).toFixed(2);
+                    }
+
+                    calculatePayment();
+
+                    return;
+                }
+
+                consultationFee.readOnly =
+                    false;
+
+                consultationFee.className =
+                    'w-full rounded-lg border-gray-300 pl-8';
+
+                if (followupEligibilityBox)
+                {
+                    followupEligibilityBox.className =
+                        'rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-slate-700';
+                }
+
+                if (followupEligibilityTitle)
+                {
+                    followupEligibilityTitle.textContent =
+                        'FULL CONSULTATION FEE APPLIES';
+                }
+
+                if (followupEligibilityText)
+                {
+                    followupEligibilityText.textContent =
+                        'No free follow-up applies and no OPD consultation service is configured for this department yet. Enter the consultation fee manually.';
+                }
+
+                calculatePayment();
             }
 
 
@@ -1506,6 +2141,72 @@
             }
 
 
+            if (visitType)
+            {
+                visitType.addEventListener(
+                    'change',
+                    updateReferralFields
+                );
+            }
+
+
+            if (referralType)
+            {
+                referralType.addEventListener(
+                    'change',
+                    updateReferralFields
+                );
+            }
+
+
+            if (referredFromDepartment && referringDoctor)
+            {
+                referredFromDepartment.addEventListener(
+                    'change',
+                    function ()
+                    {
+                        const sourceDepartmentId =
+                            referredFromDepartment.value;
+
+                        const options =
+                            referringDoctor.querySelectorAll(
+                                'option'
+                            );
+
+                        options.forEach(
+                            function (option)
+                            {
+                                if (!option.value)
+                                {
+                                    option.hidden = false;
+                                    return;
+                                }
+
+                                option.hidden =
+                                    sourceDepartmentId &&
+                                    option.dataset.department
+                                    !== sourceDepartmentId;
+                            }
+                        );
+
+                        const selected =
+                            referringDoctor.options[
+                                referringDoctor.selectedIndex
+                            ];
+
+                        if (
+                            selected &&
+                            selected.value &&
+                            selected.hidden
+                        )
+                        {
+                            referringDoctor.value = '';
+                        }
+                    }
+                );
+            }
+
+
             if (amountReceived)
             {
                 amountReceived.addEventListener(
@@ -1530,6 +2231,7 @@
             |--------------------------------------------------------------------------
             */
 
+            updateReferralFields();
             updatePaymentMode();
 
         }

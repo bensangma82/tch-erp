@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Employee extends Model
@@ -28,23 +30,34 @@ class Employee extends Model
         'is_active',
     ];
 
+
     protected $casts = [
         'date_of_joining' => 'date',
         'is_doctor' => 'boolean',
         'is_active' => 'boolean',
     ];
 
-    /**
-     * Department this employee belongs to.
-     */
-    public function department()
+
+    /*
+    |--------------------------------------------------------------------------
+    | Department
+    |--------------------------------------------------------------------------
+    */
+
+    public function department(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(
+            Department::class
+        );
     }
 
-    /**
-     * Full display name.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Employee Display Name
+    |--------------------------------------------------------------------------
+    */
+
     public function getFullNameAttribute(): string
     {
         return trim(
@@ -59,14 +72,68 @@ class Employee extends Model
         );
     }
 
-    /**
-     * OPD / clinical encounters assigned to this doctor.
-     */
-    public function encounters()
+
+    /*
+    |--------------------------------------------------------------------------
+    | Clinical Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    public function encounters(): HasMany
     {
         return $this->hasMany(
             Encounter::class,
             'doctor_id'
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Human Resources - Leave Management
+    |--------------------------------------------------------------------------
+    */
+
+    public function leaveBalances(): HasMany
+    {
+        return $this->hasMany(
+            EmployeeLeaveBalance::class
+        );
+    }
+
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(
+            LeaveRequest::class
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Human Resources - Contract Management
+    |--------------------------------------------------------------------------
+    */
+
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(
+            EmployeeContract::class
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Human Resources - Employee Documents
+    |--------------------------------------------------------------------------
+    */
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(
+            EmployeeDocument::class
         );
     }
 }

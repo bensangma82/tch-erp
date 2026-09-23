@@ -10,13 +10,19 @@ use App\Http\Controllers\Pharmacy\PharmacyPurchaseOrderController;
 use App\Http\Controllers\Pharmacy\PharmacySupplierController;
 
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\HrController;
+use App\Http\Controllers\Admin\LeaveTypeController;
+use App\Http\Controllers\Admin\EmployeeLeaveBalanceController;
+use App\Http\Controllers\Admin\LeaveRequestController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\EmployeeDocumentController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Finance\FinanceMasterController;
 use App\Http\Controllers\Finance\FinanceVoucherController;
 use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\EmployeeContractController;
 use App\Http\Controllers\Administration\AdministrativeRequestController;
 use App\Http\Controllers\InpatientMasterController;
 use App\Http\Controllers\BedTariffController;
@@ -175,6 +181,12 @@ Route::middleware([
         ->name('admin.')
         ->group(function () {
 
+
+        Route::get(
+    '/hr',
+    [HrController::class, 'index']
+)->name('hr.index');
+
             Route::get(
                 '/departments',
                 [DepartmentController::class, 'index']
@@ -233,6 +245,162 @@ Route::middleware([
             )
                 ->whereNumber('employee')
                 ->name('employees.update');
+
+                Route::get(
+    '/hr/leave-types',
+    [LeaveTypeController::class, 'index']
+)->name('hr.leave-types.index');
+
+Route::post(
+    '/hr/leave-types',
+    [LeaveTypeController::class, 'store']
+)->name('hr.leave-types.store');
+
+Route::put(
+    '/hr/leave-types/{leaveType}',
+    [LeaveTypeController::class, 'update']
+)
+    ->whereNumber('leaveType')
+    ->name('hr.leave-types.update');
+
+    Route::get(
+    '/hr/leave-balances',
+    [EmployeeLeaveBalanceController::class, 'index']
+)->name('hr.leave-balances.index');
+
+Route::put(
+    '/hr/leave-balances/{employee}',
+    [EmployeeLeaveBalanceController::class, 'update']
+)
+    ->whereNumber('employee')
+    ->name('hr.leave-balances.update');
+
+    Route::get(
+    '/hr/leave-requests',
+    [LeaveRequestController::class, 'index']
+)->name('hr.leave-requests.index');
+
+Route::get(
+    '/hr/leave-requests/create',
+    [LeaveRequestController::class, 'create']
+)->name('hr.leave-requests.create');
+
+Route::post(
+    '/hr/leave-requests',
+    [LeaveRequestController::class, 'store']
+)->name('hr.leave-requests.store');
+
+Route::patch(
+    '/hr/leave-requests/{leaveRequest}/approve',
+    [LeaveRequestController::class, 'approve']
+)
+    ->whereNumber('leaveRequest')
+    ->name('hr.leave-requests.approve');
+
+Route::patch(
+    '/hr/leave-requests/{leaveRequest}/reject',
+    [LeaveRequestController::class, 'reject']
+)
+    ->whereNumber('leaveRequest')
+    ->name('hr.leave-requests.reject');
+
+Route::patch(
+    '/hr/leave-requests/{leaveRequest}/cancel',
+    [LeaveRequestController::class, 'cancel']
+)
+    ->whereNumber('leaveRequest')
+    ->name('hr.leave-requests.cancel');
+
+
+                 Route::get(
+    '/hr/contracts',
+    [EmployeeContractController::class, 'index']
+)->name('hr.contracts.index');
+
+Route::get(
+    '/hr/contracts/create',
+    [EmployeeContractController::class, 'create']
+)->name('hr.contracts.create');
+
+Route::post(
+    '/hr/contracts',
+    [EmployeeContractController::class, 'store']
+)->name('hr.contracts.store');
+
+Route::get(
+    '/hr/contracts/{contract}/edit',
+    [EmployeeContractController::class, 'edit']
+)
+    ->whereNumber('contract')
+    ->name('hr.contracts.edit');
+
+Route::put(
+    '/hr/contracts/{contract}',
+    [EmployeeContractController::class, 'update']
+)
+    ->whereNumber('contract')
+    ->name('hr.contracts.update');
+
+Route::post(
+    '/hr/contracts/{contract}/renew',
+    [EmployeeContractController::class, 'renew']
+)
+    ->whereNumber('contract')
+    ->name('hr.contracts.renew');
+
+Route::post(
+    '/hr/contracts/{contract}/terminate',
+    [EmployeeContractController::class, 'terminate']
+)
+    ->whereNumber('contract')
+    ->name('hr.contracts.terminate');
+
+Route::post(
+    '/hr/contracts/refresh-statuses',
+    [EmployeeContractController::class, 'refreshStatuses']
+)->name('hr.contracts.refresh-statuses');
+                      Route::get(
+    '/hr/documents',
+    [EmployeeDocumentController::class, 'index']
+)->name('hr.documents.index');
+
+Route::get(
+    '/hr/documents/create',
+    [EmployeeDocumentController::class, 'create']
+)->name('hr.documents.create');
+
+Route::post(
+    '/hr/documents',
+    [EmployeeDocumentController::class, 'store']
+)->name('hr.documents.store');
+
+Route::get(
+    '/hr/documents/{document}/view',
+    [EmployeeDocumentController::class, 'viewFile']
+)
+    ->whereNumber('document')
+    ->name('hr.documents.view');
+
+Route::get(
+    '/hr/documents/{document}/download',
+    [EmployeeDocumentController::class, 'download']
+)
+    ->whereNumber('document')
+    ->name('hr.documents.download');
+
+Route::patch(
+    '/hr/documents/{document}/verify',
+    [EmployeeDocumentController::class, 'verify']
+)
+    ->whereNumber('document')
+    ->name('hr.documents.verify');
+
+Route::patch(
+    '/hr/documents/{document}/reject',
+    [EmployeeDocumentController::class, 'reject']
+)
+    ->whereNumber('document')
+    ->name('hr.documents.reject');
 
         });
 
