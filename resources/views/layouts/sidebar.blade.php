@@ -952,6 +952,45 @@
 >
     Employee Documents
 </a>
+
+                           <a
+    href="{{ route('admin.hr.payroll.salary-components.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.hr.payroll.salary-components.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Salary Components
+</a>
+
+
+                            <a
+    href="{{ route('admin.hr.payroll.salary-structures.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.hr.payroll.salary-structures.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Salary Structures
+</a>
+
+
+                         <a
+    href="{{ route('admin.hr.payroll.runs.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.hr.payroll.runs.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Payroll Runs
+</a>
+
         </div>
 
     </div>

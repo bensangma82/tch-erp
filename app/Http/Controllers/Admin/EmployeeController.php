@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
@@ -133,14 +134,6 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'employee_code' => [
-                'required',
-                'string',
-                'max:50',
-                Rule::unique('employees', 'employee_code')
-                    ->whereNull('deleted_at'),
-            ],
-
             'title' => [
                 'nullable',
                 'string',
@@ -233,10 +226,6 @@ class EmployeeController extends Controller
         |--------------------------------------------------------------------------
         | Checkbox handling
         |--------------------------------------------------------------------------
-        |
-        | HTML checkboxes do not send a value when unchecked.
-        | Therefore we explicitly convert them to true/false.
-        |
         */
         $validated['is_doctor'] = $request->boolean('is_doctor');
         $validated['is_active'] = $request->boolean('is_active');
@@ -246,8 +235,6 @@ class EmployeeController extends Controller
         | Normalise optional fields
         |--------------------------------------------------------------------------
         */
-        $validated['employee_code'] = trim($validated['employee_code']);
-
         if (isset($validated['email'])) {
             $validated['email'] = $validated['email']
                 ? strtolower(trim($validated['email']))
@@ -260,7 +247,37 @@ class EmployeeController extends Controller
                 : null;
         }
 
-        Employee::create($validated);
+        /*
+        |--------------------------------------------------------------------------
+        | Generate Employee Code
+        |--------------------------------------------------------------------------
+        |
+        | Employee codes are generated server-side in the format TCH-0001.
+        | A PostgreSQL transaction advisory lock prevents two simultaneous
+        | employee creations from receiving the same sequential code.
+        |
+        */
+        DB::transaction(function () use ($validated) {
+            DB::statement(
+                "SELECT pg_advisory_xact_lock(hashtext('tch_employee_code_sequence'))"
+            );
+
+            $maxNumber = Employee::withTrashed()
+                ->where('employee_code', 'like', 'TCH-%')
+                ->selectRaw(
+                    "COALESCE(MAX(CAST(SUBSTRING(employee_code FROM '[0-9]+$') AS INTEGER)), 0) AS max_number"
+                )
+                ->value('max_number');
+
+            $validated['employee_code'] = 'TCH-' . str_pad(
+                (string) (((int) $maxNumber) + 1),
+                4,
+                '0',
+                STR_PAD_LEFT
+            );
+
+            Employee::create($validated);
+        });
 
         return redirect()
             ->route('admin.employees.index')

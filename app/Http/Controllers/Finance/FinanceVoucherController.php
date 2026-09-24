@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FinanceAccount;
 use App\Models\FinanceHead;
 use App\Models\FinanceVoucher;
+use App\Services\Finance\FinanceVoucherNumberService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,10 @@ use Illuminate\View\View;
 
 class FinanceVoucherController extends Controller
 {
+                    public function __construct(
+        private readonly FinanceVoucherNumberService $voucherNumberService
+    ) {
+    }
     /**
      * Display Finance vouchers.
      */
@@ -278,7 +283,7 @@ class FinanceVoucherController extends Controller
             $voucher = new FinanceVoucher();
 
             $voucher->voucher_no =
-    $this->generateVoucherNumber(
+    $this->voucherNumberService->generate(
         $validated['voucher_type'],
         $validated['voucher_date']
     );
@@ -436,72 +441,5 @@ class FinanceVoucherController extends Controller
         );
     }
 
-    /**
-     * Generate the next voucher number.
-     *
-     * Examples:
-     * REC-20260920-00001
-     * PAY-20260920-00001
-     * TRF-20260920-00001
-     */
-   /**
- * Generate the next voucher number for the voucher date.
- *
- * Examples:
- * REC-20260920-00001
- * PAY-20260920-00001
- * TRF-20260920-00001
- */
-private function generateVoucherNumber(
-    string $voucherType,
-    string $voucherDate
-): string {
-    $prefix = match ($voucherType) {
-        'receipt' => 'REC',
-        'payment' => 'PAY',
-        'transfer' => 'TRF',
-        default => 'VOU',
-    };
 
-    $date = \Carbon\Carbon::parse($voucherDate)
-        ->format('Ymd');
-
-    /*
-     * PostgreSQL transaction-level advisory lock.
-     *
-     * The lock is specific to voucher type and voucher date,
-     * preventing two users from generating the same voucher
-     * number concurrently.
-     */
-    DB::select(
-        "SELECT pg_advisory_xact_lock(hashtext(?))",
-        ["finance-voucher-{$prefix}-{$date}"]
-    );
-
-    $pattern = "{$prefix}-{$date}-%";
-
-    $lastVoucher = FinanceVoucher::query()
-        ->where('voucher_no', 'like', $pattern)
-        ->orderByDesc('voucher_no')
-        ->first();
-
-    $sequence = 1;
-
-    if ($lastVoucher) {
-        $lastSequence = (int) substr(
-            $lastVoucher->voucher_no,
-            -5
-        );
-
-        $sequence = $lastSequence + 1;
-    }
-
-    return sprintf(
-        '%s-%s-%05d',
-        $prefix,
-        $date,
-        $sequence
-    );
-
-}
 }

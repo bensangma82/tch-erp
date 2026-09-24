@@ -51,7 +51,13 @@ class Employee extends Model
         );
     }
 
-
+    public function payrollAdjustments()
+{
+    return $this->hasMany(
+        PayrollAdjustment::class,
+        'employee_id'
+    );
+}
     /*
     |--------------------------------------------------------------------------
     | Employee Display Name

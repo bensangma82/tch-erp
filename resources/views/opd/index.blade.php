@@ -17,12 +17,14 @@
             </div>
 
 
-            <a
-                href="{{ route('patients.index') }}"
-                class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-            >
-                Register OPD
-            </a>
+            @if (auth()->user()?->hasAnyRole(['reception', 'medical_records']))
+                <a
+                    href="{{ route('patients.index') }}"
+                    class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                >
+                    Register OPD
+                </a>
+            @endif
 
         </div>
 
@@ -80,54 +82,46 @@
                 </div>
 
 
-                <div class="overflow-x-auto">
+                <div class="w-full">
 
-                    <table class="w-full min-w-[1500px] divide-y divide-gray-200">
+                    <table class="w-full table-fixed divide-y divide-gray-200 text-sm">
+
+                        <colgroup>
+                            <col class="w-[7%]">
+                            <col class="w-[25%]">
+                            <col class="w-[24%]">
+                            <col class="w-[13%]">
+                            <col class="w-[16%]">
+                            <col class="w-[15%]">
+                        </colgroup>
 
                         <thead class="bg-white">
-
                             <tr>
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Queue
                                 </th>
 
-                                <th class="min-w-[190px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    UHID / MRD
-                                </th>
-
-                                <th class="min-w-[210px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Patient
                                 </th>
 
-                                <th class="min-w-[190px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Department
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Clinical
                                 </th>
 
-                                <th class="min-w-[230px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Doctor
-                                </th>
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Visit
                                 </th>
 
-                                <th class="min-w-[170px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Status
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Status / Payment
                                 </th>
 
-                                <th class="min-w-[130px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Payment
-                                </th>
-
-                                <th class="min-w-[280px] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Actions
                                 </th>
-
                             </tr>
-
                         </thead>
-
 
                         <tbody class="divide-y divide-gray-100">
 
@@ -147,285 +141,179 @@
                                     );
                                 @endphp
 
-
                                 <tr class="hover:bg-gray-50">
 
-
                                     {{-- QUEUE --}}
-                                    <td class="px-5 py-5 align-top">
-
-                                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-base font-bold text-white">
+                                    <td class="px-3 py-4 align-top text-center">
+                                        <div class="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
                                             {{ $encounter->queue_number }}
                                         </div>
-
                                     </td>
 
-
-                                    {{-- UHID / MRD --}}
-                                    <td class="min-w-[190px] px-5 py-5 align-top">
-
-                                        <div class="whitespace-nowrap text-sm font-semibold text-gray-900">
-                                            {{ $encounter->patient->uhid }}
-                                        </div>
-
-                                        <div class="mt-1 whitespace-nowrap text-xs text-gray-500">
-                                            MRD:
-                                            {{ $encounter->patient->mrd_number ?: '—' }}
-                                        </div>
-
-                                    </td>
-
-
-                                    {{-- PATIENT --}}
-                                    <td class="min-w-[210px] px-5 py-5 align-top">
-
+                                    {{-- PATIENT + IDENTIFIERS --}}
+                                    <td class="px-3 py-4 align-top">
                                         <a
                                             href="{{ route('patients.show', $encounter->patient) }}"
-                                            class="text-sm font-semibold text-gray-900 hover:text-blue-700"
+                                            class="font-semibold text-gray-900 hover:text-blue-700"
                                         >
                                             {{ $encounter->patient->full_name }}
                                         </a>
 
-
-                                        <div class="mt-1 whitespace-nowrap text-xs text-gray-500">
-
+                                        <div class="mt-1 text-xs text-gray-500">
                                             @if ($encounter->patient->age !== null)
-
                                                 {{ $encounter->patient->age }} yrs
-
                                             @else
-
                                                 Age —
-
                                             @endif
-
-                                            /
-
-                                            {{ $encounter->patient->sex ?: '—' }}
-
+                                            / {{ $encounter->patient->sex ?: '—' }}
                                         </div>
 
+                                        <div class="mt-1 space-y-0.5 break-words font-mono text-[11px] leading-4 text-gray-500">
+                                            <div>UHID: {{ $encounter->patient->uhid }}</div>
+                                            <div>MRD: {{ $encounter->patient->mrd_number ?: '—' }}</div>
+                                        </div>
                                     </td>
 
+                                    {{-- CLINICAL --}}
+                                    <td class="px-3 py-4 align-top text-gray-700">
+                                        <div class="font-semibold text-gray-900 break-words">
+                                            {{ $encounter->department?->name ?? '—' }}
+                                        </div>
 
-                                    {{-- DEPARTMENT --}}
-                                    <td class="min-w-[190px] px-5 py-5 align-top text-sm text-gray-700">
-
-                                        {{ $encounter->department?->name ?? '—' }}
-
-                                    </td>
-
-
-                                    {{-- DOCTOR --}}
-                                    <td class="min-w-[230px] px-5 py-5 align-top">
-
-                                        <div class="text-sm text-gray-700">
+                                        <div class="mt-1 text-xs font-medium text-gray-700 break-words">
                                             {{ $encounter->doctor?->full_name ?? 'Unassigned' }}
                                         </div>
 
                                         @if ($encounter->doctor?->speciality)
-
-                                            <div class="mt-1 text-xs text-gray-500">
+                                            <div class="mt-0.5 text-[11px] leading-4 text-gray-500 break-words">
                                                 {{ $encounter->doctor->speciality }}
                                             </div>
-
                                         @endif
-
                                     </td>
-
 
                                     {{-- VISIT --}}
-                                    <td class="px-5 py-5 align-top text-sm text-gray-700">
-
-                                        {{ ucwords(
-                                            str_replace(
-                                                '_',
-                                                ' ',
-                                                $encounter->visit_type
-                                            )
-                                        ) }}
-
+                                    <td class="px-3 py-4 align-top text-gray-700">
+                                        <div class="text-xs font-medium break-words">
+                                            {{ ucwords(
+                                                str_replace(
+                                                    '_',
+                                                    ' ',
+                                                    $encounter->visit_type
+                                                )
+                                            ) }}
+                                        </div>
                                     </td>
 
+                                    {{-- STATUS + PAYMENT --}}
+                                    <td class="px-3 py-4 align-top">
 
-                                    {{-- STATUS --}}
-                                    <td class="min-w-[280px] whitespace-nowrap px-5 py-5 align-top">
+                                        <div>
+                                            @if ($status === 'waiting')
+                                                <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                                                    Awaiting Vitals
+                                                </span>
+                                            @elseif ($status === 'waiting_for_doctor')
+                                                <span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                                                    Waiting for Doctor
+                                                </span>
+                                            @elseif ($status === 'completed')
+                                                <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-semibold text-green-700">
+                                                    Completed
+                                                </span>
+                                            @elseif ($status === 'cancelled')
+                                                <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+                                                    Cancelled
+                                                </span>
+                                            @else
+                                                <span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700">
+                                                    {{ ucwords(
+                                                        str_replace(
+                                                            '_',
+                                                            ' ',
+                                                            $encounter->status
+                                                        )
+                                                    ) }}
+                                                </span>
+                                            @endif
+                                        </div>
 
-                                        @if ($status === 'waiting')
-
-                                            <span class="inline-flex whitespace-nowrap rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                                                Awaiting Vitals
-                                            </span>
-
-
-                                        @elseif ($status === 'waiting_for_doctor')
-
-                                            <span class="inline-flex whitespace-nowrap rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                                                Waiting for Doctor
-                                            </span>
-
-
-                                        @elseif ($status === 'completed')
-
-                                            <span class="inline-flex whitespace-nowrap rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                                                Completed
-                                            </span>
-
-
-                                        @elseif ($status === 'cancelled')
-
-                                            <span class="inline-flex whitespace-nowrap rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                                                Cancelled
-                                            </span>
-
-
-                                        @else
-
-                                            <span class="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                                                {{ ucwords(
-                                                    str_replace(
-                                                        '_',
-                                                        ' ',
-                                                        $encounter->status
-                                                    )
-                                                ) }}
-                                            </span>
-
-                                        @endif
-
-                                    </td>
-
-
-                                    {{-- PAYMENT --}}
-                                    <td class="min-w-[130px] px-5 py-5 align-top">
-
-                                        @if ($invoice)
-
-                                            @if ($invoice->status === 'paid')
-
-                                                <div class="space-y-1">
-
-                                                    <span class="inline-flex whitespace-nowrap rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                                        <div class="mt-2">
+                                            @if ($invoice)
+                                                @if ($invoice->status === 'paid')
+                                                    <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-semibold text-green-700">
                                                         Paid
                                                     </span>
-
-                                                    <div class="whitespace-nowrap text-xs text-gray-500">
+                                                    <div class="mt-1 text-[11px] text-gray-500">
                                                         ₹{{ number_format((float) $invoice->paid_amount, 2) }}
                                                     </div>
-
-                                                </div>
-
-
-                                            @elseif ($invoice->status === 'partial')
-
-                                                <div class="space-y-1">
-
-                                                    <span class="inline-flex whitespace-nowrap rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                                                @elseif ($invoice->status === 'partial')
+                                                    <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
                                                         Partial
                                                     </span>
-
-                                                    <div class="whitespace-nowrap text-xs text-gray-500">
-                                                        Paid:
-                                                        ₹{{ number_format((float) $invoice->paid_amount, 2) }}
+                                                    <div class="mt-1 text-[11px] text-gray-500">
+                                                        Paid: ₹{{ number_format((float) $invoice->paid_amount, 2) }}
                                                     </div>
-
-                                                    <div class="whitespace-nowrap text-xs font-medium text-red-600">
-                                                        Due:
-                                                        ₹{{ number_format((float) $invoice->balance_amount, 2) }}
+                                                    <div class="text-[11px] font-medium text-red-600">
+                                                        Due: ₹{{ number_format((float) $invoice->balance_amount, 2) }}
                                                     </div>
-
-                                                </div>
-
-
-                                            @else
-
-                                                <div class="space-y-1">
-
-                                                    <span class="inline-flex whitespace-nowrap rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                                                @else
+                                                    <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">
                                                         Unpaid
                                                     </span>
-
-                                                    <div class="whitespace-nowrap text-xs font-medium text-red-600">
-                                                        Due:
-                                                        ₹{{ number_format((float) $invoice->balance_amount, 2) }}
+                                                    <div class="mt-1 text-[11px] font-medium text-red-600">
+                                                        Due: ₹{{ number_format((float) $invoice->balance_amount, 2) }}
                                                     </div>
-
-                                                </div>
-
+                                                @endif
+                                            @else
+                                                <span class="text-[11px] text-gray-400">
+                                                    No invoice
+                                                </span>
                                             @endif
-
-
-                                        @else
-
-                                            <span class="text-xs text-gray-400">
-                                                No invoice
-                                            </span>
-
-                                        @endif
-
+                                        </div>
                                     </td>
 
-
                                     {{-- ACTIONS --}}
-                                    <td class="min-w-[170px] px-5 py-5 align-top">
+                                    <td class="px-3 py-4 align-top">
+                                        <div class="flex flex-col items-stretch gap-1.5">
 
-                                        <div class="flex min-w-[240px] flex-col items-start gap-2">
-
-
-                                            {{-- PRINT OPD CARD --}}
                                             <a
                                                 href="{{ route('opd.card', $encounter) }}"
                                                 target="_blank"
-                                                class="inline-flex whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
                                             >
                                                 Print OPD Card
                                             </a>
 
-
-                                            {{-- PRINT RECEIPT --}}
                                             @if ($payment)
-
-                                                <div class="space-y-1">
-
-                                                    <div class="whitespace-nowrap text-xs font-medium text-gray-500">
-                                                        {{ $payment->receipt_no }}
-                                                    </div>
-
-                                                    <a
-                                                        href="{{ route('payments.receipt', $payment) }}"
-                                                        target="_blank"
-                                                        class="inline-flex whitespace-nowrap rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-                                                    >
-                                                        Print Receipt
-                                                    </a>
-
+                                                <div class="truncate text-center text-[10px] font-medium text-gray-500" title="{{ $payment->receipt_no }}">
+                                                    {{ $payment->receipt_no }}
                                                 </div>
 
-
+                                                <a
+                                                    href="{{ route('payments.receipt', $payment) }}"
+                                                    target="_blank"
+                                                    class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                                                >
+                                                    Print Receipt
+                                                </a>
                                             @else
-
-                                                <div class="text-xs text-gray-400">
+                                                <div class="text-center text-[11px] text-gray-400">
                                                     No receipt
                                                 </div>
-
                                             @endif
 
                                         </div>
-
                                     </td>
-
 
                                 </tr>
 
                             @empty
 
                                 <tr>
-
                                     <td
-                                        colspan="9"
+                                        colspan="6"
                                         class="px-6 py-14 text-center"
                                     >
-
                                         <div class="text-sm font-medium text-gray-700">
                                             No OPD patients registered today.
                                         </div>
@@ -434,16 +322,15 @@
                                             Select a patient from the patient registry to register an OPD visit.
                                         </p>
 
-
-                                        <a
-                                            href="{{ route('patients.index') }}"
-                                            class="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                                        >
-                                            Register OPD
-                                        </a>
-
+                                        @if (auth()->user()?->hasAnyRole(['reception', 'medical_records']))
+                                            <a
+                                                href="{{ route('patients.index') }}"
+                                                class="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                                            >
+                                                Register OPD
+                                            </a>
+                                        @endif
                                     </td>
-
                                 </tr>
 
                             @endforelse

@@ -60,23 +60,18 @@
 
                         <div>
                             <label
-                                for="employee_code"
                                 class="mb-1 block text-sm font-medium text-gray-700"
                             >
                                 Employee Code
-                                <span class="text-red-600">*</span>
                             </label>
 
-                            <input
-                                type="text"
-                                name="employee_code"
-                                id="employee_code"
-                                value="{{ old('employee_code') }}"
-                                required
-                                maxlength="50"
-                                placeholder="Example: TCH-001"
-                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            >
+                            <div class="flex min-h-[42px] items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-600">
+                                Automatically generated when the employee is saved
+                            </div>
+
+                            <p class="mt-1 text-xs text-gray-500">
+                                Format: TCH-0001, TCH-0002, TCH-0003...
+                            </p>
                         </div>
 
                         <div>

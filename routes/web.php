@@ -23,6 +23,9 @@ use App\Http\Controllers\Finance\FinanceVoucherController;
 use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\EmployeeContractController;
+use App\Http\Controllers\Hr\SalaryComponentController;
+use App\Http\Controllers\Hr\EmployeeSalaryStructureController;
+use App\Http\Controllers\Hr\PayrollRunController;
 use App\Http\Controllers\Administration\AdministrativeRequestController;
 use App\Http\Controllers\InpatientMasterController;
 use App\Http\Controllers\BedTariffController;
@@ -401,6 +404,193 @@ Route::patch(
 )
     ->whereNumber('document')
     ->name('hr.documents.reject');
+
+
+
+                 /*
+|--------------------------------------------------------------------------
+| HR - Payroll / Salary Components
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/hr/payroll/salary-components',
+    [SalaryComponentController::class, 'index']
+)->name('hr.payroll.salary-components.index');
+
+Route::get(
+    '/hr/payroll/salary-components/create',
+    [SalaryComponentController::class, 'create']
+)->name('hr.payroll.salary-components.create');
+
+Route::post(
+    '/hr/payroll/salary-components',
+    [SalaryComponentController::class, 'store']
+)->name('hr.payroll.salary-components.store');
+
+Route::get(
+    '/hr/payroll/salary-components/{salaryComponent}/edit',
+    [SalaryComponentController::class, 'edit']
+)
+    ->whereNumber('salaryComponent')
+    ->name('hr.payroll.salary-components.edit');
+
+Route::put(
+    '/hr/payroll/salary-components/{salaryComponent}',
+    [SalaryComponentController::class, 'update']
+)
+    ->whereNumber('salaryComponent')
+    ->name('hr.payroll.salary-components.update');
+
+Route::patch(
+    '/hr/payroll/salary-components/{salaryComponent}/toggle-status',
+    [SalaryComponentController::class, 'toggleStatus']
+)
+    ->whereNumber('salaryComponent')
+    ->name('hr.payroll.salary-components.toggle-status');
+
+
+
+               /*
+|--------------------------------------------------------------------------
+| HR - Payroll / Employee Salary Structures
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/hr/payroll/salary-structures',
+    [EmployeeSalaryStructureController::class, 'index']
+)->name('hr.payroll.salary-structures.index');
+
+Route::get(
+    '/hr/payroll/salary-structures/create',
+    [EmployeeSalaryStructureController::class, 'create']
+)->name('hr.payroll.salary-structures.create');
+
+Route::post(
+    '/hr/payroll/salary-structures',
+    [EmployeeSalaryStructureController::class, 'store']
+)->name('hr.payroll.salary-structures.store');
+
+Route::get(
+    '/hr/payroll/salary-structures/{salaryStructure}/edit',
+    [EmployeeSalaryStructureController::class, 'edit']
+)
+    ->whereNumber('salaryStructure')
+    ->name('hr.payroll.salary-structures.edit');
+
+Route::put(
+    '/hr/payroll/salary-structures/{salaryStructure}',
+    [EmployeeSalaryStructureController::class, 'update']
+)
+    ->whereNumber('salaryStructure')
+    ->name('hr.payroll.salary-structures.update');
+
+Route::patch(
+    '/hr/payroll/salary-structures/{salaryStructure}/activate',
+    [EmployeeSalaryStructureController::class, 'activate']
+)
+    ->whereNumber('salaryStructure')
+    ->name('hr.payroll.salary-structures.activate');
+
+
+                      /*
+|--------------------------------------------------------------------------
+| HR - Payroll Runs
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/hr/payroll/runs',
+    [PayrollRunController::class, 'index']
+)->name('hr.payroll.runs.index');
+
+Route::get(
+    '/hr/payroll/runs/create',
+    [PayrollRunController::class, 'create']
+)->name('hr.payroll.runs.create');
+
+Route::post(
+    '/hr/payroll/runs',
+    [PayrollRunController::class, 'store']
+)->name('hr.payroll.runs.store');
+
+Route::get(
+    '/hr/payroll/runs/{payrollRun}',
+    [PayrollRunController::class, 'show']
+)
+    ->whereNumber('payrollRun')
+    ->name('hr.payroll.runs.show');
+
+
+Route::get(
+    '/hr/payroll/runs/{payrollRun}/entries/{payrollEntry}/payslip',
+    [PayrollRunController::class, 'payslip']
+)
+    ->whereNumber('payrollRun')
+    ->whereNumber('payrollEntry')
+    ->name('hr.payroll.runs.payslip');
+
+
+Route::post(
+    '/hr/payroll/runs/{payrollRun}/entries/{payrollEntry}/payment',
+    [PayrollRunController::class, 'recordPayment']
+)
+    ->whereNumber('payrollRun')
+    ->whereNumber('payrollEntry')
+    ->name('hr.payroll.runs.payment');
+
+Route::post(
+    '/hr/payroll/runs/{payrollRun}/calculate',
+    [PayrollRunController::class, 'calculate']
+)
+    ->whereNumber('payrollRun')
+    ->name('hr.payroll.runs.calculate');
+
+Route::post(
+    '/hr/payroll/runs/{payrollRun}/approve',
+    [PayrollRunController::class, 'approve']
+)
+    ->whereNumber('payrollRun')
+    ->name('hr.payroll.runs.approve');
+
+
+      Route::post(
+    '/hr/payroll/runs/{payrollRun}/lock',
+    [PayrollRunController::class, 'lock']
+)
+    ->whereNumber('payrollRun')
+    ->name('hr.payroll.runs.lock');
+
+
+         Route::post(
+    '/hr/payroll/runs/{payrollRun}/finance-vouchers',
+    [PayrollRunController::class, 'createFinanceVouchers']
+)
+    ->whereNumber('payrollRun')
+    ->name('hr.payroll.runs.finance-vouchers');
+
+    /*
+|--------------------------------------------------------------------------
+| HR - Payroll Adjustments
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    '/hr/payroll/runs/{payrollRun}/entries/{payrollEntry}/adjustments',
+    [PayrollRunController::class, 'storeAdjustment']
+)
+    ->whereNumber('payrollRun')
+    ->whereNumber('payrollEntry')
+    ->name('hr.payroll.runs.adjustments.store');
+
+Route::delete(
+    '/hr/payroll/runs/{payrollRun}/adjustments/{payrollAdjustment}',
+    [PayrollRunController::class, 'destroyAdjustment']
+)
+    ->whereNumber('payrollRun')
+    ->whereNumber('payrollAdjustment')
+    ->name('hr.payroll.runs.adjustments.destroy');
 
         });
 
@@ -1115,27 +1305,11 @@ Route::get(
 
 
         Route::get(
-            '/ip-billing/advances/{ipBillingAdvance}/receipt',
-            [IpBillingController::class, 'advanceReceipt']
-        )
-            ->whereNumber('ipBillingAdvance')
-            ->name('ip-billing.advance.receipt');
-
-
-        Route::get(
             '/ip-billing/{admission}/final-bill',
             [IpBillingController::class, 'finalBill']
         )
             ->whereNumber('admission')
             ->name('ip-billing.final-bill');
-
-
-        Route::get(
-            '/ip-billing/{admission}',
-            [IpBillingController::class, 'show']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.show');
 
 
         Route::post(
@@ -1145,13 +1319,6 @@ Route::get(
             ->whereNumber('admission')
             ->name('ip-billing.generate-bed-charges');
 
-
-        Route::post(
-            '/ip-billing/{admission}/advance',
-            [IpBillingController::class, 'receiveAdvance']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.advance.store');
 
 Route::post(
     '/ip-billing/{admission}/payment',
@@ -1183,6 +1350,72 @@ Route::post(
             ->name('ip-billing.mhis.receipts.store');
 
 
+        Route::post(
+            '/ip-billing/{admission}/finalize',
+            [IpBillingController::class, 'finalizeBill']
+        )
+            ->whereNumber('admission')
+            ->name('ip-billing.finalize');
+
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | IPD Nursing / Billing Shared Financial Actions
+    |--------------------------------------------------------------------------
+    |
+    | Nursing may view the inpatient billing record, collect admission
+    | advances, and print advance receipts. Doctors are intentionally
+    | excluded from these financial actions.
+    |
+    */
+
+    Route::middleware(
+        'role:admin,billing,nursing'
+    )->group(function () {
+
+        Route::get(
+            '/ip-billing/advances/{ipBillingAdvance}/receipt',
+            [IpBillingController::class, 'advanceReceipt']
+        )
+            ->whereNumber('ipBillingAdvance')
+            ->name('ip-billing.advance.receipt');
+
+
+        Route::get(
+            '/ip-billing/{admission}',
+            [IpBillingController::class, 'show']
+        )
+            ->whereNumber('admission')
+            ->name('ip-billing.show');
+
+
+        Route::post(
+            '/ip-billing/{admission}/advance',
+            [IpBillingController::class, 'receiveAdvance']
+        )
+            ->whereNumber('admission')
+            ->name('ip-billing.advance.store');
+
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | IPD Investigation Ordering
+    |--------------------------------------------------------------------------
+    |
+    | Doctors and nursing staff may order investigations for admitted
+    | patients. This does not grant doctors access to advance collection
+    | or the other inpatient billing functions.
+    |
+    */
+
+    Route::middleware(
+        'role:admin,billing,nursing,doctor'
+    )->group(function () {
+
         Route::get(
             '/ip-billing/{admission}/investigations',
             [IpBillingController::class, 'createInvestigationOrder']
@@ -1197,14 +1430,6 @@ Route::post(
         )
             ->whereNumber('admission')
             ->name('ip-billing.investigations.store');
-
-
-        Route::post(
-            '/ip-billing/{admission}/finalize',
-            [IpBillingController::class, 'finalizeBill']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.finalize');
 
     });
 
@@ -1300,6 +1525,14 @@ Route::post(
         )
             ->whereNumber('serviceOrderItem')
             ->name('diagnostics.items.result.show');
+
+                    Route::get(
+            '/diagnostics/orders/{serviceOrderId}/results/group',
+            [DiagnosticWorklistController::class, 'showGroupedResults']
+        )
+            ->whereNumber('serviceOrderId')
+            ->name('diagnostics.orders.results.group');
+
 
          Route::get(
     '/admin/laboratory-parameters',

@@ -918,12 +918,43 @@
                                         @php
                                             $flag = $item->flag;
 
+                                            if (! $flag) {
+                                                $rawResult = trim(str_replace(',', '', (string) $item->result_value));
+                                                $range = trim(str_replace(['–', '—', '−'], '-', (string) $item->reference_range));
+
+                                                if (preg_match('/^-?\d+(?:\.\d+)?$/', $rawResult)) {
+                                                    $numericResult = (float) $rawResult;
+                                                    $matches = [];
+
+                                                    if (preg_match('/^<=\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
+                                                        $flag = $numericResult > (float) $matches[1] ? 'high' : null;
+                                                    } elseif (preg_match('/^<\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
+                                                        $flag = $numericResult >= (float) $matches[1] ? 'high' : null;
+                                                    } elseif (preg_match('/^>=\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
+                                                        $flag = $numericResult < (float) $matches[1] ? 'low' : null;
+                                                    } elseif (preg_match('/^>\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
+                                                        $flag = $numericResult <= (float) $matches[1] ? 'low' : null;
+                                                    } elseif (preg_match('/^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
+                                                        $low = (float) $matches[1];
+                                                        $high = (float) $matches[2];
+
+                                                        if ($low > $high) {
+                                                            [$low, $high] = [$high, $low];
+                                                        }
+
+                                                        $flag = $numericResult < $low
+                                                            ? 'low'
+                                                            : ($numericResult > $high ? 'high' : null);
+                                                    }
+                                                }
+                                            }
+
                                             $flagLabel = match ($flag) {
-                                                'low' => 'L',
-                                                'high' => 'H',
-                                                'critical_low' => 'CL',
-                                                'critical_high' => 'CH',
-                                                'abnormal' => 'A',
+                                                'low' => 'LOW',
+                                                'high' => 'HIGH',
+                                                'critical_low' => 'CRITICAL LOW',
+                                                'critical_high' => 'CRITICAL HIGH',
+                                                'abnormal' => 'ABNORMAL',
                                                 default => '—',
                                             };
 
@@ -1116,5 +1147,14 @@
         </div>
 
     </div>
+
+
+    @if (request()->boolean('print'))
+        <script>
+            window.addEventListener('load', function () {
+                window.print();
+            });
+        </script>
+    @endif
 
 </x-app-layout>

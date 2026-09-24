@@ -178,7 +178,7 @@
 
             {{-- CENSUS TABLE --}}
             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm w-full">
-                <div class="border-b border-slate-100 px-6 py-5">
+                <div class="border-b border-slate-100 px-5 py-4">
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h3 class="font-semibold text-slate-900">
@@ -195,35 +195,35 @@
                     </div>
                 </div>
 
-                <div class="overflow-x-auto w-full">
-                    <table class="min-w-full w-full divide-y divide-slate-200 text-sm">
+                <div class="w-full">
+                    <table class="w-full table-fixed divide-y divide-slate-200 text-sm">
+                        <colgroup>
+                            <col class="w-[24%]">
+                            <col class="w-[22%]">
+                            <col class="w-[17%]">
+                            <col class="w-[14%]">
+                            <col class="w-[9%]">
+                            <col class="w-[14%]">
+                        </colgroup>
+
                         <thead class="bg-slate-50">
                             <tr>
-                                <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
-                                    Admission No
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Patient / Admission
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
-                                    Patient
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Clinical
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
-                                    Department
-                                </th>
-                                <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
-                                    Consultant
-                                </th>
-                                <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Ward / Bed
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
-                                    Admitted
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    Admission
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
-                                    Source
-                                </th>
-                                <th class="px-5 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Status
                                 </th>
-                                <th class="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                                <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Actions
                                 </th>
                             </tr>
@@ -250,59 +250,50 @@
                                 @endphp
 
                                 <tr class="hover:bg-slate-50 transition-colors">
-                                    {{-- ADMISSION NUMBER --}}
-                                    <td class="px-5 py-4 align-top whitespace-nowrap">
-                                        <div class="font-semibold text-slate-900 font-mono">
-                                            {{ $admission->admission_no }}
-                                        </div>
-                                        <div class="mt-1 text-xs text-slate-500">
-                                            {{ ucwords(str_replace('_', ' ', $admission->admission_type)) }}
-                                        </div>
-                                    </td>
-
-                                    {{-- PATIENT --}}
-                                    <td class="px-5 py-4 align-top whitespace-nowrap">
-                                        <div class="font-semibold text-slate-900">
+                                    {{-- PATIENT / ADMISSION --}}
+                                    <td class="px-4 py-3 align-top">
+                                        <div class="font-semibold text-slate-900 leading-5">
                                             {{ $patient?->full_name ?? 'Unknown Patient' }}
                                         </div>
-                                        <div class="mt-1 space-y-0.5 text-xs text-slate-500 font-mono">
+
+                                        <div class="mt-1 text-xs font-mono text-slate-600 break-words">
+                                            {{ $admission->admission_no }}
+                                        </div>
+
+                                        <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] leading-4 text-slate-500">
                                             @if ($patient?->uhid)
-                                                <div>UHID: {{ $patient->uhid }}</div>
+                                                <span>UHID: {{ $patient->uhid }}</span>
                                             @endif
                                             @if ($patient?->mrd_number)
-                                                <div>MRD: {{ $patient->mrd_number }}</div>
+                                                <span>MRD: {{ $patient->mrd_number }}</span>
                                             @endif
                                             @if ($patient?->phone)
-                                                <div>Mobile: {{ $patient->phone }}</div>
+                                                <span>Mob: {{ $patient->phone }}</span>
                                             @endif
                                             @if (! $patient)
-                                                <div>Patient ID: {{ $admission->patient_id }}</div>
+                                                <span>Patient ID: {{ $admission->patient_id }}</span>
                                             @endif
                                         </div>
                                     </td>
 
-                                    {{-- DEPARTMENT --}}
-                                    <td class="px-5 py-4 align-top text-slate-700 whitespace-nowrap">
-                                        <div class="font-medium">
+                                    {{-- CLINICAL --}}
+                                    <td class="px-4 py-3 align-top text-slate-700">
+                                        <div class="font-semibold text-slate-900 break-words">
                                             {{ $admission->department?->name ?? '—' }}
                                         </div>
-                                    </td>
-
-                                    {{-- CONSULTANT --}}
-                                    <td class="px-5 py-4 align-top text-slate-700 whitespace-nowrap">
-                                        <div class="font-medium">
+                                        <div class="mt-1 text-xs font-medium text-slate-700 break-words">
                                             {{ $consultantName }}
                                         </div>
                                         @if ($consultant?->speciality)
-                                            <div class="mt-1 text-xs text-slate-400">
+                                            <div class="mt-0.5 text-[11px] leading-4 text-slate-400 break-words">
                                                 {{ $consultant->speciality }}
                                             </div>
                                         @endif
                                     </td>
 
                                     {{-- WARD / BED --}}
-                                    <td class="px-5 py-4 align-top whitespace-nowrap">
-                                        <div class="font-semibold text-slate-900">
+                                    <td class="px-4 py-3 align-top">
+                                        <div class="font-semibold text-slate-900 break-words">
                                             {{ $currentBed?->ward?->name ?? '—' }}
                                         </div>
                                         <div class="mt-1 text-xs text-slate-500">
@@ -310,41 +301,39 @@
                                         </div>
                                     </td>
 
-                                    {{-- ADMITTED DATE / TIME --}}
-                                    <td class="px-5 py-4 align-top text-slate-700 whitespace-nowrap">
+                                    {{-- ADMISSION DETAILS --}}
+                                    <td class="px-4 py-3 align-top text-slate-700">
                                         <div class="font-medium">
                                             {{ $admission->admitted_at?->format('d M Y') ?? '—' }}
                                         </div>
-                                        <div class="mt-1 text-xs text-slate-400">
+                                        <div class="mt-0.5 text-[11px] text-slate-400">
                                             {{ $admission->admitted_at?->format('h:i A') ?? '—' }}
+                                        </div>
+                                        <div class="mt-1 text-xs text-slate-500 break-words">
+                                            {{ $admission->source_type ? ucwords(str_replace('_', ' ', $admission->source_type)) : '—' }}
                                         </div>
                                     </td>
 
-                                    {{-- SOURCE --}}
-                                    <td class="px-5 py-4 align-top text-slate-700 whitespace-nowrap">
-                                        {{ $admission->source_type ? ucwords(str_replace('_', ' ', $admission->source_type)) : '—' }}
-                                    </td>
-
                                     {{-- STATUS --}}
-                                    <td class="px-5 py-4 align-top text-center whitespace-nowrap">
-                                        <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold {{ $statusClass }}">
+                                    <td class="px-3 py-3 align-top text-center">
+                                        <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $statusClass }}">
                                             {{ $statusLabel }}
                                         </span>
                                     </td>
 
                                     {{-- ACTIONS --}}
-                                    <td class="px-5 py-4 align-top whitespace-nowrap">
-                                        <div class="flex items-center justify-end gap-1.5">
+                                    <td class="px-3 py-3 align-top">
+                                        <div class="flex flex-col items-stretch gap-1.5">
                                             <a
                                                 href="{{ route('ipd.show', $admission) }}"
-                                                class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                                class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                                             >
                                                 Open
                                             </a>
 
                                             <a
                                                 href="{{ route('ip-billing.show', $admission) }}"
-                                                class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                                                class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-2 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-800"
                                             >
                                                 IP Billing
                                             </a>
@@ -352,7 +341,7 @@
                                             @if (in_array($admission->status, ['admitted', 'transferred'], true))
                                                 <a
                                                     href="{{ route('pharmacy.dispensing.create', ['admission_id' => $admission->id]) }}"
-                                                    class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700"
+                                                    class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-2 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-violet-700"
                                                 >
                                                     Dispense
                                                 </a>
@@ -362,7 +351,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="px-6 py-12 text-center">
+                                    <td colspan="6" class="px-6 py-12 text-center">
                                         <div class="text-sm font-semibold text-slate-700">
                                             No inpatient admissions found
                                         </div>

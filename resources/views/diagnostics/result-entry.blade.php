@@ -858,6 +858,56 @@
                         row.querySelector('[data-field="high_value"]')?.value
                     );
 
+                /*
+                 * If Parameter Master numeric limits are not configured,
+                 * derive ordinary LOW/HIGH limits from the visible reference
+                 * range. This supports common formats such as:
+                 *   <40, <=40, >10, >=10, 0.6-1.2, 40–45
+                 */
+                let derivedLow = low;
+                let derivedHigh = high;
+                let lowerInclusive = true;
+                let upperInclusive = true;
+
+                if (derivedLow === null && derivedHigh === null) {
+                    const referenceInput =
+                        row.querySelector('[data-field="reference_range"]');
+
+                    const referenceRange =
+                        String(referenceInput?.value || '')
+                            .replace(/[–—−]/g, '-')
+                            .trim();
+
+                    let match = null;
+
+                    if ((match = referenceRange.match(/^<=\s*(-?\d+(?:\.\d+)?)$/))) {
+                        derivedHigh = Number(match[1]);
+                        upperInclusive = true;
+                    } else if ((match = referenceRange.match(/^<\s*(-?\d+(?:\.\d+)?)$/))) {
+                        derivedHigh = Number(match[1]);
+                        upperInclusive = false;
+                    } else if ((match = referenceRange.match(/^>=\s*(-?\d+(?:\.\d+)?)$/))) {
+                        derivedLow = Number(match[1]);
+                        lowerInclusive = true;
+                    } else if ((match = referenceRange.match(/^>\s*(-?\d+(?:\.\d+)?)$/))) {
+                        derivedLow = Number(match[1]);
+                        lowerInclusive = false;
+                    } else if (
+                        (match = referenceRange.match(
+                            /^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/
+                        ))
+                    ) {
+                        derivedLow = Number(match[1]);
+                        derivedHigh = Number(match[2]);
+
+                        if (derivedLow > derivedHigh) {
+                            const temporary = derivedLow;
+                            derivedLow = derivedHigh;
+                            derivedHigh = temporary;
+                        }
+                    }
+                }
+
                 const criticalLow =
                     parseNumeric(
                         row.querySelector('[data-field="critical_low"]')?.value
@@ -882,14 +932,20 @@
                     flagSelect.value = 'critical_high';
 
                 } else if (
-                    low !== null
-                    && value < low
+                    derivedLow !== null
+                    && (
+                        value < derivedLow
+                        || (!lowerInclusive && value === derivedLow)
+                    )
                 ) {
                     flagSelect.value = 'low';
 
                 } else if (
-                    high !== null
-                    && value > high
+                    derivedHigh !== null
+                    && (
+                        value > derivedHigh
+                        || (!upperInclusive && value === derivedHigh)
+                    )
                 ) {
                     flagSelect.value = 'high';
 
@@ -1055,7 +1111,7 @@
 
                     if (
                         event.target.matches(
-                            '[data-field="result_value"]'
+                            '[data-field="result_value"], [data-field="reference_range"]'
                         )
                     ) {
                         calculateFlag(

@@ -17,6 +17,17 @@
 
             <div class="flex gap-2">
 
+                             @if($financeVoucher->payroll_run_id)
+
+    <a
+        href="{{ route('admin.hr.payroll.runs.show', $financeVoucher->payroll_run_id) }}"
+        class="rounded-lg border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-800 shadow-sm hover:bg-cyan-100"
+    >
+        View Payroll Run
+    </a>
+
+@endif
+
                 <a
                     href="{{ route('finance.vouchers.index') }}"
                     class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"

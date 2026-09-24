@@ -16,6 +16,7 @@ class FinanceVoucher extends Model
         'voucher_date',
         'finance_head_id',
         'finance_account_id',
+        'payroll_run_id',
         'destination_account_id',
         'amount',
         'payment_mode',
@@ -38,6 +39,12 @@ class FinanceVoucher extends Model
         'cancelled_at' => 'datetime',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
      * Income or expense classification.
      */
@@ -57,6 +64,20 @@ class FinanceVoucher extends Model
         return $this->belongsTo(
             FinanceAccount::class,
             'finance_account_id'
+        );
+    }
+
+    /**
+     * Payroll run that generated this voucher.
+     *
+     * This is nullable because ordinary Finance vouchers
+     * are not necessarily generated from Payroll.
+     */
+    public function payrollRun(): BelongsTo
+    {
+        return $this->belongsTo(
+            PayrollRun::class,
+            'payroll_run_id'
         );
     }
 

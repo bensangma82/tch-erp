@@ -21,6 +21,8 @@ class DiagnosticWorklistController extends Controller
             'serviceOrder.patient',
             'serviceOrder.encounter.department',
             'serviceOrder.encounter.doctor',
+            'serviceOrder.admission.department',
+            'serviceOrder.admission.consultant',
             'diagnosticResult',
             'diagnosticSample',
         ])
@@ -31,7 +33,30 @@ class DiagnosticWorklistController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        return view('diagnostics.laboratory', compact('items'));
+        /*
+        |--------------------------------------------------------------------------
+        | Group Laboratory Items by Order
+        |--------------------------------------------------------------------------
+        |
+        | The laboratory worklist should show one main entry per service order
+        | rather than repeating the patient/doctor for every investigation.
+        | Individual ServiceOrderItems remain unchanged and are still used for
+        | sample collection, processing and result entry.
+        |
+        */
+        $orders = $items
+            ->groupBy('service_order_id')
+            ->map(function ($orderItems) {
+                $firstItem = $orderItems->first();
+
+                return (object) [
+                    'order' => $firstItem?->serviceOrder,
+                    'items' => $orderItems->values(),
+                ];
+            })
+            ->values();
+
+        return view('diagnostics.laboratory', compact('orders'));
     }
 
     /*
@@ -161,6 +186,10 @@ class DiagnosticWorklistController extends Controller
                 'string',
                 'max:10000',
             ],
+            'structured_data' => [
+                'nullable',
+                'array',
+            ],
         ]);
 
         if (
@@ -183,6 +212,7 @@ class DiagnosticWorklistController extends Controller
                 [
                     'findings' => $validated['findings'] ?? null,
                     'impression' => $validated['impression'] ?? null,
+                    'structured_data' => $validated['structured_data'] ?? null,
                     'status' => 'draft',
                     'entered_by' => auth()->id(),
                     'entered_at' => now(),
@@ -213,6 +243,7 @@ class DiagnosticWorklistController extends Controller
                 [
                     'findings' => $validated['findings'] ?? null,
                     'impression' => $validated['impression'] ?? null,
+                    'structured_data' => $validated['structured_data'] ?? null,
                     'status' => 'final',
                     'entered_by' => auth()->id(),
                     'entered_at' => now(),
@@ -542,7 +573,11 @@ class DiagnosticWorklistController extends Controller
                     'result_value' => trim((string) ($parameter['result_value'] ?? '')),
                     'unit' => trim((string) ($parameter['unit'] ?? '')),
                     'reference_range' => trim((string) ($parameter['reference_range'] ?? '')),
-                    'flag' => $parameter['flag'] ?? null,
+                    'flag' => $this->determineLaboratoryFlag(
+                        trim((string) ($parameter['result_value'] ?? '')),
+                        trim((string) ($parameter['reference_range'] ?? '')),
+                        $parameter['flag'] ?? null
+                    ),
                     'remarks' => trim((string) ($parameter['remarks'] ?? '')),
                 ];
             })
@@ -713,4 +748,161 @@ class DiagnosticWorklistController extends Controller
             compact('serviceOrderItem')
         );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | View / Print Grouped Laboratory Results
+    |--------------------------------------------------------------------------
+    |
+    | Shows all finalized laboratory results belonging to one service order.
+    | Incomplete/draft investigations are deliberately excluded.
+    |
+    */
+    public function showGroupedResults(int $serviceOrderId)
+    {
+        $items = ServiceOrderItem::with([
+            'serviceOrder.patient',
+            'serviceOrder.encounter.department',
+            'serviceOrder.encounter.doctor',
+            'serviceOrder.admission.department',
+            'serviceOrder.admission.consultant',
+            'diagnosticResult.enteredBy',
+            'diagnosticResult.verifiedBy',
+            'diagnosticResult.items',
+            'diagnosticSample.collectedBy',
+        ])
+            ->where('service_order_id', $serviceOrderId)
+            ->where('category', 'laboratory')
+            ->where('status', 'completed')
+            ->whereHas('diagnosticResult', function ($query) {
+                $query->whereIn('status', ['final', 'verified']);
+            })
+            ->orderBy('id')
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()
+                ->route('laboratory.index')
+                ->withErrors([
+                    'result' => 'No completed laboratory results are available for this order.',
+                ]);
+        }
+
+        $order = $items->first()->serviceOrder;
+
+        if (! in_array($order?->status, ['paid', 'authorized'], true)) {
+            return redirect()
+                ->route('laboratory.index')
+                ->withErrors([
+                    'result' => 'This laboratory order is not released for reporting.',
+                ]);
+        }
+
+        return view(
+            'diagnostics.result-group',
+            compact('order', 'items')
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Automatic Laboratory Result Flagging
+    |--------------------------------------------------------------------------
+    |
+    | Automatically derives HIGH / LOW storage flags from common numeric
+    | reference-range formats. The database continues to store the existing
+    | canonical values "high" and "low"; report views can display these as
+    | HIGH and LOW.
+    |
+    | Supported examples:
+    |   <4.5
+    |   <=4.5
+    |   >10
+    |   >=10
+    |   0.6 - 1.2
+    |   40–45
+    |
+    | If the result or reference range cannot be interpreted numerically,
+    | an explicitly supplied manual flag is preserved.
+    |
+    */
+    private function determineLaboratoryFlag(
+        string $resultValue,
+        string $referenceRange,
+        ?string $manualFlag = null
+    ): ?string {
+        $result = $this->extractNumericLaboratoryValue($resultValue);
+
+        if ($result === null || trim($referenceRange) === '') {
+            return $manualFlag;
+        }
+
+        $range = trim(
+            str_replace(
+                ["\u{2013}", "\u{2014}", "\u{2212}"],
+                '-',
+                $referenceRange
+            )
+        );
+
+        if (preg_match('/^\s*<=\s*(-?\d+(?:\.\d+)?)\s*$/u', $range, $matches)) {
+            return $result > (float) $matches[1] ? 'high' : null;
+        }
+
+        if (preg_match('/^\s*<\s*(-?\d+(?:\.\d+)?)\s*$/u', $range, $matches)) {
+            return $result >= (float) $matches[1] ? 'high' : null;
+        }
+
+        if (preg_match('/^\s*>=\s*(-?\d+(?:\.\d+)?)\s*$/u', $range, $matches)) {
+            return $result < (float) $matches[1] ? 'low' : null;
+        }
+
+        if (preg_match('/^\s*>\s*(-?\d+(?:\.\d+)?)\s*$/u', $range, $matches)) {
+            return $result <= (float) $matches[1] ? 'low' : null;
+        }
+
+        if (
+            preg_match(
+                '/^\s*(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)\s*$/u',
+                $range,
+                $matches
+            )
+        ) {
+            $low = (float) $matches[1];
+            $high = (float) $matches[2];
+
+            if ($low > $high) {
+                [$low, $high] = [$high, $low];
+            }
+
+            if ($result < $low) {
+                return 'low';
+            }
+
+            if ($result > $high) {
+                return 'high';
+            }
+
+            return null;
+        }
+
+        return $manualFlag;
+    }
+
+    private function extractNumericLaboratoryValue(string $value): ?float
+    {
+        $value = trim(str_replace(',', '', $value));
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^-?\d+(?:\.\d+)?$/', $value)) {
+            return (float) $value;
+        }
+
+        return null;
+    }
+
 }

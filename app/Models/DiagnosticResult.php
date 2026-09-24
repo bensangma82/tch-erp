@@ -13,6 +13,7 @@ class DiagnosticResult extends Model
         'result_text',
         'findings',
         'impression',
+        'structured_data',
         'attachment_path',
         'status',
         'entered_by',
@@ -25,6 +26,7 @@ class DiagnosticResult extends Model
     protected function casts(): array
     {
         return [
+            'structured_data' => 'array',
             'entered_at' => 'datetime',
             'verified_at' => 'datetime',
         ];
