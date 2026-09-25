@@ -233,7 +233,9 @@ class PayrollRunController extends Controller
 
         try {
             DB::transaction(function () use ($payrollRun) {
-                /*
+
+
+                 /*
                 |--------------------------------------------------------------------------
                 | Lock Payroll Run
                 |--------------------------------------------------------------------------
@@ -907,6 +909,194 @@ class PayrollRunController extends Controller
             );
     }
 
+                /*
+    |--------------------------------------------------------------------------
+    | Record Bulk Payroll Payment
+    |--------------------------------------------------------------------------
+    */
+
+    public function recordBulkPayment(
+        Request $request,
+        PayrollRun $payrollRun
+    ): RedirectResponse {
+        if (!in_array($payrollRun->status, ['approved', 'paid'], true)) {
+            return back()->with(
+                'error',
+                'Bulk payments can be recorded only for an approved payroll run.'
+            );
+        }
+
+        $validated = $request->validate([
+            'payroll_entry_ids' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+            'payroll_entry_ids.*' => [
+                'required',
+                'integer',
+                'distinct',
+            ],
+            'payment_date' => [
+                'required',
+                'date',
+            ],
+            'payment_mode' => [
+                'required',
+                Rule::in([
+                    'bank_transfer',
+                    'cash',
+                    'cheque',
+                    'other',
+                ]),
+            ],
+            'finance_account_id' => [
+                'required',
+                'integer',
+                Rule::exists('finance_accounts', 'id')
+                    ->where(
+                        fn ($query) =>
+                            $query->where('is_active', true)
+                    ),
+            ],
+            'payment_reference' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        if (
+            in_array(
+                $validated['payment_mode'],
+                ['bank_transfer', 'cheque'],
+                true
+            )
+            && blank($validated['payment_reference'] ?? null)
+        ) {
+            return back()
+                ->withErrors([
+                    'payment_reference' =>
+                        'A payment reference is required for bank transfer or cheque payments.',
+                ])
+                ->withInput();
+        }
+
+        try {
+            $paidCount = DB::transaction(function () use (
+                $payrollRun,
+                $validated
+            ) {
+                $run = PayrollRun::query()
+                    ->whereKey($payrollRun->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (!in_array($run->status, ['approved', 'paid'], true)) {
+                    throw new RuntimeException(
+                        'This payroll run is no longer available for payment processing.'
+                    );
+                }
+
+                $requestedIds = collect(
+                    $validated['payroll_entry_ids']
+                )
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values();
+
+                $entries = PayrollEntry::query()
+                    ->where('payroll_run_id', $run->id)
+                    ->whereIn('id', $requestedIds->all())
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+
+                if ($entries->count() !== $requestedIds->count()) {
+                    throw new RuntimeException(
+                        'One or more selected payroll entries do not belong to this payroll run.'
+                    );
+                }
+
+                foreach ($entries as $entry) {
+                    if ($entry->status === 'paid') {
+                        throw new RuntimeException(
+                            'One or more selected employees have already been paid.'
+                        );
+                    }
+
+                    if ($entry->status !== 'approved') {
+                        throw new RuntimeException(
+                            'Only approved payroll entries can be paid.'
+                        );
+                    }
+                }
+
+                foreach ($entries as $entry) {
+                    $entry->update([
+                        'status' => 'paid',
+                        'payment_mode' =>
+                            $validated['payment_mode'],
+                        'finance_account_id' =>
+                            $validated['finance_account_id'],
+                        'payment_reference' =>
+                            $validated['payment_reference'] ?? null,
+                        'payment_date' =>
+                            $validated['payment_date'],
+                        'remarks' =>
+                            $validated['remarks']
+                                ?? $entry->remarks,
+                        'updated_by' => auth()->id(),
+                    ]);
+                }
+
+                $remainingUnpaid = $run->entries()
+                    ->where('status', '!=', 'paid')
+                    ->count();
+
+                if ($remainingUnpaid === 0) {
+                    $latestPaymentDate = $run->entries()
+                        ->max('payment_date');
+
+                    $run->update([
+                        'status' => 'paid',
+                        'payment_date' => $latestPaymentDate,
+                        'paid_at' => now(),
+                        'paid_by' => auth()->id(),
+                        'updated_by' => auth()->id(),
+                    ]);
+                }
+
+                return $entries->count();
+            });
+
+            $payrollRun->refresh();
+
+            return redirect()
+                ->route(
+                    'admin.hr.payroll.runs.show',
+                    $payrollRun
+                )
+                ->with(
+                    'success',
+                    $payrollRun->status === 'paid'
+                        ? $paidCount . ' employee payment(s) recorded successfully. All employees are now paid and the payroll run has been marked Paid.'
+                        : $paidCount . ' employee payment(s) recorded successfully.'
+                );
+        } catch (RuntimeException $exception) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    $exception->getMessage()
+                );
+        }
+    }
 
     /*
     |--------------------------------------------------------------------------

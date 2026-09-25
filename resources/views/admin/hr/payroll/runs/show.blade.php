@@ -487,6 +487,307 @@
 
                 @if ($payrollRun->entries->count())
 
+                                               @php
+                        $bulkPayableEntries = $payrollRun->entries
+                            ->where('status', 'approved');
+
+                        $bulkPayableTotal = $bulkPayableEntries
+                            ->sum(fn ($entry) => (float) $entry->net_pay);
+                    @endphp
+
+                    @if (
+                        in_array($payrollRun->status, ['approved', 'paid'], true)
+                        && $bulkPayableEntries->isNotEmpty()
+                    )
+                        <div class="border-b border-slate-200 bg-emerald-50 p-5">
+                            <details
+                                class="overflow-hidden rounded-xl border border-emerald-200 bg-white"
+                                @if ($errors->any()) open @endif
+                            >
+                                <summary class="cursor-pointer px-5 py-4">
+                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <div class="font-semibold text-emerald-900">
+                                                Record Bulk Payroll Payment
+                                            </div>
+
+                                            <div class="mt-1 text-sm text-slate-600">
+                                                Pay multiple approved employees using the same payment date,
+                                                mode and Finance Account.
+                                            </div>
+                                        </div>
+
+                                        <div class="text-sm font-semibold text-emerald-800">
+                                            {{ $bulkPayableEntries->count() }}
+                                            unpaid employee(s)
+                                            ·
+                                            ₹{{ number_format($bulkPayableTotal, 2) }}
+                                        </div>
+                                    </div>
+                                </summary>
+
+                                <form
+                                    method="POST"
+                                    action="{{ route(
+                                        'admin.hr.payroll.runs.bulk-payment',
+                                        $payrollRun
+                                    ) }}"
+                                    id="bulk-payroll-payment-form"
+                                    class="border-t border-emerald-200 p-5"
+                                >
+                                    @csrf
+
+                                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <div class="text-sm font-semibold text-slate-800">
+                                                Select Employees
+                                            </div>
+
+                                            <div class="mt-1 text-xs text-slate-500">
+                                                Only approved and unpaid payroll entries are available.
+                                            </div>
+                                        </div>
+
+                                        <div class="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                id="bulk-select-all"
+                                                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                                            >
+                                                Select All
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                id="bulk-clear-all"
+                                                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                                            >
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="max-h-80 overflow-auto rounded-lg border border-slate-200">
+                                        <table class="min-w-full divide-y divide-slate-200">
+                                            <thead class="sticky top-0 bg-slate-50">
+                                                <tr>
+                                                    <th class="w-12 px-4 py-3 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="bulk-master-checkbox"
+                                                            class="rounded border-slate-300"
+                                                        >
+                                                    </th>
+
+                                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                        Employee
+                                                    </th>
+
+                                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                        Department
+                                                    </th>
+
+                                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                        Net Pay
+                                                    </th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody class="divide-y divide-slate-100 bg-white">
+                                                @foreach ($bulkPayableEntries as $entry)
+                                                    <tr>
+                                                        <td class="px-4 py-3 text-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                name="payroll_entry_ids[]"
+                                                                value="{{ $entry->id }}"
+                                                                data-net-pay="{{ (float) $entry->net_pay }}"
+                                                                class="bulk-payroll-checkbox rounded border-slate-300"
+                                                                @checked(
+                                                                    in_array(
+                                                                        (string) $entry->id,
+                                                                        array_map(
+                                                                            'strval',
+                                                                            old('payroll_entry_ids', [])
+                                                                        ),
+                                                                        true
+                                                                    )
+                                                                )
+                                                            >
+                                                        </td>
+
+                                                        <td class="px-4 py-3">
+                                                            <div class="text-sm font-semibold text-slate-900">
+                                                                {{ $entry->employee_name }}
+                                                            </div>
+
+                                                            <div class="mt-0.5 text-xs text-slate-500">
+                                                                {{ $entry->employee_code }}
+                                                            </div>
+                                                        </td>
+
+                                                        <td class="px-4 py-3 text-sm text-slate-700">
+                                                            {{ $entry->department_name ?: '—' }}
+                                                        </td>
+
+                                                        <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-bold text-emerald-700">
+                                                            ₹{{ number_format((float) $entry->net_pay, 2) }}
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    @error('payroll_entry_ids')
+                                        <p class="mt-2 text-sm font-medium text-red-600">
+                                            {{ $message }}
+                                        </p>
+                                    @enderror
+
+                                    <div class="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-600">
+                                                Payment Date
+                                            </label>
+
+                                            <input
+                                                type="date"
+                                                name="payment_date"
+                                                value="{{ old('payment_date', now()->toDateString()) }}"
+                                                required
+                                                class="mt-1 w-full rounded-lg border-slate-300 text-sm"
+                                            >
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-600">
+                                                Payment Mode
+                                            </label>
+
+                                            <select
+                                                name="payment_mode"
+                                                required
+                                                class="mt-1 w-full rounded-lg border-slate-300 text-sm"
+                                            >
+                                                <option value="">Select mode</option>
+                                                <option
+                                                    value="bank_transfer"
+                                                    @selected(old('payment_mode') === 'bank_transfer')
+                                                >
+                                                    Bank Transfer
+                                                </option>
+                                                <option
+                                                    value="cash"
+                                                    @selected(old('payment_mode') === 'cash')
+                                                >
+                                                    Cash
+                                                </option>
+                                                <option
+                                                    value="cheque"
+                                                    @selected(old('payment_mode') === 'cheque')
+                                                >
+                                                    Cheque
+                                                </option>
+                                                <option
+                                                    value="other"
+                                                    @selected(old('payment_mode') === 'other')
+                                                >
+                                                    Other
+                                                </option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-600">
+                                                Payment Account
+                                            </label>
+
+                                            <select
+                                                name="finance_account_id"
+                                                required
+                                                class="mt-1 w-full rounded-lg border-slate-300 text-sm"
+                                            >
+                                                <option value="">Select account</option>
+
+                                                @foreach ($financeAccounts as $financeAccount)
+                                                    <option
+                                                        value="{{ $financeAccount->id }}"
+                                                        @selected(
+                                                            (string) old('finance_account_id') ===
+                                                            (string) $financeAccount->id
+                                                        )
+                                                    >
+                                                        {{ $financeAccount->name }}
+                                                        ({{ strtoupper($financeAccount->account_type) }})
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-600">
+                                                Reference No.
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                name="payment_reference"
+                                                value="{{ old('payment_reference') }}"
+                                                maxlength="150"
+                                                placeholder="Transaction / cheque reference"
+                                                class="mt-1 w-full rounded-lg border-slate-300 text-sm"
+                                            >
+
+                                            <p class="mt-1 text-[11px] text-slate-500">
+                                                Required for bank transfer or cheque.
+                                            </p>
+                                        </div>
+
+                                        <div class="md:col-span-2">
+                                            <label class="block text-xs font-semibold text-slate-600">
+                                                Remarks
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                name="remarks"
+                                                value="{{ old('remarks') }}"
+                                                maxlength="1000"
+                                                placeholder="Optional"
+                                                class="mt-1 w-full rounded-lg border-slate-300 text-sm"
+                                            >
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-5 flex flex-col gap-3 rounded-xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                Selected for Payment
+                                            </div>
+
+                                            <div class="mt-1 text-lg font-bold text-slate-900">
+                                                <span id="bulk-selected-count">0</span>
+                                                employee(s)
+                                                ·
+                                                ₹<span id="bulk-selected-total">0.00</span>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            id="bulk-payment-submit"
+                                            class="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold shadow-sm"
+                                            style="background-color: #047857 !important; color: #ffffff !important;"
+                                        >
+                                            Record Selected Payments
+                                        </button>
+                                    </div>
+                                </form>
+                            </details>
+                        </div>
+                    @endif
+
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-slate-200">
 
@@ -1053,6 +1354,168 @@
                 typeSelect.addEventListener('change', syncAdjustmentFields);
                 syncAdjustmentFields();
             });
+                                 /*
+            |--------------------------------------------------------------------------
+            | Bulk Payroll Payment
+            |--------------------------------------------------------------------------
+            */
+
+            const bulkForm = document.getElementById('bulk-payroll-payment-form');
+
+            if (bulkForm) {
+                const checkboxes = Array.from(
+                    bulkForm.querySelectorAll('.bulk-payroll-checkbox')
+                );
+
+                const masterCheckbox =
+                    document.getElementById('bulk-master-checkbox');
+
+                const selectAllButton =
+                    document.getElementById('bulk-select-all');
+
+                const clearAllButton =
+                    document.getElementById('bulk-clear-all');
+
+                const selectedCount =
+                    document.getElementById('bulk-selected-count');
+
+                const selectedTotal =
+                    document.getElementById('bulk-selected-total');
+
+                const submitButton =
+                    document.getElementById('bulk-payment-submit');
+
+                const updateBulkSummary = function () {
+                    const selected = checkboxes.filter(function (checkbox) {
+                        return checkbox.checked;
+                    });
+
+                    const total = selected.reduce(function (sum, checkbox) {
+                        const amount = parseFloat(
+                            checkbox.dataset.netPay || '0'
+                        );
+
+                        return sum + (Number.isFinite(amount) ? amount : 0);
+                    }, 0);
+
+                    if (selectedCount) {
+                        selectedCount.textContent = selected.length;
+                    }
+
+                    if (selectedTotal) {
+                        selectedTotal.textContent =
+                            total.toLocaleString('en-IN', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                            });
+                    }
+
+                    if (masterCheckbox) {
+                        masterCheckbox.checked =
+                            checkboxes.length > 0 &&
+                            selected.length === checkboxes.length;
+
+                        masterCheckbox.indeterminate =
+                            selected.length > 0 &&
+                            selected.length < checkboxes.length;
+                    }
+
+                    if (submitButton) {
+                        submitButton.disabled = selected.length === 0;
+                        submitButton.classList.toggle(
+                            'opacity-50',
+                            selected.length === 0
+                        );
+                        submitButton.classList.toggle(
+                            'cursor-not-allowed',
+                            selected.length === 0
+                        );
+                    }
+                };
+
+                checkboxes.forEach(function (checkbox) {
+                    checkbox.addEventListener(
+                        'change',
+                        updateBulkSummary
+                    );
+                });
+
+                if (masterCheckbox) {
+                    masterCheckbox.addEventListener('change', function () {
+                        checkboxes.forEach(function (checkbox) {
+                            checkbox.checked = masterCheckbox.checked;
+                        });
+
+                        updateBulkSummary();
+                    });
+                }
+
+                if (selectAllButton) {
+                    selectAllButton.addEventListener('click', function () {
+                        checkboxes.forEach(function (checkbox) {
+                            checkbox.checked = true;
+                        });
+
+                        updateBulkSummary();
+                    });
+                }
+
+                if (clearAllButton) {
+                    clearAllButton.addEventListener('click', function () {
+                        checkboxes.forEach(function (checkbox) {
+                            checkbox.checked = false;
+                        });
+
+                        updateBulkSummary();
+                    });
+                }
+
+                bulkForm.addEventListener('submit', function (event) {
+                    const selected = checkboxes.filter(function (checkbox) {
+                        return checkbox.checked;
+                    });
+
+                    if (selected.length === 0) {
+                        event.preventDefault();
+
+                        alert(
+                            'Please select at least one employee for payment.'
+                        );
+
+                        return;
+                    }
+
+                    const total = selected.reduce(function (sum, checkbox) {
+                        const amount = parseFloat(
+                            checkbox.dataset.netPay || '0'
+                        );
+
+                        return sum + (Number.isFinite(amount) ? amount : 0);
+                    }, 0);
+
+                    const formattedTotal =
+                        total.toLocaleString('en-IN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        });
+
+                    const confirmed = confirm(
+                        'Record salary payment for ' +
+                        selected.length +
+                        ' employee(s) totalling ₹' +
+                        formattedTotal +
+                        '?\n\n' +
+                        'Please confirm the payment date, mode, account and reference are correct.'
+                    );
+
+                    if (!confirmed) {
+                        event.preventDefault();
+                    }
+                });
+
+                updateBulkSummary();
+            }
+
         });
     </script>
 

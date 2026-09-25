@@ -540,6 +540,13 @@ Route::post(
     ->whereNumber('payrollEntry')
     ->name('hr.payroll.runs.payment');
 
+                 Route::post(
+    '/hr/payroll/runs/{payrollRun}/bulk-payment',
+    [PayrollRunController::class, 'recordBulkPayment']
+)
+    ->whereNumber('payrollRun')
+    ->name('hr.payroll.runs.bulk-payment');
+
 Route::post(
     '/hr/payroll/runs/{payrollRun}/calculate',
     [PayrollRunController::class, 'calculate']

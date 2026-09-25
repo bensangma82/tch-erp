@@ -62,7 +62,6 @@
             @endif
 
 
-
             {{-- COMPONENT SUMMARY --}}
 
             <section class="overflow-hidden rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-slate-50 shadow-sm">
@@ -78,11 +77,11 @@
                         <div>
 
                             <h1 class="text-2xl font-bold tracking-tight text-slate-900">
-                                {{ $component->name }}
+                                {{ $salaryComponent->name }}
                             </h1>
 
                             <div class="mt-1 font-mono text-sm font-semibold text-slate-500">
-                                {{ $component->code }}
+                                {{ $salaryComponent->code }}
                             </div>
 
                         </div>
@@ -90,7 +89,7 @@
 
                         <div>
 
-                            @if ($component->is_active)
+                            @if ($salaryComponent->is_active)
 
                                 <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
                                     Active
@@ -119,12 +118,11 @@
             </section>
 
 
-
             {{-- EDIT FORM --}}
 
             <form
                 method="POST"
-                action="{{ route('admin.hr.payroll.salary-components.update', $component) }}"
+                action="{{ route('admin.hr.payroll.salary-components.update', $salaryComponent) }}"
             >
 
                 @csrf
