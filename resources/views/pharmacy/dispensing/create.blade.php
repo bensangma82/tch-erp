@@ -215,7 +215,27 @@
                                 Patient / Encounter
                             </label>
 
+                                       <div class="mb-4">
 
+    <label
+        for="encounter_search"
+        class="mb-2 block text-sm font-semibold text-slate-700"
+    >
+        Search Patient
+    </label>
+
+    <input
+        type="text"
+        id="encounter_search"
+        placeholder="Search by patient name, UHID, MRD, encounter, department or doctor..."
+        class="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+    >
+
+    <p class="mt-1 text-xs text-slate-500">
+        Includes encounters from the last 6 months for repeat and chronic medication patients.
+    </p>
+
+</div>
                             <select
                                 id="encounter_selector"
                                 class="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -1137,311 +1157,405 @@
     {{-- ========================================================= --}}
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function () {
 
-            const isInpatient =
-                @json((bool) $admission);
+    const isInpatient =
+        @json((bool) $admission);
 
+    const rowsContainer =
+        document.getElementById('medicineRows');
 
-            const rowsContainer =
-                document.getElementById('medicineRows');
+    const template =
+        document.getElementById('medicineRowTemplate');
 
-            const template =
-                document.getElementById('medicineRowTemplate');
+    const addButton =
+        document.getElementById('addMedicineButton');
 
-            const addButton =
-                document.getElementById('addMedicineButton');
+    const encounterSelector =
+        document.getElementById('encounter_selector');
 
-            const encounterSelector =
-                document.getElementById('encounter_selector');
+    const encounterSearch =
+        document.getElementById('encounter_search');
 
-            const patientInput =
-                document.getElementById('patient_id');
+    const patientInput =
+        document.getElementById('patient_id');
 
-            const encounterInput =
-                document.getElementById('encounter_id');
+    const encounterInput =
+        document.getElementById('encounter_id');
 
-            const admissionInput =
-                document.getElementById('admission_id');
+    const selectedPatientBox =
+        document.getElementById('selectedPatientBox');
 
-            const selectedPatientBox =
-                document.getElementById('selectedPatientBox');
+    const paymentMode =
+        document.getElementById('payment_mode');
 
-            const paymentMode =
-                document.getElementById('payment_mode');
+    const cashWrapper =
+        document.getElementById('cashReceivedWrapper');
 
-            const cashWrapper =
-                document.getElementById('cashReceivedWrapper');
+    const cashInput =
+        document.getElementById('cash_received');
 
-            const cashInput =
-                document.getElementById('cash_received');
+    const transactionReferenceWrapper =
+        document.getElementById(
+            'transactionReferenceWrapper'
+        );
 
-            const transactionReferenceWrapper =
-                document.getElementById('transactionReferenceWrapper');
+    const discountInput =
+        document.getElementById('discount');
 
-            const discountInput =
-                document.getElementById('discount');
+    const selectedCount =
+        document.getElementById('selectedCount');
 
-            const selectedCount =
-                document.getElementById('selectedCount');
+    const totalQuantity =
+        document.getElementById('totalQuantity');
 
-            const totalQuantity =
-                document.getElementById('totalQuantity');
+    const subtotalDisplay =
+        document.getElementById('subtotalDisplay');
 
-            const subtotalDisplay =
-                document.getElementById('subtotalDisplay');
+    const discountDisplay =
+        document.getElementById('discountDisplay');
 
-            const discountDisplay =
-                document.getElementById('discountDisplay');
+    const taxableDisplay =
+        document.getElementById('taxableDisplay');
 
-            const taxableDisplay =
-                document.getElementById('taxableDisplay');
+    const cgstDisplay =
+        document.getElementById('cgstDisplay');
 
-            const cgstDisplay =
-                document.getElementById('cgstDisplay');
+    const sgstDisplay =
+        document.getElementById('sgstDisplay');
 
-            const sgstDisplay =
-                document.getElementById('sgstDisplay');
+    const totalDisplay =
+        document.getElementById('totalDisplay');
 
-            const totalDisplay =
-                document.getElementById('totalDisplay');
+    const cashSummary =
+        document.getElementById('cashSummary');
 
-            const cashSummary =
-                document.getElementById('cashSummary');
+    const cashReceivedDisplay =
+        document.getElementById('cashReceivedDisplay');
 
-            const cashReceivedDisplay =
-                document.getElementById('cashReceivedDisplay');
+    const changeLabel =
+        document.getElementById('changeLabel');
 
-            const changeLabel =
-                document.getElementById('changeLabel');
+    const changeDisplay =
+        document.getElementById('changeDisplay');
 
-            const changeDisplay =
-                document.getElementById('changeDisplay');
+    const paymentStatusBadge =
+        document.getElementById('paymentStatusBadge');
 
-            const paymentStatusBadge =
-                document.getElementById('paymentStatusBadge');
+    const completeSaleButton =
+        document.getElementById('completeSaleButton');
 
-            const completeSaleButton =
-                document.getElementById('completeSaleButton');
+    const dispensingForm =
+        document.getElementById('dispensingForm');
 
-            const dispensingForm =
-                document.getElementById('dispensingForm');
-
-
-            const oldMedicines =
-                @json(old('medicines', []));
-
-
-
-            function roundMoney(value) {
-
-                return Math.round(
-                    (Number(value || 0) + Number.EPSILON) * 100
-                ) / 100;
-            }
+    const oldMedicines =
+        @json(old('medicines', []));
 
 
+    function roundMoney(value)
+    {
+        return Math.round(
+            (
+                Number(value || 0)
+                + Number.EPSILON
+            )
+            * 100
+        ) / 100;
+    }
 
-            function money(value) {
 
-                const amount =
-                    Number(value || 0);
-
-                return '₹' + amount.toLocaleString(
+    function money(value)
+    {
+        return '₹' +
+            Number(value || 0)
+                .toLocaleString(
                     'en-IN',
                     {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2
                     }
                 );
+    }
+
+
+    function escapeHtml(value)
+    {
+        const div =
+            document.createElement('div');
+
+        div.textContent =
+            value ?? '';
+
+        return div.innerHTML;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Patient / encounter
+    |--------------------------------------------------------------------------
+    */
+
+    function updatePatient()
+    {
+        if (isInpatient)
+        {
+            calculateSummary();
+            return;
+        }
+
+        if (! encounterSelector)
+        {
+            return;
+        }
+
+        const option =
+            encounterSelector.options[
+                encounterSelector.selectedIndex
+            ];
+
+        if (
+            ! option
+            || ! option.value
+        )
+        {
+            if (patientInput)
+            {
+                patientInput.value = '';
             }
 
-
-
-            function escapeHtml(value) {
-
-                const div =
-                    document.createElement('div');
-
-                div.textContent =
-                    value ?? '';
-
-                return div.innerHTML;
+            if (encounterInput)
+            {
+                encounterInput.value = '';
             }
 
-
-
-            function updatePatient() {
-
-                if (isInpatient) {
-                    calculateSummary();
-                    return;
-                }
-
-
-                if (! encounterSelector) {
-                    return;
-                }
-
-
-                const option =
-                    encounterSelector.options[
-                        encounterSelector.selectedIndex
-                    ];
-
-
-                if (
-                    ! option
-                    || ! option.value
-                ) {
-
-                    patientInput.value = '';
-                    encounterInput.value = '';
-
-                    selectedPatientBox.innerHTML = `
-                        <div class="text-sm text-slate-500">
-                            No patient selected.
-                        </div>
-                    `;
-
-                    calculateSummary();
-
-                    return;
-                }
-
-
-                encounterInput.value =
-                    option.value;
-
-                patientInput.value =
-                    option.dataset.patientId ?? '';
-
-
-                const patientName =
-                    escapeHtml(
-                        option.dataset.patientName ?? ''
-                    );
-
-                const uhid =
-                    escapeHtml(
-                        option.dataset.uhid ?? ''
-                    );
-
-                const mrd =
-                    escapeHtml(
-                        option.dataset.mrd ?? ''
-                    );
-
-                const encounterNo =
-                    escapeHtml(
-                        option.dataset.encounterNo ?? ''
-                    );
-
-                const department =
-                    escapeHtml(
-                        option.dataset.department ?? ''
-                    );
-
-                const doctor =
-                    escapeHtml(
-                        option.dataset.doctor ?? ''
-                    );
-
-
+            if (selectedPatientBox)
+            {
                 selectedPatientBox.innerHTML = `
+                    <div class="text-sm text-slate-500">
+                        No patient selected.
+                    </div>
+                `;
+            }
 
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            calculateSummary();
+            return;
+        }
 
-                        <div>
+        if (encounterInput)
+        {
+            encounterInput.value =
+                option.value;
+        }
 
-                            <div class="font-semibold text-slate-900">
-                                ${patientName}
-                            </div>
+        if (patientInput)
+        {
+            patientInput.value =
+                option.dataset.patientId ?? '';
+        }
 
-                            <div class="mt-1 text-sm text-slate-500">
-                                UHID: ${uhid}
-                                ${mrd ? ' · MRD: ' + mrd : ''}
-                            </div>
+        const patientName =
+            escapeHtml(
+                option.dataset.patientName ?? ''
+            );
 
+        const uhid =
+            escapeHtml(
+                option.dataset.uhid ?? ''
+            );
+
+        const mrd =
+            escapeHtml(
+                option.dataset.mrd ?? ''
+            );
+
+        const encounterNo =
+            escapeHtml(
+                option.dataset.encounterNo ?? ''
+            );
+
+        const department =
+            escapeHtml(
+                option.dataset.department ?? ''
+            );
+
+        const doctor =
+            escapeHtml(
+                option.dataset.doctor ?? ''
+            );
+
+        if (selectedPatientBox)
+        {
+            selectedPatientBox.innerHTML = `
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+
+                    <div>
+
+                        <div class="font-semibold text-slate-900">
+                            ${patientName}
                         </div>
 
-
-                        <div class="text-left sm:text-right">
-
-                            <div class="text-sm font-semibold text-slate-700">
-                                ${encounterNo}
-                            </div>
-
-                            <div class="mt-1 text-xs text-slate-500">
-                                ${department}
-                                ${doctor ? ' · ' + doctor : ''}
-                            </div>
-
+                        <div class="mt-1 text-sm text-slate-500">
+                            UHID: ${uhid}
+                            ${mrd ? ' · MRD: ' + mrd : ''}
                         </div>
 
                     </div>
-                `;
+
+                    <div class="text-left sm:text-right">
+
+                        <div class="text-sm font-semibold text-slate-700">
+                            ${encounterNo}
+                        </div>
+
+                        <div class="mt-1 text-xs text-slate-500">
+                            ${department}
+                            ${doctor ? ' · ' + doctor : ''}
+                        </div>
+
+                    </div>
+
+                </div>
+            `;
+        }
+
+        calculateSummary();
+    }
 
 
-                calculateSummary();
+    /*
+    |--------------------------------------------------------------------------
+    | Search patient / old encounter
+    |--------------------------------------------------------------------------
+    */
+
+    function filterEncounters()
+    {
+        if (
+            ! encounterSearch
+            || ! encounterSelector
+        )
+        {
+            return;
+        }
+
+        const search =
+            encounterSearch.value
+                .trim()
+                .toLowerCase();
+
+        const options =
+            encounterSelector
+                .querySelectorAll('option');
+
+        let firstMatch = null;
+
+        options.forEach(
+            function (option)
+            {
+                if (! option.value)
+                {
+                    option.hidden = false;
+                    return;
+                }
+
+                const searchableText = [
+                    option.dataset.patientName,
+                    option.dataset.uhid,
+                    option.dataset.mrd,
+                    option.dataset.encounterNo,
+                    option.dataset.department,
+                    option.dataset.doctor,
+                    option.textContent,
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
+
+                const matches =
+                    search === ''
+                    ||
+                    searchableText.includes(search);
+
+                option.hidden =
+                    ! matches;
+
+                if (
+                    matches
+                    && ! firstMatch
+                )
+                {
+                    firstMatch =
+                        option;
+                }
             }
+        );
+
+        /*
+         * If current selection is hidden,
+         * clear it.
+         */
+        const selected =
+            encounterSelector.options[
+                encounterSelector.selectedIndex
+            ];
+
+        if (
+            selected
+            && selected.value
+            && selected.hidden
+        )
+        {
+            encounterSelector.value = '';
+            updatePatient();
+        }
+
+        /*
+         * If search produces exactly one visible
+         * encounter, select it automatically.
+         */
+        const visibleOptions =
+            Array.from(
+                encounterSelector.options
+            )
+            .filter(
+                option =>
+                    option.value
+                    && ! option.hidden
+            );
+
+        if (
+            search !== ''
+            && visibleOptions.length === 1
+        )
+        {
+            encounterSelector.value =
+                visibleOptions[0].value;
+
+            updatePatient();
+        }
+    }
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | Medicine rows
+    |--------------------------------------------------------------------------
+    */
 
-            function renumberRows() {
+    function renumberRows()
+    {
+        const rows =
+            rowsContainer.querySelectorAll(
+                '.medicine-row'
+            );
 
-                const rows =
-                    rowsContainer.querySelectorAll(
-                        '.medicine-row'
-                    );
-
-
-                rows.forEach(function (row, index) {
-
-                    const select =
-                        row.querySelector(
-                            '.medicine-select'
-                        );
-
-                    const quantity =
-                        row.querySelector(
-                            '.quantity-input'
-                        );
-
-
-                    select.name =
-                        `medicines[${index}][medicine_id]`;
-
-                    quantity.name =
-                        `medicines[${index}][quantity]`;
-                });
-
-
-                calculateSummary();
-            }
-
-
-
-            function updateRow(row) {
-
+        rows.forEach(
+            function (row, index)
+            {
                 const select =
                     row.querySelector(
                         '.medicine-select'
-                    );
-
-                const available =
-                    row.querySelector(
-                        '.available-stock'
-                    );
-
-                const rate =
-                    row.querySelector(
-                        '.estimated-rate'
-                    );
-
-                const gstRate =
-                    row.querySelector(
-                        '.gst-rate'
                     );
 
                 const quantity =
@@ -1449,17 +1563,294 @@
                         '.quantity-input'
                     );
 
-                const lineTotal =
+                select.name =
+                    `medicines[${index}][medicine_id]`;
+
+                quantity.name =
+                    `medicines[${index}][quantity]`;
+            }
+        );
+
+        calculateSummary();
+    }
+
+
+    function updateRow(row)
+    {
+        const select =
+            row.querySelector(
+                '.medicine-select'
+            );
+
+        const available =
+            row.querySelector(
+                '.available-stock'
+            );
+
+        const rate =
+            row.querySelector(
+                '.estimated-rate'
+            );
+
+        const gstRate =
+            row.querySelector(
+                '.gst-rate'
+            );
+
+        const quantity =
+            row.querySelector(
+                '.quantity-input'
+            );
+
+        const lineTotal =
+            row.querySelector(
+                '.line-total'
+            );
+
+        const option =
+            select.options[
+                select.selectedIndex
+            ];
+
+        const stock =
+            Number(
+                option?.dataset?.stock
+                ?? 0
+            );
+
+        const price =
+            Number(
+                option?.dataset?.price
+                ?? 0
+            );
+
+        const gst =
+            Number(
+                option?.dataset?.gst
+                ?? 0
+            );
+
+        const qty =
+            Math.max(
+                0,
+                Number(
+                    quantity.value
+                    ?? 0
+                )
+            );
+
+        if (available)
+        {
+            available.textContent =
+                stock.toLocaleString(
+                    'en-IN'
+                );
+        }
+
+        if (rate)
+        {
+            rate.textContent =
+                money(price);
+        }
+
+        if (gstRate)
+        {
+            gstRate.textContent =
+                gst.toFixed(2) + '%';
+        }
+
+        if (select.value)
+        {
+            quantity.max =
+                stock;
+        }
+        else
+        {
+            quantity.removeAttribute(
+                'max'
+            );
+        }
+
+        if (lineTotal)
+        {
+            lineTotal.textContent =
+                money(
+                    roundMoney(
+                        price * qty
+                    )
+                );
+        }
+
+        if (
+            select.value
+            &&
+            (
+                qty <= 0
+                || qty > stock
+            )
+        )
+        {
+            quantity.classList.add(
+                'border-red-400',
+                'bg-red-50'
+            );
+        }
+        else
+        {
+            quantity.classList.remove(
+                'border-red-400',
+                'bg-red-50'
+            );
+        }
+
+        calculateSummary();
+    }
+
+
+    function addRow(
+        medicineId = '',
+        quantityValue = 1
+    )
+    {
+        if (
+            ! template
+            || ! rowsContainer
+        )
+        {
+            return;
+        }
+
+        const clone =
+            template.content.cloneNode(
+                true
+            );
+
+        const row =
+            clone.querySelector(
+                '.medicine-row'
+            );
+
+        const select =
+            row.querySelector(
+                '.medicine-select'
+            );
+
+        const quantity =
+            row.querySelector(
+                '.quantity-input'
+            );
+
+        const remove =
+            row.querySelector(
+                '.remove-row'
+            );
+
+        if (medicineId)
+        {
+            select.value =
+                String(medicineId);
+        }
+
+        quantity.value =
+            quantityValue || 1;
+
+        select.addEventListener(
+            'change',
+            function ()
+            {
+                updateRow(row);
+            }
+        );
+
+        quantity.addEventListener(
+            'input',
+            function ()
+            {
+                updateRow(row);
+            }
+        );
+
+        remove.addEventListener(
+            'click',
+            function ()
+            {
+                row.remove();
+
+                renumberRows();
+
+                if (
+                    rowsContainer
+                        .querySelectorAll(
+                            '.medicine-row'
+                        )
+                        .length === 0
+                )
+                {
+                    addRow();
+                }
+            }
+        );
+
+        rowsContainer.appendChild(
+            row
+        );
+
+        updateRow(row);
+
+        renumberRows();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sale summary
+    |--------------------------------------------------------------------------
+    */
+
+    function calculateSummary()
+    {
+        if (! rowsContainer)
+        {
+            return;
+        }
+
+        const rows =
+            Array.from(
+                rowsContainer
+                    .querySelectorAll(
+                        '.medicine-row'
+                    )
+            );
+
+        const selectedLines = [];
+
+        let medicineCount = 0;
+        let quantityCount = 0;
+        let subtotal = 0;
+        let invalidStock = false;
+
+        rows.forEach(
+            function (row)
+            {
+                const select =
                     row.querySelector(
-                        '.line-total'
+                        '.medicine-select'
                     );
 
+                const quantity =
+                    row.querySelector(
+                        '.quantity-input'
+                    );
+
+                if (! select.value)
+                {
+                    return;
+                }
 
                 const option =
                     select.options[
                         select.selectedIndex
                     ];
-
 
                 const stock =
                     Number(
@@ -1488,922 +1879,717 @@
                         )
                     );
 
-
-                available.textContent =
-                    stock.toLocaleString(
-                        'en-IN'
+                const gross =
+                    roundMoney(
+                        price * qty
                     );
 
+                medicineCount++;
 
-                if (rate) {
-                    rate.textContent =
-                        money(price);
-                }
+                quantityCount +=
+                    qty;
 
-
-                if (gstRate) {
-                    gstRate.textContent =
-                        gst.toFixed(2) + '%';
-                }
-
-
-                if (select.value) {
-
-                    quantity.max =
-                        stock;
-
-                } else {
-
-                    quantity.removeAttribute(
-                        'max'
-                    );
-                }
-
-
-                if (lineTotal) {
-                    lineTotal.textContent =
-                        money(
-                            roundMoney(
-                                price * qty
-                            )
-                        );
-                }
-
-
-                if (
-                    select.value
-                    && (
-                        qty <= 0
-                        || qty > stock
-                    )
-                ) {
-
-                    quantity.classList.add(
-                        'border-red-400',
-                        'bg-red-50'
+                subtotal =
+                    roundMoney(
+                        subtotal + gross
                     );
 
-                } else {
-
-                    quantity.classList.remove(
-                        'border-red-400',
-                        'bg-red-50'
-                    );
-                }
-
-
-                calculateSummary();
-            }
-
-
-
-            function addRow(
-                medicineId = '',
-                quantityValue = 1
-            ) {
-
-                const clone =
-                    template.content.cloneNode(
-                        true
-                    );
-
-
-                const row =
-                    clone.querySelector(
-                        '.medicine-row'
-                    );
-
-                const select =
-                    row.querySelector(
-                        '.medicine-select'
-                    );
-
-                const quantity =
-                    row.querySelector(
-                        '.quantity-input'
-                    );
-
-                const remove =
-                    row.querySelector(
-                        '.remove-row'
-                    );
-
-
-                if (medicineId) {
-
-                    select.value =
-                        String(medicineId);
-                }
-
-
-                quantity.value =
-                    quantityValue || 1;
-
-
-                select.addEventListener(
-                    'change',
-                    function () {
-                        updateRow(row);
-                    }
-                );
-
-
-                quantity.addEventListener(
-                    'input',
-                    function () {
-                        updateRow(row);
-                    }
-                );
-
-
-                remove.addEventListener(
-                    'click',
-                    function () {
-
-                        row.remove();
-
-                        renumberRows();
-
-
-                        if (
-                            rowsContainer
-                                .querySelectorAll(
-                                    '.medicine-row'
-                                )
-                                .length === 0
-                        ) {
-                            addRow();
-                        }
-                    }
-                );
-
-
-                rowsContainer.appendChild(
-                    row
-                );
-
-
-                updateRow(row);
-
-                renumberRows();
-            }
-
-
-
-            function calculateSummary() {
-
-                const rows =
-                    Array.from(
-                        rowsContainer.querySelectorAll(
-                            '.medicine-row'
-                        )
-                    );
-
-
-                const selectedLines = [];
-
-                let medicineCount = 0;
-                let quantityCount = 0;
-                let subtotal = 0;
-                let invalidStock = false;
-
-
-                rows.forEach(function (row) {
-
-                    const select =
-                        row.querySelector(
-                            '.medicine-select'
-                        );
-
-                    const quantity =
-                        row.querySelector(
-                            '.quantity-input'
-                        );
-
-
-                    if (! select.value) {
-                        return;
-                    }
-
-
-                    const option =
-                        select.options[
-                            select.selectedIndex
-                        ];
-
-
-                    const stock =
-                        Number(
-                            option?.dataset?.stock
-                            ?? 0
-                        );
-
-
-                    const price =
-                        Number(
-                            option?.dataset?.price
-                            ?? 0
-                        );
-
-
-                    const gst =
-                        Number(
-                            option?.dataset?.gst
-                            ?? 0
-                        );
-
-
-                    const qty =
-                        Math.max(
-                            0,
-                            Number(
-                                quantity.value
-                                ?? 0
-                            )
-                        );
-
-
-                    const gross =
-                        roundMoney(
-                            price * qty
-                        );
-
-
-                    medicineCount++;
-
-                    quantityCount += qty;
-
-                    subtotal =
-                        roundMoney(
-                            subtotal + gross
-                        );
-
-
-                    selectedLines.push({
-                        gross: gross,
-                        gst: gst
-                    });
-
-
-                    if (
-                        qty <= 0
-                        || qty > stock
-                    ) {
-                        invalidStock = true;
-                    }
+                selectedLines.push({
+                    gross: gross,
+                    gst: gst
                 });
 
+                if (
+                    qty <= 0
+                    || qty > stock
+                )
+                {
+                    invalidStock = true;
+                }
+            }
+        );
 
 
-                const enteredDiscount =
-                    Math.max(
-                        0,
-                        Number(
-                            discountInput.value
-                            ?? 0
-                        )
-                    );
+        const enteredDiscount =
+            Math.max(
+                0,
+                Number(
+                    discountInput?.value
+                    ?? 0
+                )
+            );
+
+        const appliedDiscount =
+            roundMoney(
+                Math.min(
+                    enteredDiscount,
+                    subtotal
+                )
+            );
+
+        const finalTotal =
+            roundMoney(
+                Math.max(
+                    0,
+                    subtotal
+                    - appliedDiscount
+                )
+            );
 
 
-                const appliedDiscount =
-                    roundMoney(
-                        Math.min(
-                            enteredDiscount,
-                            subtotal
-                        )
-                    );
+        /*
+        |--------------------------------------------------------------------------
+        | GST
+        |--------------------------------------------------------------------------
+        */
 
+        let totalTaxable = 0;
+        let totalCgst = 0;
+        let totalSgst = 0;
+        let discountAllocated = 0;
 
-                const finalTotal =
+        selectedLines.forEach(
+            function (line, index)
+            {
+                let lineDiscount = 0;
+
+                if (
+                    appliedDiscount > 0
+                    && subtotal > 0
+                )
+                {
+                    if (
+                        index ===
+                        selectedLines.length - 1
+                    )
+                    {
+                        lineDiscount =
+                            roundMoney(
+                                appliedDiscount
+                                - discountAllocated
+                            );
+                    }
+                    else
+                    {
+                        lineDiscount =
+                            roundMoney(
+                                appliedDiscount
+                                * (
+                                    line.gross
+                                    / subtotal
+                                )
+                            );
+
+                        discountAllocated =
+                            roundMoney(
+                                discountAllocated
+                                + lineDiscount
+                            );
+                    }
+                }
+
+                const discountedGross =
                     roundMoney(
                         Math.max(
                             0,
-                            subtotal
-                            - appliedDiscount
+                            line.gross
+                            - lineDiscount
                         )
                     );
 
+                let taxable =
+                    discountedGross;
 
+                let cgst = 0;
+                let sgst = 0;
 
-                /*
-                 * -----------------------------------------------------
-                 * LIVE GST CALCULATION
-                 * -----------------------------------------------------
-                 *
-                 * Matches the server principle:
-                 *
-                 * 1. Allocate overall discount proportionally.
-                 * 2. Selling price is GST-inclusive.
-                 * 3. Reverse calculate taxable value.
-                 * 4. Split GST into CGST + SGST.
-                 */
-
-
-                let totalTaxable = 0;
-                let totalCgst = 0;
-                let totalSgst = 0;
-
-                let discountAllocated = 0;
-
-
-                selectedLines.forEach(
-                    function (line, index) {
-
-                        let lineDiscount = 0;
-
-
-                        if (
-                            appliedDiscount > 0
-                            && subtotal > 0
-                        ) {
-
-                            if (
-                                index
-                                === selectedLines.length - 1
-                            ) {
-
-                                lineDiscount =
-                                    roundMoney(
-                                        appliedDiscount
-                                        - discountAllocated
-                                    );
-
-                            } else {
-
-                                lineDiscount =
-                                    roundMoney(
-                                        appliedDiscount
-                                        * (
-                                            line.gross
-                                            / subtotal
-                                        )
-                                    );
-
-
-                                discountAllocated =
-                                    roundMoney(
-                                        discountAllocated
-                                        + lineDiscount
-                                    );
-                            }
-                        }
-
-
-                        const discountedGross =
-                            roundMoney(
-                                Math.max(
-                                    0,
-                                    line.gross
-                                    - lineDiscount
+                if (line.gst > 0)
+                {
+                    taxable =
+                        roundMoney(
+                            discountedGross
+                            / (
+                                1
+                                + (
+                                    line.gst
+                                    / 100
                                 )
-                            );
+                            )
+                        );
 
+                    const gstAmount =
+                        roundMoney(
+                            discountedGross
+                            - taxable
+                        );
 
-                        let taxable =
-                            discountedGross;
+                    cgst =
+                        roundMoney(
+                            gstAmount / 2
+                        );
 
-                        let cgst = 0;
-                        let sgst = 0;
+                    sgst =
+                        roundMoney(
+                            gstAmount
+                            - cgst
+                        );
+                }
 
-
-                        if (line.gst > 0) {
-
-                            taxable =
-                                roundMoney(
-                                    discountedGross
-                                    / (
-                                        1
-                                        + (
-                                            line.gst
-                                            / 100
-                                        )
-                                    )
-                                );
-
-
-                            const gstAmount =
-                                roundMoney(
-                                    discountedGross
-                                    - taxable
-                                );
-
-
-                            cgst =
-                                roundMoney(
-                                    gstAmount
-                                    / 2
-                                );
-
-
-                            sgst =
-                                roundMoney(
-                                    gstAmount
-                                    - cgst
-                                );
-                        }
-
-
-                        totalTaxable =
-                            roundMoney(
-                                totalTaxable
-                                + taxable
-                            );
-
-
-                        totalCgst =
-                            roundMoney(
-                                totalCgst
-                                + cgst
-                            );
-
-
-                        totalSgst =
-                            roundMoney(
-                                totalSgst
-                                + sgst
-                            );
-                    }
-                );
-
-
-
-                const cashReceived =
-                    Math.max(
-                        0,
-                        Number(
-                            cashInput?.value
-                            ?? 0
-                        )
+                totalTaxable =
+                    roundMoney(
+                        totalTaxable
+                        + taxable
                     );
 
+                totalCgst =
+                    roundMoney(
+                        totalCgst
+                        + cgst
+                    );
 
-                selectedCount.textContent =
-                    medicineCount;
+                totalSgst =
+                    roundMoney(
+                        totalSgst
+                        + sgst
+                    );
+            }
+        );
 
 
-                totalQuantity.textContent =
-                    quantityCount.toLocaleString(
+        const cashReceived =
+            Math.max(
+                0,
+                Number(
+                    cashInput?.value
+                    ?? 0
+                )
+            );
+
+
+        if (selectedCount)
+        {
+            selectedCount.textContent =
+                medicineCount;
+        }
+
+        if (totalQuantity)
+        {
+            totalQuantity.textContent =
+                quantityCount
+                    .toLocaleString(
                         'en-IN'
                     );
-
-
-                subtotalDisplay.textContent =
-                    money(subtotal);
-
-
-                discountDisplay.textContent =
-                    money(appliedDiscount);
-
-
-                taxableDisplay.textContent =
-                    money(totalTaxable);
-
-
-                cgstDisplay.textContent =
-                    money(totalCgst);
-
-
-                sgstDisplay.textContent =
-                    money(totalSgst);
-
-
-                totalDisplay.textContent =
-                    money(finalTotal);
-
-
-                if (cashReceivedDisplay) {
-                    cashReceivedDisplay.textContent =
-                        money(cashReceived);
-                }
-
-
-                const currentPaymentMode =
-                    isInpatient
-                        ? 'ip_billing'
-                        : (
-                            paymentMode?.value
-                            ?? 'cash'
-                        );
-
-
-                if (isInpatient) {
-
-                    if (cashSummary) {
-                        cashSummary.classList.add(
-                            'hidden'
-                        );
-                    }
-
-
-                    if (
-                        medicineCount > 0
-                        && ! invalidStock
-                    ) {
-
-                        paymentStatusBadge.textContent =
-                            'Charge to IP bill';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700';
-
-                    } else if (invalidStock) {
-
-                        paymentStatusBadge.textContent =
-                            'Check stock';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700';
-
-                    } else {
-
-                        paymentStatusBadge.textContent =
-                            'Awaiting medicines';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600';
-                    }
-
-                } else if (
-                    currentPaymentMode
-                    === 'cash'
-                ) {
-
-                    cashSummary.classList.remove(
-                        'hidden'
-                    );
-
-
-                    const difference =
-                        roundMoney(
-                            cashReceived
-                            - finalTotal
-                        );
-
-
-                    if (
-                        medicineCount > 0
-                        && cashReceived >= finalTotal
-                        && ! invalidStock
-                    ) {
-
-                        changeLabel.textContent =
-                            'Change';
-
-                        changeDisplay.textContent =
-                            money(
-                                Math.max(
-                                    0,
-                                    difference
-                                )
-                            );
-
-                        changeDisplay.className =
-                            'font-bold text-emerald-700';
-
-
-                        paymentStatusBadge.textContent =
-                            'Ready for payment';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700';
-
-                    } else if (
-                        medicineCount > 0
-                    ) {
-
-                        const shortage =
-                            roundMoney(
-                                Math.max(
-                                    0,
-                                    finalTotal
-                                    - cashReceived
-                                )
-                            );
-
-
-                        changeLabel.textContent =
-                            'Amount Short';
-
-                        changeDisplay.textContent =
-                            money(shortage);
-
-                        changeDisplay.className =
-                            'font-bold text-red-700';
-
-
-                        paymentStatusBadge.textContent =
-                            invalidStock
-                                ? 'Check stock'
-                                : 'Cash incomplete';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700';
-
-                    } else {
-
-                        changeLabel.textContent =
-                            'Change';
-
-                        changeDisplay.textContent =
-                            money(0);
-
-                        changeDisplay.className =
-                            'font-bold text-emerald-700';
-
-
-                        paymentStatusBadge.textContent =
-                            'Awaiting medicines';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600';
-                    }
-
-                } else {
-
-                    cashSummary.classList.add(
-                        'hidden'
-                    );
-
-
-                    if (
-                        medicineCount > 0
-                        && ! invalidStock
-                    ) {
-
-                        paymentStatusBadge.textContent =
-                            currentPaymentMode === 'credit'
-                            || currentPaymentMode === 'mhis'
-                                ? 'Authorized credit'
-                                : 'Ready for payment';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700';
-
-                    } else if (
-                        invalidStock
-                    ) {
-
-                        paymentStatusBadge.textContent =
-                            'Check stock';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700';
-
-                    } else {
-
-                        paymentStatusBadge.textContent =
-                            'Awaiting medicines';
-
-                        paymentStatusBadge.className =
-                            'rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600';
-                    }
-                }
-
-
-                updateSubmitState(
-                    medicineCount,
-                    finalTotal,
-                    cashReceived,
-                    invalidStock
+        }
+
+        if (subtotalDisplay)
+        {
+            subtotalDisplay.textContent =
+                money(subtotal);
+        }
+
+        if (discountDisplay)
+        {
+            discountDisplay.textContent =
+                money(
+                    appliedDiscount
+                );
+        }
+
+        if (taxableDisplay)
+        {
+            taxableDisplay.textContent =
+                money(
+                    totalTaxable
+                );
+        }
+
+        if (cgstDisplay)
+        {
+            cgstDisplay.textContent =
+                money(totalCgst);
+        }
+
+        if (sgstDisplay)
+        {
+            sgstDisplay.textContent =
+                money(totalSgst);
+        }
+
+        if (totalDisplay)
+        {
+            totalDisplay.textContent =
+                money(finalTotal);
+        }
+
+        if (cashReceivedDisplay)
+        {
+            cashReceivedDisplay.textContent =
+                money(cashReceived);
+        }
+
+
+        const currentPaymentMode =
+            isInpatient
+                ? 'ip_billing'
+                : (
+                    paymentMode?.value
+                    ?? 'cash'
+                );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Status badge
+        |--------------------------------------------------------------------------
+        */
+
+        if (isInpatient)
+        {
+            if (cashSummary)
+            {
+                cashSummary.classList.add(
+                    'hidden'
                 );
             }
 
+            if (
+                medicineCount > 0
+                && ! invalidStock
+            )
+            {
+                paymentStatusBadge.textContent =
+                    'Charge to IP bill';
 
+                paymentStatusBadge.className =
+                    'rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700';
+            }
+            else if (invalidStock)
+            {
+                paymentStatusBadge.textContent =
+                    'Check stock';
 
-            function updateSubmitState(
-                medicineCount,
-                finalTotal,
-                cashReceived,
-                invalidStock
-            ) {
+                paymentStatusBadge.className =
+                    'rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700';
+            }
+            else
+            {
+                paymentStatusBadge.textContent =
+                    'Awaiting medicines';
 
-                const hasPatient =
-                    patientInput.value !== '';
-
-
-                let disabled =
-                    ! hasPatient;
-
-
-                if (
-                    medicineCount <= 0
-                ) {
-                    disabled = true;
-                }
-
-
-                if (
-                    invalidStock
-                ) {
-                    disabled = true;
-                }
-
-
-                if (
-                    ! isInpatient
-                    && paymentMode?.value === 'cash'
-                    && cashReceived < finalTotal
-                ) {
-                    disabled = true;
-                }
-
-
-                completeSaleButton.disabled =
-                    disabled;
+                paymentStatusBadge.className =
+                    'rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600';
+            }
+        }
+        else if (
+            currentPaymentMode ===
+            'cash'
+        )
+        {
+            if (cashSummary)
+            {
+                cashSummary.classList.remove(
+                    'hidden'
+                );
             }
 
+            const difference =
+                roundMoney(
+                    cashReceived
+                    - finalTotal
+                );
+
+            if (
+                medicineCount > 0
+                && cashReceived >=
+                    finalTotal
+                && ! invalidStock
+            )
+            {
+                changeLabel.textContent =
+                    'Change';
+
+                changeDisplay.textContent =
+                    money(
+                        Math.max(
+                            0,
+                            difference
+                        )
+                    );
+
+                changeDisplay.className =
+                    'font-bold text-emerald-700';
+
+                paymentStatusBadge.textContent =
+                    'Ready for payment';
+
+                paymentStatusBadge.className =
+                    'rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700';
+            }
+            else if (
+                medicineCount > 0
+            )
+            {
+                const shortage =
+                    roundMoney(
+                        Math.max(
+                            0,
+                            finalTotal
+                            - cashReceived
+                        )
+                    );
+
+                changeLabel.textContent =
+                    'Amount Short';
+
+                changeDisplay.textContent =
+                    money(shortage);
+
+                changeDisplay.className =
+                    'font-bold text-red-700';
+
+                paymentStatusBadge.textContent =
+                    invalidStock
+                        ? 'Check stock'
+                        : 'Cash incomplete';
+
+                paymentStatusBadge.className =
+                    'rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700';
+            }
+            else
+            {
+                changeLabel.textContent =
+                    'Change';
+
+                changeDisplay.textContent =
+                    money(0);
+
+                paymentStatusBadge.textContent =
+                    'Awaiting medicines';
+
+                paymentStatusBadge.className =
+                    'rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600';
+            }
+        }
+        else
+        {
+            if (cashSummary)
+            {
+                cashSummary.classList.add(
+                    'hidden'
+                );
+            }
+
+            if (
+                medicineCount > 0
+                && ! invalidStock
+            )
+            {
+                paymentStatusBadge.textContent =
+                    (
+                        currentPaymentMode ===
+                        'credit'
+                        ||
+                        currentPaymentMode ===
+                        'mhis'
+                    )
+                        ? 'Authorized credit'
+                        : 'Ready for payment';
+
+                paymentStatusBadge.className =
+                    'rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700';
+            }
+            else if (invalidStock)
+            {
+                paymentStatusBadge.textContent =
+                    'Check stock';
+
+                paymentStatusBadge.className =
+                    'rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700';
+            }
+            else
+            {
+                paymentStatusBadge.textContent =
+                    'Awaiting medicines';
+
+                paymentStatusBadge.className =
+                    'rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600';
+            }
+        }
 
 
-            function updatePaymentFields() {
+        updateSubmitState(
+            medicineCount,
+            finalTotal,
+            cashReceived,
+            invalidStock
+        );
+    }
 
-                if (isInpatient) {
-                    calculateSummary();
+
+    function updateSubmitState(
+        medicineCount,
+        finalTotal,
+        cashReceived,
+        invalidStock
+    )
+    {
+        const hasPatient =
+            patientInput
+            &&
+            patientInput.value !== '';
+
+        let disabled =
+            ! hasPatient;
+
+        if (medicineCount <= 0)
+        {
+            disabled = true;
+        }
+
+        if (invalidStock)
+        {
+            disabled = true;
+        }
+
+        if (
+            ! isInpatient
+            &&
+            paymentMode?.value ===
+            'cash'
+            &&
+            cashReceived <
+            finalTotal
+        )
+        {
+            disabled = true;
+        }
+
+        if (completeSaleButton)
+        {
+            completeSaleButton.disabled =
+                disabled;
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Payment fields
+    |--------------------------------------------------------------------------
+    */
+
+    function updatePaymentFields()
+    {
+        if (isInpatient)
+        {
+            calculateSummary();
+            return;
+        }
+
+        if (! paymentMode)
+        {
+            return;
+        }
+
+        const mode =
+            paymentMode.value;
+
+        if (cashWrapper)
+        {
+            cashWrapper.classList.toggle(
+                'hidden',
+                mode !== 'cash'
+            );
+        }
+
+        if (
+            transactionReferenceWrapper
+        )
+        {
+            transactionReferenceWrapper
+                .classList
+                .toggle(
+                    'hidden',
+                    ! (
+                        mode === 'upi'
+                        || mode === 'card'
+                    )
+                );
+        }
+
+        calculateSummary();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Events
+    |--------------------------------------------------------------------------
+    */
+
+    if (addButton)
+    {
+        addButton.addEventListener(
+            'click',
+            function ()
+            {
+                addRow();
+            }
+        );
+    }
+
+
+    if (encounterSelector)
+    {
+        encounterSelector.addEventListener(
+            'change',
+            updatePatient
+        );
+    }
+
+
+    if (encounterSearch)
+    {
+        encounterSearch.addEventListener(
+            'input',
+            filterEncounters
+        );
+    }
+
+
+    if (paymentMode)
+    {
+        paymentMode.addEventListener(
+            'change',
+            updatePaymentFields
+        );
+    }
+
+
+    if (discountInput)
+    {
+        discountInput.addEventListener(
+            'input',
+            calculateSummary
+        );
+    }
+
+
+    if (cashInput)
+    {
+        cashInput.addEventListener(
+            'input',
+            calculateSummary
+        );
+    }
+
+
+    if (dispensingForm)
+    {
+        dispensingForm.addEventListener(
+            'submit',
+            function (event)
+            {
+                const selectedMedicines =
+                    Array.from(
+                        rowsContainer
+                            .querySelectorAll(
+                                '.medicine-select'
+                            )
+                    )
+                    .filter(
+                        function (select)
+                        {
+                            return select.value !== '';
+                        }
+                    );
+
+                if (
+                    ! patientInput
+                    || ! patientInput.value
+                )
+                {
+                    event.preventDefault();
+
+                    alert(
+                        isInpatient
+                            ? 'The inpatient record is missing a patient.'
+                            : 'Please select a patient / encounter.'
+                    );
+
                     return;
                 }
 
-
-                const mode =
-                    paymentMode.value;
-
-
                 if (
-                    mode === 'cash'
-                ) {
+                    selectedMedicines.length ===
+                    0
+                )
+                {
+                    event.preventDefault();
 
-                    cashWrapper.classList.remove(
-                        'hidden'
+                    alert(
+                        'Please select at least one medicine.'
                     );
 
-                } else {
-
-                    cashWrapper.classList.add(
-                        'hidden'
-                    );
+                    return;
                 }
-
 
                 if (
-                    mode === 'upi'
-                    || mode === 'card'
-                ) {
-
-                    transactionReferenceWrapper
-                        .classList
-                        .remove(
-                            'hidden'
-                        );
-
-                } else {
-
-                    transactionReferenceWrapper
-                        .classList
-                        .add(
-                            'hidden'
-                        );
+                    ! confirm(
+                        isInpatient
+                            ? 'Dispense these medicines, deduct stock, and add the charges to the IP running bill?'
+                            : 'Complete this pharmacy sale and deduct stock?'
+                    )
+                )
+                {
+                    event.preventDefault();
                 }
-
-
-                calculateSummary();
             }
+        );
+    }
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | Restore medicines after validation error
+    |--------------------------------------------------------------------------
+    */
 
-            addButton.addEventListener(
-                'click',
-                function () {
-                    addRow();
-                }
-            );
-
-
-            if (encounterSelector) {
-                encounterSelector.addEventListener(
-                    'change',
-                    updatePatient
+    if (
+        Array.isArray(oldMedicines)
+        &&
+        oldMedicines.length > 0
+    )
+    {
+        oldMedicines.forEach(
+            function (item)
+            {
+                addRow(
+                    item.medicine_id ?? '',
+                    item.quantity ?? 1
                 );
             }
+        );
+    }
+    else
+    {
+        addRow();
+    }
 
 
-            if (paymentMode) {
-                paymentMode.addEventListener(
-                    'change',
-                    updatePaymentFields
-                );
-            }
+    /*
+    |--------------------------------------------------------------------------
+    | Initialize
+    |--------------------------------------------------------------------------
+    */
 
+    updatePatient();
 
-            discountInput.addEventListener(
-                'input',
-                calculateSummary
-            );
+    updatePaymentFields();
 
+    calculateSummary();
 
-            if (cashInput) {
-                cashInput.addEventListener(
-                    'input',
-                    calculateSummary
-                );
-            }
-
-
-
-            dispensingForm.addEventListener(
-                'submit',
-                function (event) {
-
-                    const selectedMedicines =
-                        Array.from(
-                            rowsContainer.querySelectorAll(
-                                '.medicine-select'
-                            )
-                        )
-                        .filter(
-                            function (select) {
-                                return select.value !== '';
-                            }
-                        );
-
-
-                    if (
-                        ! patientInput.value
-                    ) {
-
-                        event.preventDefault();
-
-                        alert(
-                            isInpatient
-                                ? 'The inpatient record is missing a patient.'
-                                : 'Please select a patient / encounter.'
-                        );
-
-                        return;
-                    }
-
-
-                    if (
-                        selectedMedicines.length === 0
-                    ) {
-
-                        event.preventDefault();
-
-                        alert(
-                            'Please select at least one medicine.'
-                        );
-
-                        return;
-                    }
-
-
-                    if (
-                        ! confirm(
-                            isInpatient
-                                ? 'Dispense these medicines, deduct stock, and add the charges to the IP running bill?'
-                                : 'Complete this pharmacy sale and deduct stock?'
-                        )
-                    ) {
-
-                        event.preventDefault();
-                    }
-                }
-            );
-
-
-
-            /*
-             * Restore medicine rows after validation error.
-             */
-            if (
-                Array.isArray(oldMedicines)
-                && oldMedicines.length > 0
-            ) {
-
-                oldMedicines.forEach(
-                    function (item) {
-
-                        addRow(
-                            item.medicine_id ?? '',
-                            item.quantity ?? 1
-                        );
-                    }
-                );
-
-            } else {
-
-                addRow();
-            }
-
-
-
-            /*
-             * Initialize patient/payment/summary.
-             */
-            updatePatient();
-
-            updatePaymentFields();
-
-            calculateSummary();
-
-        });
-    </script>
+});
+</script>
 
 </x-app-layout>

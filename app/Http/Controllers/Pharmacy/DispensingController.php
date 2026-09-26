@@ -373,31 +373,45 @@ class DispensingController extends Controller
 
 
         /*
-        |--------------------------------------------------------------------------
-        | Recent Encounters
-        |--------------------------------------------------------------------------
-        */
+|--------------------------------------------------------------------------
+| Pharmacy Patient / Encounter Search Pool
+|--------------------------------------------------------------------------
+|
+| Keep a broader encounter history available for chronic and repeat
+| medication patients. The Blade page can then filter this list by
+| patient name, UHID, MRD, encounter number, department or doctor.
+|
+*/
 
-        $recentEncounters =
-            Encounter::query()
-                ->with([
-                    'patient',
-                    'department',
-                    'doctor',
-                ])
-                ->whereDate(
-                    'encounter_date',
-                    '>=',
-                    today()->subDays(2)
-                )
-                ->orderByDesc(
-                    'encounter_date'
-                )
-                ->orderByDesc(
-                    'encounter_time'
-                )
-                ->limit(150)
-                ->get();
+$recentEncounters =
+    Encounter::query()
+        ->with([
+            'patient',
+            'department',
+            'doctor',
+        ])
+        ->whereHas(
+            'patient',
+            function ($query) {
+                $query->where(
+                    'is_active',
+                    true
+                );
+            }
+        )
+        ->whereDate(
+            'encounter_date',
+            '>=',
+            today()->subDays(180)
+        )
+        ->orderByDesc(
+            'encounter_date'
+        )
+        ->orderByDesc(
+            'encounter_time'
+        )
+        ->limit(1000)
+        ->get();
 
 
         return view(
