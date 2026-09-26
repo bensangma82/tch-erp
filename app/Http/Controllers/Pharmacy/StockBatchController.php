@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Pharmacy;
 use App\Http\Controllers\Controller;
 use App\Models\Medicine;
 use App\Models\PharmacyStockBatch;
+use App\Models\PharmacyStockLocation;
+use App\Models\PharmacyStockLocationBalance;
 use App\Models\PharmacyStockMovement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -493,11 +495,40 @@ class StockBatchController extends Controller
                 ],
             ]);
 
+                                 /*
+        |--------------------------------------------------------------------------
+        | Central Store
+        |--------------------------------------------------------------------------
+        */
 
-        DB::transaction(
+        $centralStore =
+            PharmacyStockLocation::query()
+                ->where(
+                    'code',
+                    'CENTRAL_STORE'
+                )
+                ->where(
+                    'is_active',
+                    true
+                )
+                ->first();
+
+
+        if (! $centralStore) {
+
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'quantity_received' =>
+                        'Central Store stock location is not configured.',
+                ]);
+        }
+
+                DB::transaction(
             function () use (
                 $validated,
-                $request
+                $request,
+                $centralStore
             ) {
 
                 $stockBatch =
@@ -557,6 +588,35 @@ class StockBatchController extends Controller
                             true,
                     ]);
 
+                                              /*
+                |--------------------------------------------------------------------------
+                | Central Store Opening Balance
+                |--------------------------------------------------------------------------
+                |
+                | Opening stock entered directly through Stock Batch must also
+                | belong to a physical stock location. New opening stock is
+                | initially assigned to Central Store.
+                |
+                */
+
+                PharmacyStockLocationBalance::create([
+
+                    'pharmacy_stock_location_id' =>
+                        $centralStore->id,
+
+                    'pharmacy_stock_batch_id' =>
+                        $stockBatch->id,
+
+                    'quantity_available' =>
+                        $validated[
+                            'quantity_received'
+                        ],
+
+                    'reorder_level' =>
+                        $validated[
+                            'reorder_level'
+                        ],
+                ]);
 
                 PharmacyStockMovement::create([
 
