@@ -337,7 +337,88 @@
 
                             <div class="space-y-5 p-5">
 
+                              {{-- STAFF MEDICAL BENEFIT ELIGIBILITY --}}
+@if ($staffMedicalBenefit)
 
+    <div class="rounded-xl border border-cyan-200 bg-cyan-50 p-4">
+
+        <div class="flex items-start justify-between gap-4">
+
+            <div>
+                <div class="text-sm font-semibold text-cyan-900">
+                    Staff Medical Benefit Eligible
+                </div>
+
+                <div class="mt-1 text-xs text-cyan-800">
+                    @if (
+                        $staffMedicalBenefit['beneficiary_type']
+                        === 'employee'
+                    )
+                        Employee benefit
+                    @else
+                        {{ ucfirst(
+                            $staffMedicalBenefit['relationship']
+                        ) }}
+                        of
+                        {{ $staffMedicalBenefit['employee']->employee_code }}
+                        —
+                        {{ $staffMedicalBenefit['employee']->full_name }}
+                    @endif
+                </div>
+            </div>
+
+            <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-cyan-800 shadow-sm">
+                Eligible
+            </span>
+
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3">
+
+            <div class="rounded-lg bg-white p-3">
+                <div class="text-xs text-gray-500">
+                    Annual Entitlement
+                </div>
+
+                <div class="mt-1 font-semibold text-gray-900">
+                    ₹{{ number_format(
+                        $staffMedicalBenefit['entitlement'],
+                        2
+                    ) }}
+                </div>
+            </div>
+
+            <div class="rounded-lg bg-white p-3">
+                <div class="text-xs text-gray-500">
+                    Available Balance
+                </div>
+
+                <div class="mt-1 font-semibold text-cyan-800">
+                    ₹{{ number_format(
+                        $staffMedicalBenefit['balance'],
+                        2
+                    ) }}
+                </div>
+            </div>
+
+        </div>
+
+        @if (
+            $staffMedicalBenefit['beneficiary_type']
+            === 'dependent'
+        )
+            <div class="mt-3 text-xs text-cyan-800">
+                This balance is shared by all eligible spouse/children
+                registered under this employee.
+            </div>
+        @endif
+
+    </div>
+
+@endif
+
+
+{{-- PAYMENT MODE --}}
                                 {{-- PAYMENT MODE --}}
                                 <div>
 
@@ -393,6 +474,18 @@
                                         >
                                             MHIS
                                         </option>
+
+
+                                                         @if ($staffMedicalBenefit)
+
+    <option
+        value="staff_medical_benefit"
+        @selected(old('payment_mode') === 'staff_medical_benefit')
+    >
+        Staff Medical Benefit
+    </option>
+
+@endif
 
                                     </select>
 
@@ -589,114 +682,316 @@
 
     </div>
 
+                 <script>
+    document.addEventListener('DOMContentLoaded', function () {
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        const total =
+            {{ number_format((float) $total, 2, '.', '') }};
 
-            const total =
-                {{ number_format((float) $total, 2, '.', '') }};
+        const staffMedicalBenefitBalance =
+            {{ $staffMedicalBenefit
+                ? number_format(
+                    (float) $staffMedicalBenefit['balance'],
+                    2,
+                    '.',
+                    ''
+                )
+                : '0.00'
+            }};
 
-            const paymentMode =
-                document.getElementById('payment_mode');
+        const paymentMode =
+            document.getElementById('payment_mode');
 
-            const amountReceived =
-                document.getElementById('amount_received');
+        const amountReceived =
+            document.getElementById('amount_received');
 
-            const amountHelp =
-                document.getElementById('amountHelp');
+        const amountHelp =
+            document.getElementById('amountHelp');
 
-            const referenceWrapper =
-                document.getElementById('referenceWrapper');
+        const referenceWrapper =
+            document.getElementById('referenceWrapper');
 
-            const transactionReference =
-                document.getElementById('transaction_reference');
+        const appliedPayment =
+            document.getElementById('appliedPayment');
 
-            const appliedPayment =
-                document.getElementById('appliedPayment');
+        const balanceAmount =
+            document.getElementById('balanceAmount');
 
-            const balanceAmount =
-                document.getElementById('balanceAmount');
+        const changeRow =
+            document.getElementById('changeRow');
 
-            const changeRow =
-                document.getElementById('changeRow');
+        const changeAmount =
+            document.getElementById('changeAmount');
 
-            const changeAmount =
-                document.getElementById('changeAmount');
+        const creditNote =
+            document.getElementById('creditNote');
 
-            const creditNote =
-                document.getElementById('creditNote');
-
-            const collectButton =
-                document.getElementById('collectButton');
+        const collectButton =
+            document.getElementById('collectButton');
 
 
-            function money(value) {
+        function money(value) {
+            return '₹' + Number(value).toFixed(2);
+        }
 
-                return '₹' +
-                    Number(value)
-                        .toFixed(2);
 
+        function updatePaymentUI() {
+
+            const mode =
+                paymentMode.value;
+
+            let received =
+                parseFloat(amountReceived.value);
+
+            if (Number.isNaN(received)) {
+                received = 0;
             }
 
 
-            function updatePaymentUI() {
+            /*
+            |--------------------------------------------------------------------------
+            | Input state
+            |--------------------------------------------------------------------------
+            */
+
+            if (mode === 'cash') {
+
+                amountReceived.disabled = false;
+                amountReceived.readOnly = false;
+
+                amountHelp.textContent =
+                    'Enter the cash tendered by the patient. Amount may be greater than the bill total.';
+
+                referenceWrapper.classList.add('hidden');
+                creditNote.classList.add('hidden');
+
+
+            } else if (
+                mode === 'upi' ||
+                mode === 'card'
+            ) {
+
+                amountReceived.disabled = false;
+                amountReceived.readOnly = false;
+
+                amountHelp.textContent =
+                    'Enter the amount received. It cannot exceed the bill total.';
+
+                referenceWrapper.classList.remove('hidden');
+                creditNote.classList.add('hidden');
+
+
+            } else if (
+                mode === 'credit' ||
+                mode === 'mhis'
+            ) {
+
+                amountReceived.value = '0.00';
+
+                amountReceived.disabled = false;
+                amountReceived.readOnly = true;
+
+                received = 0;
+
+                amountHelp.textContent =
+                    'No cash collection is required at this stage.';
+
+                referenceWrapper.classList.add('hidden');
+                creditNote.classList.remove('hidden');
+
+
+            } else if (
+                mode === 'staff_medical_benefit'
+            ) {
+
+                received =
+                    Math.min(
+                        total,
+                        staffMedicalBenefitBalance
+                    );
+
+                amountReceived.value =
+                    received.toFixed(2);
+
+                amountReceived.disabled = false;
+                amountReceived.readOnly = true;
+
+                amountHelp.textContent =
+                    'Staff Medical Benefit will be applied up to the available entitlement or bill amount, whichever is lower.';
+
+                referenceWrapper.classList.add('hidden');
+                creditNote.classList.add('hidden');
+
+
+            } else {
+
+                amountReceived.disabled = false;
+                amountReceived.readOnly = false;
+
+                amountHelp.textContent =
+                    'Select a payment mode.';
+
+                referenceWrapper.classList.add('hidden');
+                creditNote.classList.add('hidden');
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculation
+            |--------------------------------------------------------------------------
+            */
+
+            let applied = 0;
+            let balance = total;
+            let change = 0;
+
+
+            if (mode === 'cash') {
+
+                applied =
+                    Math.min(
+                        received,
+                        total
+                    );
+
+                balance =
+                    Math.max(
+                        total - applied,
+                        0
+                    );
+
+                change =
+                    Math.max(
+                        received - total,
+                        0
+                    );
+
+
+            } else if (
+                mode === 'upi' ||
+                mode === 'card'
+            ) {
+
+                applied =
+                    Math.min(
+                        received,
+                        total
+                    );
+
+                balance =
+                    Math.max(
+                        total - applied,
+                        0
+                    );
+
+
+            } else if (
+                mode === 'credit' ||
+                mode === 'mhis'
+            ) {
+
+                applied = 0;
+                balance = total;
+                change = 0;
+
+
+            } else if (
+                mode === 'staff_medical_benefit'
+            ) {
+
+                applied =
+                    Math.min(
+                        total,
+                        staffMedicalBenefitBalance
+                    );
+
+                balance =
+                    Math.max(
+                        total - applied,
+                        0
+                    );
+
+                change = 0;
+            }
+
+
+            appliedPayment.textContent =
+                money(applied);
+
+            balanceAmount.textContent =
+                money(balance);
+
+            changeAmount.textContent =
+                money(change);
+
+
+            if (
+                mode === 'cash' &&
+                change > 0
+            ) {
+
+                changeRow.classList.remove('hidden');
+
+            } else {
+
+                changeRow.classList.add('hidden');
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Button text
+            |--------------------------------------------------------------------------
+            */
+
+            if (mode === 'credit') {
+
+                collectButton.textContent =
+                    'Authorize Credit';
+
+            } else if (mode === 'mhis') {
+
+                collectButton.textContent =
+                    'Authorize MHIS';
+
+            } else if (
+                mode === 'staff_medical_benefit'
+            ) {
+
+                collectButton.textContent =
+                    'Apply Staff Medical Benefit';
+
+            } else {
+
+                collectButton.textContent =
+                    'Collect Payment';
+            }
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Payment mode defaults
+        |--------------------------------------------------------------------------
+        */
+
+        paymentMode.addEventListener(
+            'change',
+            function () {
 
                 const mode =
                     paymentMode.value;
 
-                let received =
-                    parseFloat(
-                        amountReceived.value
-                    );
 
-                if (Number.isNaN(received)) {
-                    received = 0;
-                }
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Default amount / input state
-                |--------------------------------------------------------------------------
-                */
-
-                if (mode === 'cash') {
-
-                    amountReceived.disabled = false;
-
-                    amountReceived.readOnly = false;
-
-                    amountHelp.textContent =
-                        'Enter the cash tendered by the patient. Amount may be greater than the bill total.';
-
-                    referenceWrapper.classList.add(
-                        'hidden'
-                    );
-
-                    creditNote.classList.add(
-                        'hidden'
-                    );
-
-
-                } else if (
+                if (
+                    mode === 'cash' ||
                     mode === 'upi' ||
                     mode === 'card'
                 ) {
 
-                    amountReceived.disabled = false;
-
-                    amountReceived.readOnly = false;
-
-                    amountHelp.textContent =
-                        'Enter the amount received. It cannot exceed the bill total.';
-
-                    referenceWrapper.classList.remove(
-                        'hidden'
-                    );
-
-                    creditNote.classList.add(
-                        'hidden'
-                    );
+                    amountReceived.value =
+                        total.toFixed(2);
 
 
                 } else if (
@@ -707,210 +1002,40 @@
                     amountReceived.value =
                         '0.00';
 
-                    amountReceived.disabled = false;
-
-                    amountReceived.readOnly = true;
-
-                    received = 0;
-
-                    amountHelp.textContent =
-                        'No cash collection is required at this stage.';
-
-                    referenceWrapper.classList.add(
-                        'hidden'
-                    );
-
-                    creditNote.classList.remove(
-                        'hidden'
-                    );
-
-
-                } else {
-
-                    amountReceived.disabled = false;
-
-                    amountReceived.readOnly = false;
-
-                    amountHelp.textContent =
-                        'Select a payment mode.';
-
-                    referenceWrapper.classList.add(
-                        'hidden'
-                    );
-
-                    creditNote.classList.add(
-                        'hidden'
-                    );
-                }
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Calculation
-                |--------------------------------------------------------------------------
-                */
-
-                let applied = 0;
-                let balance = total;
-                let change = 0;
-
-
-                if (mode === 'cash') {
-
-                    applied =
-                        Math.min(
-                            received,
-                            total
-                        );
-
-                    balance =
-                        Math.max(
-                            total - applied,
-                            0
-                        );
-
-                    change =
-                        Math.max(
-                            received - total,
-                            0
-                        );
-
 
                 } else if (
-                    mode === 'upi' ||
-                    mode === 'card'
+                    mode === 'staff_medical_benefit'
                 ) {
 
-                    applied =
+                    amountReceived.value =
                         Math.min(
-                            received,
-                            total
-                        );
-
-                    balance =
-                        Math.max(
-                            total - applied,
-                            0
-                        );
-
-
-                } else if (
-                    mode === 'credit' ||
-                    mode === 'mhis'
-                ) {
-
-                    applied = 0;
-                    balance = total;
-                    change = 0;
+                            total,
+                            staffMedicalBenefitBalance
+                        ).toFixed(2);
                 }
 
 
-                appliedPayment.textContent =
-                    money(applied);
-
-                balanceAmount.textContent =
-                    money(balance);
-
-                changeAmount.textContent =
-                    money(change);
-
-
-                if (
-                    mode === 'cash' &&
-                    change > 0
-                ) {
-
-                    changeRow.classList.remove(
-                        'hidden'
-                    );
-
-                } else {
-
-                    changeRow.classList.add(
-                        'hidden'
-                    );
-                }
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Button text
-                |--------------------------------------------------------------------------
-                */
-
-                if (mode === 'credit') {
-
-                    collectButton.textContent =
-                        'Authorize Credit';
-
-                } else if (mode === 'mhis') {
-
-                    collectButton.textContent =
-                        'Authorize MHIS';
-
-                } else {
-
-                    collectButton.textContent =
-                        'Collect Payment';
-                }
-
+                updatePaymentUI();
             }
+        );
 
 
-            /*
-            |--------------------------------------------------------------------------
-            | Payment mode defaults
-            |--------------------------------------------------------------------------
-            */
-
-            paymentMode.addEventListener(
-                'change',
-                function () {
-
-                    const mode =
-                        paymentMode.value;
+        amountReceived.addEventListener(
+            'input',
+            updatePaymentUI
+        );
 
 
-                    if (
-                        mode === 'cash' ||
-                        mode === 'upi' ||
-                        mode === 'card'
-                    ) {
+        /*
+        |--------------------------------------------------------------------------
+        | Initial state after validation error
+        |--------------------------------------------------------------------------
+        */
 
-                        amountReceived.value =
-                            total.toFixed(2);
+        updatePaymentUI();
 
-                    } else if (
-                        mode === 'credit' ||
-                        mode === 'mhis'
-                    ) {
-
-                        amountReceived.value =
-                            '0.00';
-                    }
-
-
-                    updatePaymentUI();
-
-                }
-            );
-
-
-            amountReceived.addEventListener(
-                'input',
-                updatePaymentUI
-            );
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Initial state after validation error
-            |--------------------------------------------------------------------------
-            */
-
-            updatePaymentUI();
-
-        });
-    </script>
+    });
+</script>
+    
 
 </x-app-layout>

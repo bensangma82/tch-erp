@@ -8,6 +8,8 @@ use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\Service;
 use App\Models\ServiceOrder;
+use App\Services\StaffMedicalBenefitService;
+use App\Services\StaffMedicalBenefitUtilizationService;
 use App\Models\ServiceOrderItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -243,28 +245,51 @@ class BillingController extends Controller
     */
 
     public function payment(
-        ServiceOrder $serviceOrder
-    ) {
-        $serviceOrder->load([
-            'patient',
-            'encounter.department',
-            'encounter.doctor',
-            'items',
-        ]);
+    ServiceOrder $serviceOrder,
+    StaffMedicalBenefitService $staffMedicalBenefitService
+) {
+    $serviceOrder->load([
+        'patient',
+        'encounter.department',
+        'encounter.doctor',
+        'items',
+    ]);
 
-        $total = round(
-            (float) $serviceOrder->items->sum('amount'),
-            2
-        );
+    $total = round(
+        (float) $serviceOrder->items->sum('amount'),
+        2
+    );
 
-        return view(
-            'billing.payment',
-            compact(
-                'serviceOrder',
-                'total'
-            )
-        );
+    /*
+    |--------------------------------------------------------------------------
+    | Staff Medical Benefit Eligibility
+    |--------------------------------------------------------------------------
+    |
+    | This is read-only. Opening the payment page does not consume
+    | benefit entitlement or create any financial transaction.
+    |
+    */
+
+    $staffMedicalBenefit = null;
+
+    if ($serviceOrder->patient) {
+        $staffMedicalBenefit =
+            $staffMedicalBenefitService
+                ->resolvePatientBenefit(
+                    $serviceOrder->patient,
+                    now()
+                );
     }
+
+    return view(
+        'billing.payment',
+        compact(
+            'serviceOrder',
+            'total',
+            'staffMedicalBenefit'
+        )
+    );
+}
 
 
     /*
@@ -275,19 +300,15 @@ class BillingController extends Controller
 
     public function processPayment(
         Request $request,
-        ServiceOrder $serviceOrder
+        ServiceOrder $serviceOrder,
+        StaffMedicalBenefitService $staffMedicalBenefitService,
+        StaffMedicalBenefitUtilizationService $staffMedicalBenefitUtilizationService
     ) {
         $serviceOrder->load([
             'patient',
             'encounter',
             'items',
         ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Prevent duplicate billing
-        |--------------------------------------------------------------------------
-        */
 
         $alreadyInvoiced = InvoiceItem::query()
             ->whereIn(
@@ -308,34 +329,25 @@ class BillingController extends Controller
         $validated = $request->validate([
             'payment_mode' => [
                 'required',
-                'in:cash,upi,card,credit,mhis',
+                'in:cash,upi,card,credit,mhis,staff_medical_benefit',
             ],
-
             'amount_received' => [
                 'nullable',
                 'numeric',
                 'min:0',
                 'max:9999999.99',
             ],
-
             'transaction_reference' => [
                 'nullable',
                 'string',
                 'max:255',
             ],
-
             'remarks' => [
                 'nullable',
                 'string',
                 'max:2000',
             ],
         ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Server-side total
-        |--------------------------------------------------------------------------
-        */
 
         $total = round(
             (float) $serviceOrder->items->sum('amount'),
@@ -349,29 +361,15 @@ class BillingController extends Controller
             ]);
         }
 
-        $paymentMode =
-            $validated['payment_mode'];
+        $paymentMode = $validated['payment_mode'];
 
         $amountReceived = round(
-            (float) (
-                $validated['amount_received']
-                ?? 0
-            ),
+            (float) ($validated['amount_received'] ?? 0),
             2
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Payment Rules
-        |--------------------------------------------------------------------------
-        */
-
         if (
-            in_array(
-                $paymentMode,
-                ['upi', 'card'],
-                true
-            )
+            in_array($paymentMode, ['upi', 'card'], true)
             && $amountReceived > $total
         ) {
             throw ValidationException::withMessages([
@@ -394,12 +392,6 @@ class BillingController extends Controller
             ]);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Credit / MHIS
-        |--------------------------------------------------------------------------
-        */
-
         if (
             in_array(
                 $paymentMode,
@@ -409,12 +401,6 @@ class BillingController extends Controller
         ) {
             $amountReceived = 0;
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Calculate applied payment / change
-        |--------------------------------------------------------------------------
-        */
 
         $changeAmount = 0;
         $appliedPayment = 0;
@@ -443,6 +429,31 @@ class BillingController extends Controller
             );
         }
 
+        $staffMedicalBenefit = null;
+
+        if ($paymentMode === 'staff_medical_benefit') {
+            $staffMedicalBenefit =
+                $staffMedicalBenefitService
+                    ->resolvePatientBenefit(
+                        $serviceOrder->patient,
+                        now()
+                    );
+
+            if (! $staffMedicalBenefit) {
+                throw ValidationException::withMessages([
+                    'payment_mode' =>
+                        'This patient is not currently eligible for Staff Medical Benefit.',
+                ]);
+            }
+
+            if ((float) $staffMedicalBenefit['balance'] <= 0) {
+                throw ValidationException::withMessages([
+                    'payment_mode' =>
+                        'No Staff Medical Benefit balance is available.',
+                ]);
+            }
+        }
+
         $balance = round(
             max(
                 $total - $appliedPayment,
@@ -453,121 +464,432 @@ class BillingController extends Controller
 
         if ($appliedPayment >= $total) {
             $invoiceStatus = 'paid';
-
         } elseif ($appliedPayment > 0) {
             $invoiceStatus = 'partial';
-
         } else {
             $invoiceStatus = 'unpaid';
         }
 
-        $result = DB::transaction(function () use (
-            $serviceOrder,
-            $validated,
-            $paymentMode,
-            $total,
-            $appliedPayment,
-            $balance,
-            $invoiceStatus,
-            $amountReceived,
-            $changeAmount
-        ) {
-            /*
-            |--------------------------------------------------------------------------
-            | Create Invoice
-            |--------------------------------------------------------------------------
-            */
-
-            $invoice = Invoice::create([
-                'invoice_no' =>
-                    $this->generateInvoiceNumber(),
-
-                'patient_id' =>
-                    $serviceOrder->patient_id,
-
-                'encounter_id' =>
-                    $serviceOrder->encounter_id,
-
-                'invoice_date' =>
-                    now(),
-
-                'invoice_type' =>
-                    'investigation',
-
-                'subtotal' =>
-                    $total,
-
-                'discount' =>
-                    0,
-
-                'total_amount' =>
-                    $total,
-
-                'paid_amount' =>
-                    $appliedPayment,
-
-                'balance_amount' =>
-                    $balance,
-
-                'status' =>
-                    $invoiceStatus,
-
-                'created_by' =>
-                    auth()->id(),
-            ]);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Create Invoice Items
-            |--------------------------------------------------------------------------
-            */
-
-            foreach (
-                $serviceOrder->items
-                as $orderItem
+        try {
+            $result = DB::transaction(function () use (
+                $serviceOrder,
+                $validated,
+                $paymentMode,
+                $total,
+                $appliedPayment,
+                $balance,
+                $invoiceStatus,
+                $amountReceived,
+                $changeAmount,
+                $staffMedicalBenefit,
+                $staffMedicalBenefitUtilizationService
             ) {
-                InvoiceItem::create([
-                    'invoice_id' =>
-                        $invoice->id,
-
-                    'service_order_item_id' =>
-                        $orderItem->id,
-
-                    'service_id' =>
-                        $orderItem->service_id,
-
-                    'code' =>
-                        $orderItem->service_code,
-
-                    'description' =>
-                        $orderItem->service_name,
-
-                    'quantity' =>
-                        $orderItem->quantity,
-
-                    'unit_price' =>
-                        $orderItem->unit_price,
-
+                $invoice = Invoice::create([
+                    'invoice_no' =>
+                        $this->generateInvoiceNumber(),
+                    'patient_id' =>
+                        $serviceOrder->patient_id,
+                    'encounter_id' =>
+                        $serviceOrder->encounter_id,
+                    'invoice_date' =>
+                        now(),
+                    'invoice_type' =>
+                        'investigation',
+                    'subtotal' =>
+                        $total,
                     'discount' =>
                         0,
-
-                    'amount' =>
-                        $orderItem->amount,
+                    'total_amount' =>
+                        $total,
+                    'paid_amount' =>
+                        $appliedPayment,
+                    'balance_amount' =>
+                        $balance,
+                    'status' =>
+                        $invoiceStatus,
+                    'created_by' =>
+                        auth()->id(),
                 ]);
-            }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Payment Record
-            |--------------------------------------------------------------------------
-            */
+                foreach ($serviceOrder->items as $orderItem) {
+                    InvoiceItem::create([
+                        'invoice_id' =>
+                            $invoice->id,
+                        'service_order_item_id' =>
+                            $orderItem->id,
+                        'service_id' =>
+                            $orderItem->service_id,
+                        'code' =>
+                            $orderItem->service_code,
+                        'description' =>
+                            $orderItem->service_name,
+                        'quantity' =>
+                            $orderItem->quantity,
+                        'unit_price' =>
+                            $orderItem->unit_price,
+                        'discount' =>
+                            0,
+                        'amount' =>
+                            $orderItem->amount,
+                    ]);
+                }
 
-            $payment = null;
+                $finalAppliedPayment = $appliedPayment;
+                $finalBalance = $balance;
+                $finalInvoiceStatus = $invoiceStatus;
 
-            if ($appliedPayment > 0) {
+                if ($paymentMode === 'staff_medical_benefit') {
+                    $benefitTransaction =
+                        $staffMedicalBenefitUtilizationService
+                            ->utilize(
+                                benefitAccount:
+                                    $staffMedicalBenefit['account'],
+                                patient:
+                                    $serviceOrder->patient,
+                                beneficiaryType:
+                                    $staffMedicalBenefit['beneficiary_type'],
+                                requestedAmount:
+                                    $total,
+                                sourceType:
+                                    'invoice',
+                                sourceId:
+                                    $invoice->id,
+                                sourceReference:
+                                    $invoice->invoice_no,
+                                transactionDate:
+                                    now(),
+                                dependent:
+                                    $staffMedicalBenefit['dependent'],
+                                grossBillAmount:
+                                    $total,
+                                mhisApprovedAmount:
+                                    0,
+                                residualBeforeBenefit:
+                                    $total,
+                                remarks:
+                                    $validated['remarks'] ?? null,
+                                userId:
+                                    auth()->id()
+                            );
+
+                    $finalAppliedPayment = round(
+                        (float) $benefitTransaction->amount,
+                        2
+                    );
+
+                    $finalBalance = round(
+                        max(
+                            $total - $finalAppliedPayment,
+                            0
+                        ),
+                        2
+                    );
+
+                    if ($finalAppliedPayment >= $total) {
+                        $finalInvoiceStatus = 'paid';
+                    } elseif ($finalAppliedPayment > 0) {
+                        $finalInvoiceStatus = 'partial';
+                    } else {
+                        $finalInvoiceStatus = 'unpaid';
+                    }
+
+                    $invoice->update([
+                        'paid_amount' =>
+                            $finalAppliedPayment,
+                        'balance_amount' =>
+                            $finalBalance,
+                        'status' =>
+                            $finalInvoiceStatus,
+                    ]);
+                }
+
+                $payment = null;
+
+                if ($finalAppliedPayment > 0) {
+                    $paymentRemarks =
+                        $validated['remarks'] ?? null;
+
+                    if (
+                        $paymentMode === 'cash'
+                        && $changeAmount > 0
+                    ) {
+                        $changeText =
+                            'Cash received ₹' .
+                            number_format(
+                                $amountReceived,
+                                2,
+                                '.',
+                                ''
+                            ) .
+                            '; change returned ₹' .
+                            number_format(
+                                $changeAmount,
+                                2,
+                                '.',
+                                ''
+                            );
+
+                        $paymentRemarks =
+                            $paymentRemarks
+                                ? $paymentRemarks . ' | ' . $changeText
+                                : $changeText;
+                    }
+
+                    if ($paymentMode === 'staff_medical_benefit') {
+                        $benefitText =
+                            'Staff Medical Benefit applied ₹' .
+                            number_format(
+                                $finalAppliedPayment,
+                                2,
+                                '.',
+                                ''
+                            );
+
+                        $paymentRemarks =
+                            $paymentRemarks
+                                ? $paymentRemarks . ' | ' . $benefitText
+                                : $benefitText;
+                    }
+
+                    $payment = Payment::create([
+                        'receipt_no' =>
+                            $this->generateReceiptNumber(),
+                        'invoice_id' =>
+                            $invoice->id,
+                        'patient_id' =>
+                            $serviceOrder->patient_id,
+                        'encounter_id' =>
+                            $serviceOrder->encounter_id,
+                        'payment_date' =>
+                            now(),
+                        'amount' =>
+                            $finalAppliedPayment,
+                        'payment_mode' =>
+                            $paymentMode,
+                        'transaction_reference' =>
+                            $validated['transaction_reference'] ?? null,
+                        'remarks' =>
+                            $paymentRemarks,
+                        'received_by' =>
+                            auth()->id(),
+                    ]);
+                }
+
+                if ($finalInvoiceStatus === 'paid') {
+                    $serviceOrder->update([
+                        'status' => 'paid',
+                    ]);
+
+                } elseif (
+                    in_array(
+                        $paymentMode,
+                        ['credit', 'mhis'],
+                        true
+                    )
+                ) {
+                    $serviceOrder->update([
+                        'status' => 'authorized',
+                    ]);
+
+                } else {
+                    $serviceOrder->update([
+                        'status' => 'pending_payment',
+                    ]);
+                }
+
+                return [
+                    'invoice' => $invoice,
+                    'payment' => $payment,
+                ];
+            });
+
+        } catch (\RuntimeException $exception) {
+            throw ValidationException::withMessages([
+                'payment_mode' =>
+                    $exception->getMessage(),
+            ]);
+        }
+
+        if ($result['payment']) {
+            return redirect()
+                ->route(
+                    'billing.receipt',
+                    $result['payment']
+                );
+        }
+
+        return redirect()
+            ->route('billing.index')
+            ->with(
+                'success',
+                strtoupper($paymentMode) .
+                ' investigation bill recorded successfully.'
+            );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Outstanding Investigation Invoice Payment
+    |--------------------------------------------------------------------------
+    */
+
+    public function invoicePayment(
+        Invoice $invoice
+    ) {
+        $invoice->load([
+            'patient',
+            'encounter.department',
+            'encounter.doctor',
+            'items',
+            'payments',
+        ]);
+
+        if ($invoice->invoice_type !== 'investigation') {
+            abort(404);
+        }
+
+        if ((float) $invoice->balance_amount <= 0) {
+            return redirect()
+                ->route('billing.index')
+                ->with('success', 'This investigation invoice is already fully paid.');
+        }
+
+        return view(
+            'billing.invoice-payment',
+            compact('invoice')
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Process Outstanding Investigation Invoice Payment
+    |--------------------------------------------------------------------------
+    */
+
+    public function processInvoicePayment(
+        Request $request,
+        Invoice $invoice
+    ) {
+        $validated = $request->validate([
+            'payment_mode' => [
+                'required',
+                'in:cash,upi,card',
+            ],
+            'amount_received' => [
+                'required',
+                'numeric',
+                'gt:0',
+                'max:9999999.99',
+            ],
+            'transaction_reference' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
+        ]);
+
+        $paymentMode = $validated['payment_mode'];
+
+        $amountReceived = round(
+            (float) $validated['amount_received'],
+            2
+        );
+
+        try {
+            $payment = DB::transaction(function () use (
+                $invoice,
+                $validated,
+                $paymentMode,
+                $amountReceived
+            ) {
+                $lockedInvoice = Invoice::query()
+                    ->whereKey($invoice->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($lockedInvoice->invoice_type !== 'investigation') {
+                    throw new \RuntimeException(
+                        'This payment screen is only for investigation invoices.'
+                    );
+                }
+
+                $currentPaid = round(
+                    (float) $lockedInvoice->payments()->sum('amount'),
+                    2
+                );
+
+                $invoiceTotal = round(
+                    (float) $lockedInvoice->total_amount,
+                    2
+                );
+
+                $currentBalance = round(
+                    max($invoiceTotal - $currentPaid, 0),
+                    2
+                );
+
+                if ($currentBalance <= 0) {
+                    throw new \RuntimeException(
+                        'This investigation invoice is already fully paid.'
+                    );
+                }
+
+                if (
+                    in_array($paymentMode, ['upi', 'card'], true)
+                    && $amountReceived > $currentBalance
+                ) {
+                    throw new \RuntimeException(
+                        'UPI/Card payment cannot be greater than the outstanding balance.'
+                    );
+                }
+
+                $changeAmount = 0;
+
+                if ($paymentMode === 'cash') {
+                    $appliedPayment = min(
+                        $amountReceived,
+                        $currentBalance
+                    );
+
+                    $changeAmount = max(
+                        $amountReceived - $currentBalance,
+                        0
+                    );
+                } else {
+                    $appliedPayment = min(
+                        $amountReceived,
+                        $currentBalance
+                    );
+                }
+
+                $newPaid = round(
+                    $currentPaid + $appliedPayment,
+                    2
+                );
+
+                $newBalance = round(
+                    max($invoiceTotal - $newPaid, 0),
+                    2
+                );
+
+                $newStatus = $newBalance <= 0
+                    ? 'paid'
+                    : 'partial';
+
+                $lockedInvoice->update([
+                    'paid_amount' => $newPaid,
+                    'balance_amount' => $newBalance,
+                    'status' => $newStatus,
+                ]);
+
                 $paymentRemarks =
-                    $validated['remarks']
-                    ?? null;
+                    $validated['remarks'] ?? null;
 
                 if (
                     $paymentMode === 'cash'
@@ -591,100 +913,69 @@ class BillingController extends Controller
 
                     $paymentRemarks =
                         $paymentRemarks
-                            ? $paymentRemarks .
-                                ' | ' .
-                                $changeText
+                            ? $paymentRemarks . ' | ' . $changeText
                             : $changeText;
                 }
 
                 $payment = Payment::create([
                     'receipt_no' =>
                         $this->generateReceiptNumber(),
-
                     'invoice_id' =>
-                        $invoice->id,
-
+                        $lockedInvoice->id,
                     'patient_id' =>
-                        $serviceOrder->patient_id,
-
+                        $lockedInvoice->patient_id,
                     'encounter_id' =>
-                        $serviceOrder->encounter_id,
-
+                        $lockedInvoice->encounter_id,
                     'payment_date' =>
                         now(),
-
                     'amount' =>
                         $appliedPayment,
-
                     'payment_mode' =>
                         $paymentMode,
-
                     'transaction_reference' =>
-                        $validated['transaction_reference']
-                        ?? null,
-
+                        $validated['transaction_reference'] ?? null,
                     'remarks' =>
                         $paymentRemarks,
-
                     'received_by' =>
                         auth()->id(),
                 ]);
-            }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Service Order Status
-            |--------------------------------------------------------------------------
-            */
+                if ($newStatus === 'paid') {
+                    $serviceOrderIds = InvoiceItem::query()
+                        ->where('invoice_items.invoice_id', $lockedInvoice->id)
+                        ->whereNotNull('invoice_items.service_order_item_id')
+                        ->join(
+                            'service_order_items',
+                            'service_order_items.id',
+                            '=',
+                            'invoice_items.service_order_item_id'
+                        )
+                        ->pluck('service_order_items.service_order_id')
+                        ->unique();
 
-            if ($invoiceStatus === 'paid') {
-                $serviceOrder->update([
-                    'status' => 'paid',
-                ]);
+                    if ($serviceOrderIds->isNotEmpty()) {
+                        ServiceOrder::query()
+                            ->whereIn('id', $serviceOrderIds)
+                            ->update([
+                                'status' => 'paid',
+                            ]);
+                    }
+                }
 
-            } elseif (
-                in_array(
-                    $paymentMode,
-                    ['credit', 'mhis'],
-                    true
-                )
-            ) {
-                $serviceOrder->update([
-                    'status' => 'authorized',
-                ]);
+                return $payment;
+            });
 
-            } else {
-                $serviceOrder->update([
-                    'status' => 'pending_payment',
-                ]);
-            }
-
-            return [
-                'invoice' => $invoice,
-                'payment' => $payment,
-            ];
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | Redirect
-        |--------------------------------------------------------------------------
-        */
-
-        if ($result['payment']) {
-            return redirect()
-                ->route(
-                    'billing.receipt',
-                    $result['payment']
-                );
+        } catch (\RuntimeException $exception) {
+            throw ValidationException::withMessages([
+                'amount_received' =>
+                    $exception->getMessage(),
+            ]);
         }
 
         return redirect()
-            ->route('billing.index')
-            ->with(
-                'success',
-                strtoupper($paymentMode) .
-                ' investigation bill recorded successfully.'
+            ->route(
+                'billing.receipt',
+                $payment
             );
     }
 

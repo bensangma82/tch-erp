@@ -122,4 +122,19 @@ public function mhisReceipts(): HasMany
         ->orderBy('receipt_date')
         ->orderBy('id');
 }
+
+
+                    public function staffMedicalBenefitTransactions(): HasMany
+{
+    return $this->hasMany(
+        StaffMedicalBenefitTransaction::class,
+        'source_id'
+    )
+        ->where(
+            'source_type',
+            'ip_billing_account'
+        )
+        ->orderBy('transaction_date')
+        ->orderBy('id');
+}
 }

@@ -13,6 +13,8 @@ use App\Models\IpBillingPayment;
 use App\Models\Service;
 use App\Models\ServiceOrder;
 use App\Models\ServiceOrderItem;
+use App\Services\StaffMedicalBenefitService;
+use App\Services\StaffMedicalBenefitUtilizationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1583,6 +1585,7 @@ public function receivePayment(
             'advances',
             'payments',
             'mhisClaims',
+            'staffMedicalBenefitTransactions',
         ]);
 
 
@@ -1651,13 +1654,34 @@ public function receivePayment(
             2
         );
 
+                             $staffMedicalBenefitAmount = round(
+    (float) $lockedAccount->staffMedicalBenefitTransactions
+        ->where(
+            'status',
+            'active'
+        )
+        ->sum(
+            function ($transaction) {
+                if ($transaction->transaction_type === 'utilization') {
+                    return (float) $transaction->amount;
+                }
 
+                if ($transaction->transaction_type === 'reversal') {
+                    return -1 * (float) $transaction->amount;
+                }
+
+                return 0;
+            }
+        ),
+    2
+);
         $currentBalance = round(
             max(
                 $netAmount
                 - $advanceAmount
                 - $paidAmount
-                - $mhisApprovedAmount,
+                - $mhisApprovedAmount
+                - $staffMedicalBenefitAmount,
                 0
             ),
             2
@@ -1784,6 +1808,323 @@ public function receivePayment(
             ) .
             ' received successfully. Receipt: ' .
             $payment->receipt_no
+        );
+}
+
+                  /*
+|--------------------------------------------------------------------------
+| Apply Staff Medical Benefit
+|--------------------------------------------------------------------------
+*/
+
+public function applyStaffMedicalBenefit(
+    Admission $admission,
+    StaffMedicalBenefitService $staffMedicalBenefitService,
+    StaffMedicalBenefitUtilizationService $staffMedicalBenefitUtilizationService
+) {
+    $admission->load('patient');
+
+    if (! $admission->patient) {
+        throw ValidationException::withMessages([
+            'staff_medical_benefit' =>
+                'The admission is not linked to a patient.',
+        ]);
+    }
+
+    $account = $this->getOrCreateAccount(
+        $admission
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Staff Medical Benefit can only be applied to a finalized bill
+    |--------------------------------------------------------------------------
+    */
+
+    if ($account->status !== 'finalized') {
+        throw ValidationException::withMessages([
+            'staff_medical_benefit' =>
+                'Staff Medical Benefit can only be applied after the IP bill has been finalized.',
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Resolve Staff / Dependent Eligibility
+    |--------------------------------------------------------------------------
+    */
+
+    $benefit = $staffMedicalBenefitService
+        ->resolvePatientBenefit(
+            $admission->patient,
+            now()
+        );
+
+    if (! $benefit || ! ($benefit['eligible'] ?? false)) {
+        throw ValidationException::withMessages([
+            'staff_medical_benefit' =>
+                'This patient is not eligible for Staff Medical Benefit.',
+        ]);
+    }
+
+    try {
+
+        $transaction = DB::transaction(function () use (
+            $admission,
+            $account,
+            $benefit,
+            $staffMedicalBenefitUtilizationService
+        ) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Lock IP Billing Account
+            |--------------------------------------------------------------------------
+            */
+
+            $lockedAccount = IpBillingAccount::query()
+                ->whereKey($account->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedAccount->status !== 'finalized') {
+                throw new \RuntimeException(
+                    'Staff Medical Benefit can only be applied to a finalized IP bill.'
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Load Current Financial Position
+            |--------------------------------------------------------------------------
+            */
+
+            $lockedAccount->load([
+                'charges',
+                'advances',
+                'payments',
+                'mhisClaims',
+                'staffMedicalBenefitTransactions',
+            ]);
+
+            $netAmount = round(
+                (float) $lockedAccount->charges
+                    ->where('status', 'active')
+                    ->sum(
+                        fn ($charge) =>
+                            (float) $charge->amount
+                    ),
+                2
+            );
+
+            $advanceAmount = round(
+                (float) $lockedAccount->advances
+                    ->where('status', 'active')
+                    ->sum(
+                        fn ($advance) =>
+                            (float) $advance->amount
+                    ),
+                2
+            );
+
+            $paidAmount = round(
+                (float) $lockedAccount->payments
+                    ->where('status', 'active')
+                    ->sum(
+                        fn ($payment) =>
+                            (float) $payment->amount
+                    ),
+                2
+            );
+
+            $mhisApprovedAmount = round(
+                (float) $lockedAccount->mhisClaims
+                    ->whereIn(
+                        'status',
+                        [
+                            'approved',
+                            'submitted',
+                            'settled',
+                        ]
+                    )
+                    ->sum(
+                        fn ($claim) =>
+                            (float) $claim->approved_amount
+                    ),
+                2
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Warn / Block Accidental Benefit Use While MHIS Is Pending
+            |--------------------------------------------------------------------------
+            |
+            | A pending MHIS claim with no approved amount means the patient's
+            | final liability has not yet been established.
+            |
+            */
+
+            $hasPendingMhisClaim =
+                $lockedAccount->mhisClaims
+                    ->where('status', 'pending')
+                    ->isNotEmpty();
+
+            if (
+                $hasPendingMhisClaim &&
+                $mhisApprovedAmount <= 0
+            ) {
+                throw new \RuntimeException(
+                    'MHIS claim is still pending and no approved amount has been recorded. '
+                    . 'Update the MHIS approval before applying Staff Medical Benefit.'
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Existing Staff Medical Benefit
+            |--------------------------------------------------------------------------
+            */
+
+            $existingStaffBenefit = round(
+                (float) $lockedAccount
+                    ->staffMedicalBenefitTransactions
+                    ->where('status', 'active')
+                    ->sum(
+                        function ($item) {
+                            if ($item->transaction_type === 'utilization') {
+                                return (float) $item->amount;
+                            }
+
+                            if ($item->transaction_type === 'reversal') {
+                                return -1 * (float) $item->amount;
+                            }
+
+                            return 0;
+                        }
+                    ),
+                2
+            );
+
+            if ($existingStaffBenefit > 0) {
+                throw new \RuntimeException(
+                    'Staff Medical Benefit has already been applied to this IP bill.'
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Calculate Residual Before Staff Medical Benefit
+            |--------------------------------------------------------------------------
+            */
+
+            $residualBeforeBenefit = round(
+                max(
+                    $netAmount
+                    - $advanceAmount
+                    - $paidAmount
+                    - $mhisApprovedAmount,
+                    0
+                ),
+                2
+            );
+
+            if ($residualBeforeBenefit <= 0) {
+                throw new \RuntimeException(
+                    'There is no outstanding patient balance available for Staff Medical Benefit.'
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Apply Benefit
+            |--------------------------------------------------------------------------
+            |
+            | The utilization service independently locks the annual benefit
+            | account and caps utilization to the remaining entitlement.
+            |
+            */
+
+            $benefitTransaction =
+                $staffMedicalBenefitUtilizationService
+                    ->utilize(
+                        benefitAccount:
+                            $benefit['account'],
+
+                        patient:
+                            $admission->patient,
+
+                        beneficiaryType:
+                            $benefit['beneficiary_type'],
+
+                        requestedAmount:
+                            $residualBeforeBenefit,
+
+                        sourceType:
+                            'ip_billing_account',
+
+                        sourceId:
+                            $lockedAccount->id,
+
+                        sourceReference:
+                            $lockedAccount->final_bill_no
+                            ?: $lockedAccount->account_no,
+
+                        transactionDate:
+                            now(),
+
+                        dependent:
+                            $benefit['dependent'],
+
+                        grossBillAmount:
+                            $netAmount,
+
+                        mhisApprovedAmount:
+                            $mhisApprovedAmount,
+
+                        residualBeforeBenefit:
+                            $residualBeforeBenefit,
+
+                        remarks:
+                            'Applied against finalized IP bill.',
+
+                        userId:
+                            auth()->id()
+                    );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Refresh IP Account Summary
+            |--------------------------------------------------------------------------
+            */
+
+            $this->recalculateAccount(
+                $lockedAccount
+            );
+
+            return $benefitTransaction;
+        });
+
+    } catch (\RuntimeException $e) {
+
+        throw ValidationException::withMessages([
+            'staff_medical_benefit' =>
+                $e->getMessage(),
+        ]);
+    }
+
+    return redirect()
+        ->route(
+            'ip-billing.final-bill',
+            $admission
+        )
+        ->with(
+            'success',
+            'Staff Medical Benefit of ₹' .
+            number_format(
+                (float) $transaction->amount,
+                2
+            ) .
+            ' applied successfully.'
         );
 }
     /*
@@ -2900,7 +3241,8 @@ public function receivePayment(
     */
 
     public function finalBill(
-        Admission $admission
+        Admission $admission,
+        StaffMedicalBenefitService $staffMedicalBenefitService
     ) {
         $admission->load([
             'patient',
@@ -2942,7 +3284,15 @@ public function receivePayment(
             'mhisClaims.updatedBy',
             'mhisClaims.receipts.receivedBy',
             'mhisReceipts.receivedBy',
+            'staffMedicalBenefitTransactions',
         ]);
+
+              $staffMedicalBenefit =
+    $staffMedicalBenefitService
+        ->resolvePatientBenefit(
+            $admission->patient,
+            now()
+        );
 
 
         $activeCharges = $account->charges
@@ -3001,9 +3351,17 @@ public function receivePayment(
 
 
         $paidAmount = round(
-            (float) $account->paid_amount,
-            2
-        );
+    (float) $account->payments
+        ->where(
+            'status',
+            'active'
+        )
+        ->sum(
+            fn ($payment) =>
+                (float) $payment->amount
+        ),
+    2
+);
 
 
         $mhisClaim =
@@ -3052,13 +3410,34 @@ public function receivePayment(
             2
         );
 
+                   $staffMedicalBenefitAmount = round(
+    (float) $account->staffMedicalBenefitTransactions
+        ->where(
+            'status',
+            'active'
+        )
+        ->sum(
+            function ($transaction) {
+                if ($transaction->transaction_type === 'utilization') {
+                    return (float) $transaction->amount;
+                }
 
+                if ($transaction->transaction_type === 'reversal') {
+                    return -1 * (float) $transaction->amount;
+                }
+
+                return 0;
+            }
+        ),
+    2
+);
         $patientBalance = round(
             max(
                 $netAmount
                 - $advanceAmount
                 - $paidAmount
-                - $mhisApprovedAmount,
+                - $mhisApprovedAmount
+                - $staffMedicalBenefitAmount,
                 0
             ),
             2
@@ -3116,7 +3495,10 @@ public function receivePayment(
                 'mhisApprovedAmount',
                 'mhisReceivedAmount',
                 'mhisOutstandingAmount',
+                'staffMedicalBenefitAmount',
+                'staffMedicalBenefit',
                 'patientBalance'
+                
             )
         );
     }
@@ -3265,6 +3647,7 @@ public function receivePayment(
             'payments',
             'mhisClaims',
             'mhisReceipts',
+            'staffMedicalBenefitTransactions',
         ]);
 
 
@@ -3357,13 +3740,35 @@ public function receivePayment(
             2
         );
 
+                      $staffMedicalBenefitAmount = round(
+    (float) $account->staffMedicalBenefitTransactions
+        ->where(
+            'status',
+            'active'
+        )
+        ->sum(
+            function ($transaction) {
+                if ($transaction->transaction_type === 'utilization') {
+                    return (float) $transaction->amount;
+                }
 
+                if ($transaction->transaction_type === 'reversal') {
+                    return -1 * (float) $transaction->amount;
+                }
+
+                return 0;
+            }
+        ),
+    2
+);                 
+         
         $balanceAmount = round(
             max(
                 $netAmount
                 - $advanceAmount
                 - $paidAmount
-                - $mhisApprovedAmount,
+                - $mhisApprovedAmount
+                - $staffMedicalBenefitAmount,
                 0
             ),
             2

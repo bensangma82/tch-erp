@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\EmployeeContractController;
 use App\Http\Controllers\Hr\SalaryComponentController;
 use App\Http\Controllers\Hr\EmployeeSalaryStructureController;
 use App\Http\Controllers\Hr\PayrollRunController;
+use App\Http\Controllers\Hr\StaffMedicalBenefitController;
 use App\Http\Controllers\Administration\AdministrativeRequestController;
 use App\Http\Controllers\InpatientMasterController;
 use App\Http\Controllers\BedTariffController;
@@ -405,7 +406,59 @@ Route::patch(
     ->whereNumber('document')
     ->name('hr.documents.reject');
 
+             /*
+|--------------------------------------------------------------------------
+| HR - Staff Medical Benefits
+|--------------------------------------------------------------------------
+*/
 
+Route::get(
+    '/hr/medical-benefits',
+    [StaffMedicalBenefitController::class, 'index']
+)->name('hr.medical-benefits.index');
+
+Route::get(
+    '/hr/medical-benefits/patient-search',
+    [StaffMedicalBenefitController::class, 'searchPatients']
+)->name('hr.medical-benefits.patient-search');
+
+Route::get(
+    '/hr/medical-benefits/{benefitAccount}',
+    [StaffMedicalBenefitController::class, 'show']
+)
+    ->whereNumber('benefitAccount')
+    ->name('hr.medical-benefits.show');
+
+
+          Route::post(
+    '/hr/medical-benefits/{benefitAccount}/dependents',
+    [StaffMedicalBenefitController::class, 'storeDependent']
+)
+    ->whereNumber('benefitAccount')
+    ->name('hr.medical-benefits.dependents.store');
+
+              Route::patch(
+    '/hr/medical-benefits/{benefitAccount}/dependents/{dependent}/deactivate',
+    [StaffMedicalBenefitController::class, 'deactivateDependent']
+)
+    ->whereNumber('benefitAccount')
+    ->whereNumber('dependent')
+    ->name('hr.medical-benefits.dependents.deactivate');
+
+
+Route::put(
+    '/hr/medical-benefits/employees/{employee}/patient',
+    [StaffMedicalBenefitController::class, 'linkEmployeePatient']
+)
+    ->whereNumber('employee')
+    ->name('hr.medical-benefits.employee-patient.link');
+
+Route::delete(
+    '/hr/medical-benefits/employees/{employee}/patient',
+    [StaffMedicalBenefitController::class, 'unlinkEmployeePatient']
+)
+    ->whereNumber('employee')
+    ->name('hr.medical-benefits.employee-patient.unlink');
 
                  /*
 |--------------------------------------------------------------------------
@@ -1281,7 +1334,20 @@ Route::get(
             ->whereNumber('serviceOrder')
             ->name('billing.payment.store');
 
+                 Route::get(
+    '/billing/invoices/{invoice}/payment',
+    [BillingController::class, 'invoicePayment']
+)
+    ->whereNumber('invoice')
+    ->name('billing.invoice.payment');
 
+
+Route::post(
+    '/billing/invoices/{invoice}/payment',
+    [BillingController::class, 'processInvoicePayment']
+)
+    ->whereNumber('invoice')
+    ->name('billing.invoice.payment.store');
         Route::get(
             '/billing/payments/{payment}/receipt',
             [BillingController::class, 'receipt']
@@ -1333,6 +1399,15 @@ Route::post(
 )
     ->whereNumber('admission')
     ->name('ip-billing.payment.store');
+
+                    Route::post(
+    '/ip-billing/{admission}/staff-medical-benefit',
+    [IpBillingController::class, 'applyStaffMedicalBenefit']
+)
+    ->whereNumber('admission')
+    ->name('ip-billing.staff-medical-benefit.store');
+
+
         Route::post(
             '/ip-billing/{admission}/charges',
             [IpBillingController::class, 'storeCharge']

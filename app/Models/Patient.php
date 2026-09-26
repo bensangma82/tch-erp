@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Patient extends Model
@@ -42,6 +44,12 @@ class Patient extends Model
         'is_active' => 'boolean',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Display Name
+    |--------------------------------------------------------------------------
+    */
+
     public function getFullNameAttribute(): string
     {
         return trim(
@@ -56,24 +64,79 @@ class Patient extends Model
         );
     }
 
-    public function encounters()
+    /*
+    |--------------------------------------------------------------------------
+    | Clinical / Billing Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    public function encounters(): HasMany
     {
-        return $this->hasMany(Encounter::class);
+        return $this->hasMany(
+            Encounter::class
+        );
     }
 
-    public function invoices()
+    public function invoices(): HasMany
     {
-        return $this->hasMany(Invoice::class);
+        return $this->hasMany(
+            Invoice::class
+        );
     }
 
-    public function payments()
+    public function payments(): HasMany
     {
-        return $this->hasMany(Payment::class);
+        return $this->hasMany(
+            Payment::class
+        );
     }
-    public function serviceOrders()
-{
-    return $this->hasMany(
-        ServiceOrder::class
-    );
-}
+
+    public function serviceOrders(): HasMany
+    {
+        return $this->hasMany(
+            ServiceOrder::class
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Staff Medical Benefit
+    |--------------------------------------------------------------------------
+    |
+    | staffEmployee:
+    | Returns the Employee record when this patient/UHID belongs directly
+    | to a hospital employee.
+    |
+    | staffDependentRecords:
+    | Returns dependent registrations in which this patient/UHID has been
+    | registered as an employee's dependent.
+    |
+    | medicalBenefitTransactions:
+    | Complete Staff Medical Benefit ledger activity for this patient.
+    |
+    */
+
+    public function staffEmployee(): HasOne
+    {
+        return $this->hasOne(
+            Employee::class,
+            'patient_id'
+        );
+    }
+
+    public function staffDependentRecords(): HasMany
+    {
+        return $this->hasMany(
+            EmployeeDependent::class,
+            'patient_id'
+        );
+    }
+
+    public function medicalBenefitTransactions(): HasMany
+    {
+        return $this->hasMany(
+            StaffMedicalBenefitTransaction::class,
+            'patient_id'
+        );
+    }
 }

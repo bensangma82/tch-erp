@@ -13,6 +13,7 @@ class Employee extends Model
 
     protected $fillable = [
         'employee_code',
+        'patient_id',
         'title',
         'first_name',
         'middle_name',
@@ -30,13 +31,11 @@ class Employee extends Model
         'is_active',
     ];
 
-
     protected $casts = [
         'date_of_joining' => 'date',
         'is_doctor' => 'boolean',
         'is_active' => 'boolean',
     ];
-
 
     /*
     |--------------------------------------------------------------------------
@@ -51,13 +50,20 @@ class Employee extends Model
         );
     }
 
-    public function payrollAdjustments()
-{
-    return $this->hasMany(
-        PayrollAdjustment::class,
-        'employee_id'
-    );
-}
+    /*
+    |--------------------------------------------------------------------------
+    | Payroll
+    |--------------------------------------------------------------------------
+    */
+
+    public function payrollAdjustments(): HasMany
+    {
+        return $this->hasMany(
+            PayrollAdjustment::class,
+            'employee_id'
+        );
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Employee Display Name
@@ -78,7 +84,6 @@ class Employee extends Model
         );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Clinical Relationships
@@ -93,6 +98,46 @@ class Employee extends Model
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Staff Medical Benefit
+    |--------------------------------------------------------------------------
+    |
+    | patient:
+    | Links the employee's HR record to the hospital Patient/UHID record.
+    |
+    | medicalDependents:
+    | Registered dependents who may use the employee's shared dependent
+    | family medical-benefit pool.
+    |
+    | medicalBenefitAccounts:
+    | One historical benefit account for each financial year.
+    |
+    */
+
+    public function patient(): BelongsTo
+    {
+        return $this->belongsTo(
+            Patient::class,
+            'patient_id'
+        );
+    }
+
+    public function medicalDependents(): HasMany
+    {
+        return $this->hasMany(
+            EmployeeDependent::class,
+            'employee_id'
+        );
+    }
+
+    public function medicalBenefitAccounts(): HasMany
+    {
+        return $this->hasMany(
+            StaffMedicalBenefitAccount::class,
+            'employee_id'
+        );
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -107,14 +152,12 @@ class Employee extends Model
         );
     }
 
-
     public function leaveRequests(): HasMany
     {
         return $this->hasMany(
             LeaveRequest::class
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -128,7 +171,6 @@ class Employee extends Model
             EmployeeContract::class
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------

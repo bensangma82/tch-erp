@@ -1451,6 +1451,21 @@
                         @endif
 
 
+                            @if ((float) $staffMedicalBenefitAmount > 0)
+
+    <div class="summary-row">
+        <span class="summary-label">
+            Less: Staff Medical Benefit
+        </span>
+
+        <span class="summary-value" style="color: var(--blue);">
+            ₹{{ number_format((float) $staffMedicalBenefitAmount, 2) }}
+        </span>
+    </div>
+
+@endif
+
+
                         <div class="summary-row patient-balance">
                             <span class="summary-label">
                                 Patient Balance Payable
@@ -1462,6 +1477,111 @@
                         </div>
 
                     </div>
+
+
+                                   @if (
+    $staffMedicalBenefit &&
+    (float) $patientBalance > 0 &&
+    (float) $staffMedicalBenefitAmount <= 0
+)
+
+    <div class="collection-panel screen-only avoid-break">
+
+        <h3 class="collection-title">
+            Staff Medical Benefit
+        </h3>
+
+        <p class="collection-help">
+            This patient is eligible as
+            <strong>
+                {{ $staffMedicalBenefit['beneficiary_type'] === 'employee'
+                    ? 'Employee'
+                    : ucfirst($staffMedicalBenefit['relationship'] ?? 'Dependent') }}
+            </strong>
+            of
+            <strong>
+                {{ $staffMedicalBenefit['employee']->full_name }}
+            </strong>.
+        </p>
+
+        <div class="collection-grid">
+
+            <div class="collection-field">
+                <label>Annual Entitlement</label>
+                <div>
+                    ₹{{ number_format(
+                        (float) $staffMedicalBenefit['entitlement'],
+                        2
+                    ) }}
+                </div>
+            </div>
+
+            <div class="collection-field">
+                <label>Available Benefit Balance</label>
+                <div>
+                    <strong>
+                        ₹{{ number_format(
+                            (float) $staffMedicalBenefit['balance'],
+                            2
+                        ) }}
+                    </strong>
+                </div>
+            </div>
+
+            <div class="collection-field">
+                <label>Current Patient Balance</label>
+                <div>
+                    ₹{{ number_format(
+                        (float) $patientBalance,
+                        2
+                    ) }}
+                </div>
+            </div>
+
+            <div class="collection-field">
+                <label>Benefit That Can Be Applied</label>
+                <div>
+                    <strong>
+                        ₹{{ number_format(
+                            min(
+                                (float) $patientBalance,
+                                (float) $staffMedicalBenefit['balance']
+                            ),
+                            2
+                        ) }}
+                    </strong>
+                </div>
+            </div>
+
+        </div>
+
+        <form
+            method="POST"
+            action="{{ route(
+                'ip-billing.staff-medical-benefit.store',
+                $admission
+            ) }}"
+            style="margin-top: 14px;"
+        >
+            @csrf
+
+            <div class="collection-actions">
+                <button
+                    type="submit"
+                    class="collect-button"
+                    style="background-color: #0891b2;"
+                    onclick="return confirm(
+                        'Apply Staff Medical Benefit to this finalized IP bill?'
+                    );"
+                >
+                    Apply Staff Medical Benefit
+                </button>
+            </div>
+        </form>
+
+    </div>
+
+@endif
 
 
                     @if ((float) $patientBalance > 0)

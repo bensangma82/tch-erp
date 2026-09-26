@@ -892,6 +892,19 @@
             </a>
 
 
+                         <a
+    href="{{ route('admin.hr.medical-benefits.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.hr.medical-benefits.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Staff Medical Benefits
+</a>
+
+
             <a
                 href="{{ route('admin.hr.leave-requests.index') }}"
                 class="block rounded-md px-3 py-1.5 text-[12.5px] transition
