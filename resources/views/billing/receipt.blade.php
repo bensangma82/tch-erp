@@ -457,67 +457,98 @@
         </table>
 
 
-        <div class="total-section">
+                     <div class="total-section">
 
 
-            <div class="row">
+    <div class="row">
 
-                <span class="label">
-                    Bill Total
-                </span>
+        <span class="label">
+            Bill Total
+        </span>
 
-                <span class="value">
-                    ₹{{ number_format((float) ($invoice?->total_amount ?? 0), 2) }}
-                </span>
+        <span class="value">
+            ₹{{ number_format((float) ($invoice?->total_amount ?? 0), 2) }}
+        </span>
 
-            </div>
-
-
-            <div class="row">
-
-                <span class="label">
-                    Amount Paid
-                </span>
-
-                <span class="value grand-total">
-                    ₹{{ number_format((float) $payment->amount, 2) }}
-                </span>
-
-            </div>
+    </div>
 
 
-            @if (
-                $invoice &&
-                (float) $invoice->balance_amount > 0
-            )
+    @if ($payment->payment_mode === 'staff_medical_benefit')
 
-                <div class="row">
+        <div class="row">
 
-                    <span class="label">
-                        Balance Due
-                    </span>
+            <span class="label">
+                Staff Medical Benefit
+            </span>
 
-                    <span class="value">
-                        ₹{{ number_format((float) $invoice->balance_amount, 2) }}
-                    </span>
+            <span class="value">
+                ₹{{ number_format((float) $payment->amount, 2) }}
+            </span>
 
-                </div>
+        </div>
 
+
+        <div class="row">
+
+            <span class="label">
+                Patient Amount Paid
+            </span>
+
+            <span class="value grand-total">
+                ₹0.00
+            </span>
+
+        </div>
+
+    @else
+
+        <div class="row">
+
+            <span class="label">
+                Amount Paid
+            </span>
+
+            <span class="value grand-total">
+                ₹{{ number_format((float) $payment->amount, 2) }}
+            </span>
+
+        </div>
+
+    @endif
+
+
+    @if ($invoice)
+
+        <div class="row">
+
+            <span class="label">
+                Balance Due
+            </span>
+
+            <span class="value">
+                ₹{{ number_format((float) $invoice->balance_amount, 2) }}
+            </span>
+
+        </div>
+
+    @endif
+
+
+    <div class="row">
+
+        <span class="label">
+            Payment Mode
+        </span>
+
+        <span class="value">
+            @if ($payment->payment_mode === 'staff_medical_benefit')
+                STAFF MEDICAL BENEFIT
+            @else
+                {{ strtoupper($payment->payment_mode) }}
             @endif
+        </span>
 
-
-            <div class="row">
-
-                <span class="label">
-                    Payment Mode
-                </span>
-
-                <span class="value">
-                    {{ strtoupper($payment->payment_mode) }}
-                </span>
-
-            </div>
-
+    </div>
 
             @if ($payment->transaction_reference)
 

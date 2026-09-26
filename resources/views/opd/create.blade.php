@@ -5,17 +5,14 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div>
-
                 <h2 class="text-xl font-semibold text-gray-800">
-                    OPD Registration & Payment
+                    OPD Registration
                 </h2>
 
                 <p class="mt-1 text-sm text-gray-500">
-                    Register the outpatient visit, collect payment and generate a receipt.
+                    Register the outpatient visit and generate the OPD invoice.
                 </p>
-
             </div>
-
 
             <a
                 href="{{ route('opd.index') }}"
@@ -60,7 +57,6 @@
             @endif
 
 
-
             <form
                 id="opdRegistrationForm"
                 method="POST"
@@ -71,7 +67,6 @@
                 @csrf
 
 
-
                 {{-- ========================================================= --}}
                 {{-- PATIENT --}}
                 {{-- ========================================================= --}}
@@ -80,21 +75,13 @@
 
                     <div class="border-b border-gray-200 px-6 py-4">
 
-                        <div class="flex items-center justify-between">
+                        <h3 class="font-semibold text-gray-800">
+                            Patient
+                        </h3>
 
-                            <div>
-
-                                <h3 class="font-semibold text-gray-800">
-                                    Patient
-                                </h3>
-
-                                <p class="mt-1 text-xs text-gray-500">
-                                    Confirm the patient before registering the OPD visit.
-                                </p>
-
-                            </div>
-
-                        </div>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Confirm the patient before registering the OPD visit.
+                        </p>
 
                     </div>
 
@@ -112,10 +99,7 @@
 
                             <div class="grid grid-cols-1 gap-5 md:grid-cols-5">
 
-
-                                {{-- UHID --}}
                                 <div>
-
                                     <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
                                         UHID
                                     </div>
@@ -123,13 +107,10 @@
                                     <div class="mt-1 font-semibold text-gray-900">
                                         {{ $patient->uhid }}
                                     </div>
-
                                 </div>
 
 
-                                {{-- MRD --}}
                                 <div>
-
                                     <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
                                         MRD No.
                                     </div>
@@ -137,13 +118,10 @@
                                     <div class="mt-1 font-semibold text-gray-900">
                                         {{ $patient->mrd_number ?: '—' }}
                                     </div>
-
                                 </div>
 
 
-                                {{-- PATIENT --}}
                                 <div>
-
                                     <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
                                         Patient
                                     </div>
@@ -151,33 +129,23 @@
                                     <div class="mt-1 font-medium text-gray-900">
                                         {{ $patient->full_name }}
                                     </div>
-
                                 </div>
 
 
-                                {{-- AGE / SEX --}}
                                 <div>
-
                                     <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
                                         Age / Sex
                                     </div>
 
                                     <div class="mt-1 text-gray-800">
-
                                         {{ $patient->age !== null ? $patient->age . ' yrs' : '—' }}
-
                                         /
-
                                         {{ $patient->sex ?: '—' }}
-
                                     </div>
-
                                 </div>
 
 
-                                {{-- PHONE --}}
                                 <div>
-
                                     <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
                                         Phone
                                     </div>
@@ -185,7 +153,6 @@
                                     <div class="mt-1 text-gray-800">
                                         {{ $patient->phone ?: '—' }}
                                     </div>
-
                                 </div>
 
                             </div>
@@ -202,7 +169,6 @@
                                 </a>
 
                             </div>
-
 
                         @else
 
@@ -286,10 +252,7 @@
                                 class="mb-1 block text-sm font-medium text-gray-700"
                             >
                                 Department
-
-                                <span class="text-red-500">
-                                    *
-                                </span>
+                                <span class="text-red-500">*</span>
                             </label>
 
 
@@ -303,7 +266,6 @@
                                 <option value="">
                                     Select Department
                                 </option>
-
 
                                 @foreach ($departments as $department)
 
@@ -321,7 +283,6 @@
                             </select>
 
                         </div>
-
 
 
                         {{-- DOCTOR --}}
@@ -345,7 +306,6 @@
                                     Select Doctor
                                 </option>
 
-
                                 @foreach ($doctors as $doctor)
 
                                     <option
@@ -355,15 +315,11 @@
                                             old('doctor_id') == $doctor->id
                                         )
                                     >
-
                                         {{ $doctor->full_name }}
 
                                         @if ($doctor->speciality)
-
                                             — {{ $doctor->speciality }}
-
                                         @endif
-
                                     </option>
 
                                 @endforeach
@@ -371,7 +327,6 @@
                             </select>
 
                         </div>
-
 
 
                         {{-- VISIT TYPE --}}
@@ -382,11 +337,9 @@
                                 class="mb-1 block text-sm font-medium text-gray-700"
                             >
                                 Visit Type
-
-                                <span class="text-red-500">
-                                    *
-                                </span>
+                                <span class="text-red-500">*</span>
                             </label>
+
 
                             <select
                                 id="visit_type"
@@ -483,6 +436,7 @@
                                 Referred From Department
                             </label>
 
+
                             <select
                                 id="referred_from_department_id"
                                 name="referred_from_department_id"
@@ -524,6 +478,7 @@
                             >
                                 Referring Doctor
                             </label>
+
 
                             <select
                                 id="referring_doctor_id"
@@ -584,7 +539,6 @@
                         </div>
 
 
-
                         {{-- REASON --}}
                         <div class="md:col-span-2">
 
@@ -594,7 +548,6 @@
                             >
                                 Reason for Visit
                             </label>
-
 
                             <textarea
                                 id="reason_for_visit"
@@ -611,9 +564,8 @@
                 </div>
 
 
-
                 {{-- ========================================================= --}}
-                {{-- BILLING --}}
+                {{-- OPD CHARGES --}}
                 {{-- ========================================================= --}}
 
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -667,7 +619,6 @@
                         </div>
 
 
-
                         {{-- REGISTRATION FEE --}}
                         <div>
 
@@ -698,13 +649,11 @@
 
                             </div>
 
-
                             <p class="mt-1 text-xs text-gray-500">
                                 Keep ₹0 if no registration fee applies.
                             </p>
 
                         </div>
-
 
 
                         {{-- TOTAL --}}
@@ -735,254 +684,15 @@
 
                             </div>
 
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-
-                {{-- ========================================================= --}}
-                {{-- PAYMENT --}}
-                {{-- ========================================================= --}}
-
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-
-                    <div class="border-b border-gray-200 bg-green-50 px-6 py-4">
-
-                        <div class="flex items-center justify-between">
-
-                            <div>
-
-                                <h3 class="font-semibold text-gray-800">
-                                    Payment
-                                </h3>
-
-                                <p class="mt-1 text-xs text-gray-600">
-                                    Record the amount collected by reception.
-                                </p>
-
-                            </div>
-
-                            <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                                Reception
-                            </span>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="grid grid-cols-1 gap-5 p-6 md:grid-cols-3">
-
-
-                        {{-- PAYMENT MODE --}}
-                        <div>
-
-                            <label
-                                for="payment_mode"
-                                class="mb-1 block text-sm font-medium text-gray-700"
-                            >
-                                Payment Mode
-
-                                <span class="text-red-500">
-                                    *
-                                </span>
-                            </label>
-
-
-                            <select
-                                id="payment_mode"
-                                name="payment_mode"
-                                required
-                                class="w-full rounded-lg border-gray-300"
-                            >
-
-                                <option
-                                    value="cash"
-                                    @selected(old('payment_mode', 'cash') === 'cash')
-                                >
-                                    Cash
-                                </option>
-
-                                <option
-                                    value="upi"
-                                    @selected(old('payment_mode') === 'upi')
-                                >
-                                    UPI
-                                </option>
-
-                                <option
-                                    value="card"
-                                    @selected(old('payment_mode') === 'card')
-                                >
-                                    Card
-                                </option>
-
-                                <option
-                                    value="credit"
-                                    @selected(old('payment_mode') === 'credit')
-                                >
-                                    Credit
-                                </option>
-
-                                <option
-                                    value="mhis"
-                                    @selected(old('payment_mode') === 'mhis')
-                                >
-                                    MHIS / Insurance
-                                </option>
-
-                            </select>
-
-                        </div>
-
-
-
-                        {{-- TRANSACTION REFERENCE --}}
-                        <div>
-
-                            <label
-                                for="transaction_reference"
-                                class="mb-1 block text-sm font-medium text-gray-700"
-                            >
-                                Transaction / Reference No.
-                            </label>
-
-
-                            <input
-                                id="transaction_reference"
-                                type="text"
-                                name="transaction_reference"
-                                value="{{ old('transaction_reference') }}"
-                                placeholder="UPI / card / reference number"
-                                class="w-full rounded-lg border-gray-300"
-                            >
-
-
-                            <p
-                                id="transaction_reference_help"
-                                class="mt-1 text-xs text-gray-500"
-                            >
-                                Optional for cash payment.
+                            <p class="mt-1 text-xs text-gray-500">
+                                Payment will be collected on the next screen.
                             </p>
 
                         </div>
 
-
-
-                        {{-- AMOUNT RECEIVED --}}
-                        <div>
-
-                            <label
-                                for="amount_received"
-                                class="mb-1 block text-sm font-medium text-gray-700"
-                            >
-                                Amount Received
-
-                                <span class="text-red-500">
-                                    *
-                                </span>
-                            </label>
-
-
-                            <div class="relative">
-
-                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                                    ₹
-                                </div>
-
-                                <input
-                                    id="amount_received"
-                                    type="number"
-                                    name="amount_received"
-                                    value="{{ old('amount_received', 0) }}"
-                                    min="0"
-                                    step="0.01"
-                                    required
-                                    class="w-full rounded-lg border-gray-300 pl-8"
-                                >
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-
-
-                    {{-- PAYMENT SUMMARY --}}
-                    <div class="border-t border-gray-200 bg-gray-50 px-6 py-5">
-
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-
-
-                            <div class="rounded-lg border border-gray-200 bg-white p-4">
-
-                                <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
-                                    Total Payable
-                                </div>
-
-                                <div
-                                    id="summary_total"
-                                    class="mt-1 text-xl font-bold text-gray-900"
-                                >
-                                    ₹0.00
-                                </div>
-
-                            </div>
-
-
-
-                            <div class="rounded-lg border border-gray-200 bg-white p-4">
-
-                                <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
-                                    Amount Received
-                                </div>
-
-                                <div
-                                    id="summary_received"
-                                    class="mt-1 text-xl font-bold text-gray-900"
-                                >
-                                    ₹0.00
-                                </div>
-
-                            </div>
-
-
-
-                            <div class="rounded-lg border border-gray-200 bg-white p-4">
-
-                                <div
-                                    id="balance_label"
-                                    class="text-xs font-medium uppercase tracking-wide text-gray-500"
-                                >
-                                    Balance
-                                </div>
-
-                                <div
-                                    id="summary_balance"
-                                    class="mt-1 text-xl font-bold text-gray-900"
-                                >
-                                    ₹0.00
-                                </div>
-
-                            </div>
-
-                        </div>
-
-
-                        <div
-                            id="payment_message"
-                            class="mt-4 hidden rounded-lg px-4 py-3 text-sm"
-                        >
-                        </div>
-
                     </div>
 
                 </div>
-
 
 
                 {{-- ========================================================= --}}
@@ -990,7 +700,6 @@
                 {{-- ========================================================= --}}
 
                 <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-
 
                     <a
                         href="{{ route('patients.index') }}"
@@ -1005,7 +714,7 @@
                         @disabled(!$patient)
                         class="rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                        Register OPD & Collect Payment
+                        Register OPD
                     </button>
 
                 </div>
@@ -1018,379 +727,520 @@
     </div>
 
 
-
     <script>
 
-
-
-    document.addEventListener(
-        'DOMContentLoaded',
-        function ()
-        {
-            /*
-            |--------------------------------------------------------------------------
-            | Recent OPD visits for automatic follow-up eligibility
-            |--------------------------------------------------------------------------
-            */
-
-            @php
-                $recentVisitsForJs = $recentVisits->map(function ($visit) {
-                    return [
-                        'department_id' => (string) $visit->department_id,
-                        'department_name' => $visit->department?->name,
-                        'doctor_name' => $visit->doctor?->full_name,
-                        'encounter_date' => $visit->encounter_date
-                            ? $visit->encounter_date->format('Y-m-d')
-                            : null,
-                        'display_date' => $visit->encounter_date
-                            ? $visit->encounter_date->format('d M Y')
-                            : null,
-                        'free_until' => $visit->encounter_date
-                            ? $visit->encounter_date->copy()->addDays(7)->format('d M Y')
-                            : null,
-                    ];
-                })->values();
-            @endphp
-
-            const recentVisits = @json($recentVisitsForJs);
-
-            const internalReferralFee =
-                @json($internalReferralFee !== null
-                    ? (float) $internalReferralFee
-                    : null);
-
-            const departmentConsultationFees =
-                @json($departmentConsultationFees);
-
-            const visitType =
-                document.getElementById(
-                    'visit_type'
-                );
-
-
-            const referralType =
-                document.getElementById(
-                    'referral_type'
-                );
-
-            const referralTypeContainer =
-                document.getElementById(
-                    'referralTypeContainer'
-                );
-
-            const internalReferralDepartmentContainer =
-                document.getElementById(
-                    'internalReferralDepartmentContainer'
-                );
-
-            const internalReferringDoctorContainer =
-                document.getElementById(
-                    'internalReferringDoctorContainer'
-                );
-
-            const externalReferralContainer =
-                document.getElementById(
-                    'externalReferralContainer'
-                );
-
-            const referredFromDepartment =
-                document.getElementById(
-                    'referred_from_department_id'
-                );
-
-            const referringDoctor =
-                document.getElementById(
-                    'referring_doctor_id'
-                );
-
-            const followupEligibilityBox =
-                document.getElementById(
-                    'followupEligibilityBox'
-                );
-
-            const followupEligibilityTitle =
-                document.getElementById(
-                    'followupEligibilityTitle'
-                );
-
-            const followupEligibilityText =
-                document.getElementById(
-                    'followupEligibilityText'
-                );
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Doctor filtering
-            |--------------------------------------------------------------------------
-            */
-
-            const departmentSelect =
-                document.getElementById(
-                    'department_id'
-                );
-
-            const doctorSelect =
-                document.getElementById(
-                    'doctor_id'
-                );
-
-
-            function filterDoctors()
+        document.addEventListener(
+            'DOMContentLoaded',
+            function ()
             {
-                if (
-                    !departmentSelect ||
-                    !doctorSelect
-                )
-                {
-                    return;
-                }
+                /*
+                |--------------------------------------------------------------------------
+                | Recent OPD visits
+                |--------------------------------------------------------------------------
+                */
 
-                const departmentId =
-                    departmentSelect.value;
+                @php
+                    $recentVisitsForJs = $recentVisits->map(function ($visit) {
+                        return [
+                            'department_id' => (string) $visit->department_id,
+                            'department_name' => $visit->department?->name,
+                            'doctor_name' => $visit->doctor?->full_name,
+                            'encounter_date' => $visit->encounter_date
+                                ? $visit->encounter_date->format('Y-m-d')
+                                : null,
+                            'display_date' => $visit->encounter_date
+                                ? $visit->encounter_date->format('d M Y')
+                                : null,
+                            'free_until' => $visit->encounter_date
+                                ? $visit->encounter_date
+                                    ->copy()
+                                    ->addDays(7)
+                                    ->format('d M Y')
+                                : null,
+                        ];
+                    })->values();
+                @endphp
 
-                const options =
-                    doctorSelect.querySelectorAll(
-                        'option'
+
+                const recentVisits =
+                    @json($recentVisitsForJs);
+
+                const internalReferralFee =
+                    @json(
+                        $internalReferralFee !== null
+                            ? (float) $internalReferralFee
+                            : null
+                    );
+
+                const departmentConsultationFees =
+                    @json($departmentConsultationFees);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Form elements
+                |--------------------------------------------------------------------------
+                */
+
+                const visitType =
+                    document.getElementById(
+                        'visit_type'
+                    );
+
+                const referralType =
+                    document.getElementById(
+                        'referral_type'
+                    );
+
+                const referralTypeContainer =
+                    document.getElementById(
+                        'referralTypeContainer'
+                    );
+
+                const internalReferralDepartmentContainer =
+                    document.getElementById(
+                        'internalReferralDepartmentContainer'
+                    );
+
+                const internalReferringDoctorContainer =
+                    document.getElementById(
+                        'internalReferringDoctorContainer'
+                    );
+
+                const externalReferralContainer =
+                    document.getElementById(
+                        'externalReferralContainer'
+                    );
+
+                const referredFromDepartment =
+                    document.getElementById(
+                        'referred_from_department_id'
+                    );
+
+                const referringDoctor =
+                    document.getElementById(
+                        'referring_doctor_id'
+                    );
+
+                const followupEligibilityBox =
+                    document.getElementById(
+                        'followupEligibilityBox'
+                    );
+
+                const followupEligibilityTitle =
+                    document.getElementById(
+                        'followupEligibilityTitle'
+                    );
+
+                const followupEligibilityText =
+                    document.getElementById(
+                        'followupEligibilityText'
+                    );
+
+                const departmentSelect =
+                    document.getElementById(
+                        'department_id'
+                    );
+
+                const doctorSelect =
+                    document.getElementById(
+                        'doctor_id'
+                    );
+
+                const consultationFee =
+                    document.getElementById(
+                        'consultation_fee'
+                    );
+
+                const registrationFee =
+                    document.getElementById(
+                        'registration_fee'
+                    );
+
+                const totalAmount =
+                    document.getElementById(
+                        'total_amount'
                     );
 
 
-                options.forEach(
-                    function (option)
+                /*
+                |--------------------------------------------------------------------------
+                | Helpers
+                |--------------------------------------------------------------------------
+                */
+
+                function numberValue(element)
+                {
+                    if (! element)
                     {
-                        if (!option.value)
+                        return 0;
+                    }
+
+                    const value =
+                        parseFloat(
+                            element.value
+                        );
+
+                    return isNaN(value)
+                        ? 0
+                        : value;
+                }
+
+
+                function currency(value)
+                {
+                    return '₹' +
+                        Number(value)
+                            .toFixed(2);
+                }
+
+
+                function calculatePayment()
+                {
+                    const consultation =
+                        numberValue(
+                            consultationFee
+                        );
+
+                    const registration =
+                        numberValue(
+                            registrationFee
+                        );
+
+                    const total =
+                        consultation +
+                        registration;
+
+                    if (totalAmount)
+                    {
+                        totalAmount.value =
+                            total.toFixed(2);
+                    }
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Doctor filtering
+                |--------------------------------------------------------------------------
+                */
+
+                function filterDoctors()
+                {
+                    if (
+                        ! departmentSelect ||
+                        ! doctorSelect
+                    )
+                    {
+                        return;
+                    }
+
+                    const departmentId =
+                        departmentSelect.value;
+
+                    const options =
+                        doctorSelect.querySelectorAll(
+                            'option'
+                        );
+
+                    options.forEach(
+                        function (option)
                         {
-                            option.hidden = false;
+                            if (! option.value)
+                            {
+                                option.hidden =
+                                    false;
+
+                                return;
+                            }
+
+                            const doctorDepartment =
+                                option.dataset.department;
+
+                            option.hidden =
+                                departmentId &&
+                                doctorDepartment !==
+                                departmentId;
+                        }
+                    );
+
+                    const selected =
+                        doctorSelect.options[
+                            doctorSelect.selectedIndex
+                        ];
+
+                    if (
+                        selected &&
+                        selected.value &&
+                        selected.hidden
+                    )
+                    {
+                        doctorSelect.value =
+                            '';
+                    }
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Internal referral
+                |--------------------------------------------------------------------------
+                */
+
+                function isInternalReferral()
+                {
+                    return (
+                        visitType &&
+                        visitType.value === 'referral' &&
+                        referralType &&
+                        referralType.value === 'internal'
+                    );
+                }
+
+
+                function updateReferralFields()
+                {
+                    const isReferral =
+                        visitType &&
+                        visitType.value ===
+                        'referral';
+
+                    const type =
+                        referralType
+                            ? referralType.value
+                            : '';
+
+                    if (referralTypeContainer)
+                    {
+                        referralTypeContainer
+                            .classList
+                            .toggle(
+                                'hidden',
+                                ! isReferral
+                            );
+                    }
+
+                    const showInternal =
+                        isReferral &&
+                        type === 'internal';
+
+                    const showExternal =
+                        isReferral &&
+                        type === 'external';
+
+                    if (
+                        internalReferralDepartmentContainer
+                    )
+                    {
+                        internalReferralDepartmentContainer
+                            .classList
+                            .toggle(
+                                'hidden',
+                                ! showInternal
+                            );
+                    }
+
+                    if (
+                        internalReferringDoctorContainer
+                    )
+                    {
+                        internalReferringDoctorContainer
+                            .classList
+                            .toggle(
+                                'hidden',
+                                ! showInternal
+                            );
+                    }
+
+                    if (externalReferralContainer)
+                    {
+                        externalReferralContainer
+                            .classList
+                            .toggle(
+                                'hidden',
+                                ! showExternal
+                            );
+                    }
+
+                    if (referralType)
+                    {
+                        referralType.required =
+                            isReferral;
+                    }
+
+                    if (referredFromDepartment)
+                    {
+                        referredFromDepartment.required =
+                            showInternal;
+                    }
+
+
+                    /*
+                     * Internal referral fee overrides
+                     * normal consultation/follow-up fee.
+                     */
+                    if (
+                        showInternal &&
+                        consultationFee
+                    )
+                    {
+                        if (
+                            internalReferralFee === null
+                        )
+                        {
+                            consultationFee.value =
+                                '0.00';
+
+                            consultationFee.readOnly =
+                                true;
+
+                            consultationFee.className =
+                                'w-full rounded-lg border-red-300 bg-red-50 pl-8 font-semibold text-red-800';
+
+                            if (
+                                followupEligibilityBox
+                            )
+                            {
+                                followupEligibilityBox.className =
+                                    'rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-800';
+                            }
+
+                            if (
+                                followupEligibilityTitle
+                            )
+                            {
+                                followupEligibilityTitle.textContent =
+                                    'INTERNAL REFERRAL FEE NOT CONFIGURED';
+                            }
+
+                            if (
+                                followupEligibilityText
+                            )
+                            {
+                                followupEligibilityText.textContent =
+                                    'Service code INT-REF is missing or inactive in Service Master.';
+                            }
+
+                            calculatePayment();
+
                             return;
                         }
 
-                        const doctorDepartment =
-                            option.dataset.department;
 
-                        option.hidden =
-                            departmentId &&
-                            doctorDepartment !== departmentId;
+                        consultationFee.value =
+                            Number(
+                                internalReferralFee
+                            ).toFixed(2);
+
+                        consultationFee.readOnly =
+                            true;
+
+                        consultationFee.className =
+                            'w-full rounded-lg border-amber-300 bg-amber-50 pl-8 font-semibold text-amber-800';
+
+                        if (
+                            followupEligibilityBox
+                        )
+                        {
+                            followupEligibilityBox.className =
+                                'rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-800';
+                        }
+
+                        if (
+                            followupEligibilityTitle
+                        )
+                        {
+                            followupEligibilityTitle.textContent =
+                                'INTERNAL REFERRAL — ' +
+                                currency(
+                                    internalReferralFee
+                                );
+                        }
+
+                        if (
+                            followupEligibilityText
+                        )
+                        {
+                            followupEligibilityText.textContent =
+                                'Internal departmental referral charge from Service Master applies. This overrides the 7-day free follow-up rule.';
+                        }
+
+                        calculatePayment();
+
+                        return;
                     }
-                );
 
 
-                const selected =
-                    doctorSelect.options[
-                        doctorSelect.selectedIndex
-                    ];
-
-
-                if (
-                    selected &&
-                    selected.value &&
-                    selected.hidden
-                )
-                {
-                    doctorSelect.value = '';
+                    updateFollowupEligibility();
                 }
-            }
 
 
-            if (
-                departmentSelect &&
-                doctorSelect
-            )
-            {
-                departmentSelect.addEventListener(
-                    'change',
-                    function ()
+                /*
+                |--------------------------------------------------------------------------
+                | Free follow-up / Service Master fee
+                |--------------------------------------------------------------------------
+                */
+
+                function updateFollowupEligibility()
+                {
+                    if (
+                        ! departmentSelect ||
+                        ! consultationFee
+                    )
                     {
-                        filterDoctors();
-                        updateReferralFields();
+                        return;
                     }
-                );
 
-                filterDoctors();
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Billing / payment elements
-            |--------------------------------------------------------------------------
-            */
-
-            const consultationFee =
-                document.getElementById(
-                    'consultation_fee'
-                );
-
-            const registrationFee =
-                document.getElementById(
-                    'registration_fee'
-                );
-
-            const totalAmount =
-                document.getElementById(
-                    'total_amount'
-                );
-
-            const amountReceived =
-                document.getElementById(
-                    'amount_received'
-                );
-
-            const paymentMode =
-                document.getElementById(
-                    'payment_mode'
-                );
-
-            const transactionReference =
-                document.getElementById(
-                    'transaction_reference'
-                );
-
-            const transactionReferenceHelp =
-                document.getElementById(
-                    'transaction_reference_help'
-                );
-
-            const summaryTotal =
-                document.getElementById(
-                    'summary_total'
-                );
-
-            const summaryReceived =
-                document.getElementById(
-                    'summary_received'
-                );
-
-            const summaryBalance =
-                document.getElementById(
-                    'summary_balance'
-                );
-
-            const balanceLabel =
-                document.getElementById(
-                    'balance_label'
-                );
-
-            const paymentMessage =
-                document.getElementById(
-                    'payment_message'
-                );
+                    if (isInternalReferral())
+                    {
+                        return;
+                    }
 
 
-            /*
-            |--------------------------------------------------------------------------
-            | Helper functions
-            |--------------------------------------------------------------------------
-            */
-
-            function numberValue(element)
-            {
-                if (!element)
-                {
-                    return 0;
-                }
-
-                const value =
-                    parseFloat(
-                        element.value
-                    );
-
-                return isNaN(value)
-                    ? 0
-                    : value;
-            }
+                    const departmentId =
+                        String(
+                            departmentSelect.value ||
+                            ''
+                        );
 
 
-            function currency(value)
-            {
-                return '₹' +
-                    Number(value)
-                        .toFixed(2);
-            }
+                    if (! departmentId)
+                    {
+                        if (
+                            followupEligibilityBox
+                        )
+                        {
+                            followupEligibilityBox.className =
+                                'hidden rounded-xl border px-5 py-4';
+                        }
+
+                        consultationFee.readOnly =
+                            false;
+
+                        consultationFee.className =
+                            'w-full rounded-lg border-gray-300 pl-8';
+
+                        calculatePayment();
+
+                        return;
+                    }
 
 
-            /*
-            |--------------------------------------------------------------------------
-            | Automatic 7-day follow-up display
-            |--------------------------------------------------------------------------
-            */
-
-            function isInternalReferral()
-            {
-                return (
-                    visitType &&
-                    visitType.value === 'referral' &&
-                    referralType &&
-                    referralType.value === 'internal'
-                );
-            }
+                    /*
+                     * Check 7-day free follow-up.
+                     */
+                    const eligibleVisit =
+                        recentVisits.find(
+                            function (visit)
+                            {
+                                return String(
+                                    visit.department_id
+                                ) === departmentId;
+                            }
+                        );
 
 
-            function updateReferralFields()
-            {
-                const isReferral =
-                    visitType &&
-                    visitType.value === 'referral';
-
-                const type =
-                    referralType
-                        ? referralType.value
-                        : '';
-
-                if (referralTypeContainer)
-                {
-                    referralTypeContainer.classList.toggle(
-                        'hidden',
-                        !isReferral
-                    );
-                }
-
-                const showInternal =
-                    isReferral &&
-                    type === 'internal';
-
-                const showExternal =
-                    isReferral &&
-                    type === 'external';
-
-                if (internalReferralDepartmentContainer)
-                {
-                    internalReferralDepartmentContainer.classList.toggle(
-                        'hidden',
-                        !showInternal
-                    );
-                }
-
-                if (internalReferringDoctorContainer)
-                {
-                    internalReferringDoctorContainer.classList.toggle(
-                        'hidden',
-                        !showInternal
-                    );
-                }
-
-                if (externalReferralContainer)
-                {
-                    externalReferralContainer.classList.toggle(
-                        'hidden',
-                        !showExternal
-                    );
-                }
-
-                if (referralType)
-                {
-                    referralType.required =
-                        isReferral;
-                }
-
-                if (referredFromDepartment)
-                {
-                    referredFromDepartment.required =
-                        showInternal;
-                }
-
-                if (showInternal && consultationFee)
-                {
-                    if (internalReferralFee === null)
+                    if (eligibleVisit)
                     {
                         consultationFee.value =
                             '0.00';
@@ -1399,32 +1249,73 @@
                             true;
 
                         consultationFee.className =
-                            'w-full rounded-lg border-red-300 bg-red-50 pl-8 font-semibold text-red-800';
+                            'w-full rounded-lg border-green-300 bg-green-50 pl-8 font-semibold text-green-800';
 
-                        if (followupEligibilityBox)
+                        if (
+                            visitType &&
+                            visitType.value !==
+                            'referral'
+                        )
+                        {
+                            visitType.value =
+                                'follow_up';
+                        }
+
+                        if (
+                            followupEligibilityBox
+                        )
                         {
                             followupEligibilityBox.className =
-                                'rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-800';
+                                'rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-green-800';
                         }
 
-                        if (followupEligibilityTitle)
+                        if (
+                            followupEligibilityTitle
+                        )
                         {
                             followupEligibilityTitle.textContent =
-                                'INTERNAL REFERRAL FEE NOT CONFIGURED';
+                                'FREE FOLLOW-UP ELIGIBLE';
                         }
 
-                        if (followupEligibilityText)
+                        if (
+                            followupEligibilityText
+                        )
                         {
+                            let message =
+                                'Previous ' +
+                                (
+                                    eligibleVisit.department_name ||
+                                    'department'
+                                ) +
+                                ' visit: ' +
+                                (
+                                    eligibleVisit.display_date ||
+                                    'recent visit'
+                                ) +
+                                '. Consultation fee: ₹0.00.';
+
+                            if (
+                                eligibleVisit.doctor_name
+                            )
+                            {
+                                message +=
+                                    ' Previous doctor: ' +
+                                    eligibleVisit.doctor_name +
+                                    '.';
+                            }
+
+                            if (
+                                eligibleVisit.free_until
+                            )
+                            {
+                                message +=
+                                    ' Free follow-up valid through ' +
+                                    eligibleVisit.free_until +
+                                    '.';
+                            }
+
                             followupEligibilityText.textContent =
-                                'Service code INT-REF is missing or inactive in Service Master.';
-                        }
-
-                        if (amountReceived)
-                        {
-                            amountReceived.value =
-                                numberValue(
-                                    registrationFee
-                                ).toFixed(2);
+                                message;
                         }
 
                         calculatePayment();
@@ -1432,812 +1323,256 @@
                         return;
                     }
 
-                    consultationFee.value =
-                        Number(
-                            internalReferralFee
-                        ).toFixed(2);
 
-                    consultationFee.readOnly =
-                        true;
+                    /*
+                     * Use department consultation service
+                     * if configured.
+                     */
+                    const configuredService =
+                        departmentConsultationFees
+                            ? departmentConsultationFees[
+                                departmentId
+                            ]
+                            : null;
 
-                    consultationFee.className =
-                        'w-full rounded-lg border-amber-300 bg-amber-50 pl-8 font-semibold text-amber-800';
 
-                    if (followupEligibilityBox)
+                    if (configuredService)
                     {
-                        followupEligibilityBox.className =
-                            'rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-800';
-                    }
-
-                    if (followupEligibilityTitle)
-                    {
-                        followupEligibilityTitle.textContent =
-                            'INTERNAL REFERRAL — ' +
-                            currency(
-                                internalReferralFee
+                        const configuredFee =
+                            Number(
+                                configuredService.price ||
+                                0
                             );
-                    }
 
-                    if (followupEligibilityText)
-                    {
-                        followupEligibilityText.textContent =
-                            'Internal departmental referral charge from Service Master applies. This overrides the 7-day free follow-up rule.';
-                    }
+                        consultationFee.value =
+                            configuredFee.toFixed(2);
 
-                    if (amountReceived)
-                    {
-                        amountReceived.value =
-                            (
-                                Number(
-                                    internalReferralFee
+                        consultationFee.readOnly =
+                            true;
+
+                        consultationFee.className =
+                            'w-full rounded-lg border-blue-300 bg-blue-50 pl-8 font-semibold text-blue-800';
+
+                        if (
+                            followupEligibilityBox
+                        )
+                        {
+                            followupEligibilityBox.className =
+                                'rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-blue-800';
+                        }
+
+                        if (
+                            followupEligibilityTitle
+                        )
+                        {
+                            followupEligibilityTitle.textContent =
+                                'SERVICE MASTER CONSULTATION FEE — ' +
+                                currency(
+                                    configuredFee
+                                );
+                        }
+
+                        if (
+                            followupEligibilityText
+                        )
+                        {
+                            followupEligibilityText.textContent =
+                                'No free follow-up applies. The consultation fee has been loaded automatically from Service Master (' +
+                                (
+                                    configuredService.code ||
+                                    'OPD consultation service'
                                 ) +
-                                numberValue(
-                                    registrationFee
-                                )
-                            ).toFixed(2);
+                                ').';
+                        }
+
+                        calculatePayment();
+
+                        return;
                     }
 
-                    calculatePayment();
 
-                    return;
-                }
+                    /*
+                     * Temporary manual fallback.
+                     */
+                    consultationFee.readOnly =
+                        false;
 
-                updateFollowupEligibility();
-            }
-
-
-            function updateFollowupEligibility()
-            {
-                if (
-                    !departmentSelect ||
-                    !consultationFee
-                )
-                {
-                    return;
-                }
-
-                if (isInternalReferral())
-                {
-                    return;
-                }
-
-                const departmentId =
-                    String(
-                        departmentSelect.value || ''
-                    );
-
-                if (!departmentId)
-                {
-                    if (followupEligibilityBox)
-                    {
-                        followupEligibilityBox.className =
-                            'hidden rounded-xl border px-5 py-4';
-                    }
-
-                    consultationFee.readOnly = false;
                     consultationFee.className =
                         'w-full rounded-lg border-gray-300 pl-8';
 
-                    return;
-                }
-
-                const eligibleVisit =
-                    recentVisits.find(
-                        function (visit)
-                        {
-                            return String(
-                                visit.department_id
-                            ) === departmentId;
-                        }
-                    );
-
-                if (eligibleVisit)
-                {
-                    consultationFee.value =
-                        '0.00';
-
-                    consultationFee.readOnly =
-                        true;
-
-                    consultationFee.className =
-                        'w-full rounded-lg border-green-300 bg-green-50 pl-8 font-semibold text-green-800';
+                    if (
+                        followupEligibilityBox
+                    )
+                    {
+                        followupEligibilityBox.className =
+                            'rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-slate-700';
+                    }
 
                     if (
-                        visitType &&
-                        visitType.value !== 'referral'
+                        followupEligibilityTitle
                     )
                     {
-                        visitType.value =
-                            'follow_up';
-                    }
-
-                    if (followupEligibilityBox)
-                    {
-                        followupEligibilityBox.className =
-                            'rounded-xl border border-green-200 bg-green-50 px-5 py-4 text-green-800';
-                    }
-
-                    if (followupEligibilityTitle)
-                    {
                         followupEligibilityTitle.textContent =
-                            'FREE FOLLOW-UP ELIGIBLE';
+                            'FULL CONSULTATION FEE APPLIES';
                     }
 
-                    if (followupEligibilityText)
-                    {
-                        let message =
-                            'Previous ' +
-                            (eligibleVisit.department_name || 'department') +
-                            ' visit: ' +
-                            (eligibleVisit.display_date || 'recent visit') +
-                            '. Consultation fee: ₹0.00.';
-
-                        if (eligibleVisit.doctor_name)
-                        {
-                            message +=
-                                ' Previous doctor: ' +
-                                eligibleVisit.doctor_name +
-                                '.';
-                        }
-
-                        if (eligibleVisit.free_until)
-                        {
-                            message +=
-                                ' Free follow-up valid through ' +
-                                eligibleVisit.free_until +
-                                '.';
-                        }
-
-                        followupEligibilityText.textContent =
-                            message;
-                    }
-
-                    if (amountReceived)
-                    {
-                        amountReceived.value =
-                            numberValue(
-                                registrationFee
-                            ).toFixed(2);
-                    }
-
-                    calculatePayment();
-
-                    return;
-                }
-
-                const configuredService =
-                    departmentConsultationFees
-                        ? departmentConsultationFees[departmentId]
-                        : null;
-
-                if (configuredService)
-                {
-                    const configuredFee =
-                        Number(
-                            configuredService.price || 0
-                        );
-
-                    consultationFee.value =
-                        configuredFee.toFixed(2);
-
-                    consultationFee.readOnly =
-                        true;
-
-                    consultationFee.className =
-                        'w-full rounded-lg border-blue-300 bg-blue-50 pl-8 font-semibold text-blue-800';
-
-                    if (followupEligibilityBox)
-                    {
-                        followupEligibilityBox.className =
-                            'rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-blue-800';
-                    }
-
-                    if (followupEligibilityTitle)
-                    {
-                        followupEligibilityTitle.textContent =
-                            'SERVICE MASTER CONSULTATION FEE — ' +
-                            currency(
-                                configuredFee
-                            );
-                    }
-
-                    if (followupEligibilityText)
-                    {
-                        followupEligibilityText.textContent =
-                            'No free follow-up applies. The consultation fee has been loaded automatically from Service Master (' +
-                            (configuredService.code || 'OPD consultation service') +
-                            ').';
-                    }
-
-                    if (amountReceived)
-                    {
-                        amountReceived.value =
-                            (
-                                configuredFee +
-                                numberValue(
-                                    registrationFee
-                                )
-                            ).toFixed(2);
-                    }
-
-                    calculatePayment();
-
-                    return;
-                }
-
-                consultationFee.readOnly =
-                    false;
-
-                consultationFee.className =
-                    'w-full rounded-lg border-gray-300 pl-8';
-
-                if (followupEligibilityBox)
-                {
-                    followupEligibilityBox.className =
-                        'rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-slate-700';
-                }
-
-                if (followupEligibilityTitle)
-                {
-                    followupEligibilityTitle.textContent =
-                        'FULL CONSULTATION FEE APPLIES';
-                }
-
-                if (followupEligibilityText)
-                {
-                    followupEligibilityText.textContent =
-                        'No free follow-up applies and no OPD consultation service is configured for this department yet. Enter the consultation fee manually.';
-                }
-
-                calculatePayment();
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Auto-fill cash payment
-            |--------------------------------------------------------------------------
-            |
-            | For cash:
-            | - Default Amount Received to the total payable.
-            | - Reception can overwrite it if the patient gives a larger note.
-            |
-            | Example:
-            | Total = ₹350
-            | Default received = ₹350
-            |
-            */
-
-            function autoFillCashAmount()
-            {
-                if (
-                    !paymentMode ||
-                    !amountReceived ||
-                    !totalAmount
-                )
-                {
-                    return;
-                }
-
-                if (paymentMode.value !== 'cash')
-                {
-                    return;
-                }
-
-                const total =
-                    numberValue(
-                        totalAmount
-                    );
-
-                const currentReceived =
-                    numberValue(
-                        amountReceived
-                    );
-
-                /*
-                 * Only auto-fill when amount is blank or zero.
-                 * This prevents overwriting ₹500 manually entered
-                 * against a ₹350 bill.
-                 */
-                if (
-                    amountReceived.value === '' ||
-                    currentReceived === 0
-                )
-                {
-                    amountReceived.value =
-                        total.toFixed(2);
-                }
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Calculate bill and payment
-            |--------------------------------------------------------------------------
-            */
-
-            function calculatePayment()
-            {
-                const consultation =
-                    numberValue(
-                        consultationFee
-                    );
-
-                const registration =
-                    numberValue(
-                        registrationFee
-                    );
-
-                const total =
-                    consultation +
-                    registration;
-
-
-                if (totalAmount)
-                {
-                    totalAmount.value =
-                        total.toFixed(2);
-                }
-
-
-                /*
-                 * Automatically put the full payable amount into
-                 * Amount Received when Cash is selected.
-                 */
-                autoFillCashAmount();
-
-
-                const received =
-                    numberValue(
-                        amountReceived
-                    );
-
-                const difference =
-                    received -
-                    total;
-
-
-                if (summaryTotal)
-                {
-                    summaryTotal.textContent =
-                        currency(total);
-                }
-
-
-                if (summaryReceived)
-                {
-                    summaryReceived.textContent =
-                        currency(received);
-                }
-
-
-                if (
-                    !summaryBalance ||
-                    !balanceLabel
-                )
-                {
-                    return;
-                }
-
-
-                /*
-                 * No charge.
-                 */
-                if (
-                    total === 0 &&
-                    received === 0
-                )
-                {
-                    balanceLabel.textContent =
-                        'Balance';
-
-                    summaryBalance.textContent =
-                        currency(0);
-
-                    summaryBalance.className =
-                        'mt-1 text-xl font-bold text-gray-900';
-
-                    if (paymentMessage)
-                    {
-                        paymentMessage.className =
-                            'mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600';
-
-                        paymentMessage.textContent =
-                            'No OPD charge entered.';
-                    }
-
-                    return;
-                }
-
-
-                /*
-                 * Exact payment.
-                 */
-                if (difference === 0)
-                {
-                    balanceLabel.textContent =
-                        'Balance';
-
-                    summaryBalance.textContent =
-                        currency(0);
-
-                    summaryBalance.className =
-                        'mt-1 text-xl font-bold text-green-700';
-
-                    if (paymentMessage)
-                    {
-                        paymentMessage.className =
-                            'mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700';
-
-                        paymentMessage.textContent =
-                            'Full payment received.';
-                    }
-
-                    return;
-                }
-
-
-                /*
-                 * Amount received greater than total.
-                 */
-                if (difference > 0)
-                {
-                    balanceLabel.textContent =
-                        'Change to Return';
-
-                    summaryBalance.textContent =
-                        currency(difference);
-
-                    summaryBalance.className =
-                        'mt-1 text-xl font-bold text-blue-700';
-
-                    if (paymentMessage)
-                    {
-                        paymentMessage.className =
-                            'mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700';
-
-                        paymentMessage.textContent =
-                            'Return ' +
-                            currency(difference) +
-                            ' to the patient.';
-                    }
-
-                    return;
-                }
-
-
-                /*
-                 * Partial / unpaid.
-                 */
-                const balance =
-                    Math.abs(
-                        difference
-                    );
-
-                balanceLabel.textContent =
-                    'Amount Due';
-
-                summaryBalance.textContent =
-                    currency(balance);
-
-                summaryBalance.className =
-                    'mt-1 text-xl font-bold text-red-700';
-
-                if (paymentMessage)
-                {
-                    paymentMessage.className =
-                        'mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700';
-
-                    paymentMessage.textContent =
-                        currency(balance) +
-                        ' remains unpaid.';
-                }
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Payment mode / reference
-            |--------------------------------------------------------------------------
-            */
-
-            function updatePaymentMode()
-            {
-                if (
-                    !paymentMode ||
-                    !transactionReference
-                )
-                {
-                    return;
-                }
-
-                const mode =
-                    paymentMode.value;
-
-
-                /*
-                 * Cash
-                 */
-                if (mode === 'cash')
-                {
-                    transactionReference.required =
-                        false;
-
-                    transactionReference.placeholder =
-                        'Not required for cash';
-
-                    if (transactionReferenceHelp)
-                    {
-                        transactionReferenceHelp.textContent =
-                            'Optional for cash payment.';
-                    }
-
-                    /*
-                     * Set cash received to full bill by default.
-                     */
-                    if (amountReceived)
-                    {
-                        const total =
-                            numberValue(
-                                totalAmount
-                            );
-
-                        amountReceived.value =
-                            total.toFixed(2);
-                    }
-
-                    calculatePayment();
-
-                    return;
-                }
-
-
-                /*
-                 * UPI / Card
-                 */
-                if (
-                    mode === 'upi' ||
-                    mode === 'card'
-                )
-                {
-                    transactionReference.required =
-                        true;
-
-                    transactionReference.placeholder =
-                        mode === 'upi'
-                            ? 'Enter UPI transaction reference'
-                            : 'Enter card transaction reference';
-
-                    if (transactionReferenceHelp)
-                    {
-                        transactionReferenceHelp.textContent =
-                            'Reference number is required for electronic payment.';
-                    }
-
-                    /*
-                     * Electronic payment normally equals bill amount.
-                     */
-                    if (amountReceived)
-                    {
-                        amountReceived.value =
-                            numberValue(
-                                totalAmount
-                            ).toFixed(2);
-                    }
-
-                    calculatePayment();
-
-                    return;
-                }
-
-
-                /*
-                 * Credit / MHIS
-                 */
-                transactionReference.required =
-                    false;
-
-                transactionReference.placeholder =
-                    'Reference / approval number if available';
-
-                if (transactionReferenceHelp)
-                {
-                    transactionReferenceHelp.textContent =
-                        'Enter a reference number if applicable.';
-                }
-
-
-                /*
-                 * Credit / insurance means no cash collected
-                 * at reception by default.
-                 */
-                if (
-                    amountReceived &&
-                    (
-                        mode === 'credit' ||
-                        mode === 'mhis'
+                    if (
+                        followupEligibilityText
                     )
-                )
-                {
-                    amountReceived.value =
-                        '0.00';
+                    {
+                        followupEligibilityText.textContent =
+                            'No free follow-up applies and no OPD consultation service is configured for this department yet. Enter the consultation fee manually.';
+                    }
+
+                    calculatePayment();
                 }
 
-                calculatePayment();
-            }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Department change
+                |--------------------------------------------------------------------------
+                */
 
-            /*
-            |--------------------------------------------------------------------------
-            | Field listeners
-            |--------------------------------------------------------------------------
-            */
-
-            if (consultationFee)
-            {
-                consultationFee.addEventListener(
-                    'input',
-                    function ()
-                    {
-                        /*
-                         * If cash / UPI / card, update amount received
-                         * when the bill changes.
-                         */
-                        if (
-                            paymentMode &&
-                            (
-                                paymentMode.value === 'cash' ||
-                                paymentMode.value === 'upi' ||
-                                paymentMode.value === 'card'
-                            )
-                        )
+                if (
+                    departmentSelect &&
+                    doctorSelect
+                )
+                {
+                    departmentSelect.addEventListener(
+                        'change',
+                        function ()
                         {
-                            amountReceived.value =
-                                (
-                                    numberValue(
-                                        consultationFee
-                                    ) +
-                                    numberValue(
-                                        registrationFee
-                                    )
-                                ).toFixed(2);
+                            filterDoctors();
+                            updateReferralFields();
                         }
+                    );
 
-                        calculatePayment();
-                    }
-                );
-            }
+                    filterDoctors();
+                }
 
 
-            if (registrationFee)
-            {
-                registrationFee.addEventListener(
-                    'input',
-                    function ()
-                    {
-                        if (
-                            paymentMode &&
-                            (
-                                paymentMode.value === 'cash' ||
-                                paymentMode.value === 'upi' ||
-                                paymentMode.value === 'card'
-                            )
-                        )
+                /*
+                |--------------------------------------------------------------------------
+                | Fee listeners
+                |--------------------------------------------------------------------------
+                */
+
+                if (consultationFee)
+                {
+                    consultationFee.addEventListener(
+                        'input',
+                        calculatePayment
+                    );
+                }
+
+
+                if (registrationFee)
+                {
+                    registrationFee.addEventListener(
+                        'input',
+                        calculatePayment
+                    );
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Referral listeners
+                |--------------------------------------------------------------------------
+                */
+
+                if (visitType)
+                {
+                    visitType.addEventListener(
+                        'change',
+                        updateReferralFields
+                    );
+                }
+
+
+                if (referralType)
+                {
+                    referralType.addEventListener(
+                        'change',
+                        updateReferralFields
+                    );
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Filter referring doctor by source department
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    referredFromDepartment &&
+                    referringDoctor
+                )
+                {
+                    referredFromDepartment.addEventListener(
+                        'change',
+                        function ()
                         {
-                            amountReceived.value =
-                                (
-                                    numberValue(
-                                        consultationFee
-                                    ) +
-                                    numberValue(
-                                        registrationFee
-                                    )
-                                ).toFixed(2);
-                        }
+                            const sourceDepartmentId =
+                                referredFromDepartment.value;
 
-                        calculatePayment();
-                    }
-                );
-            }
+                            const options =
+                                referringDoctor
+                                    .querySelectorAll(
+                                        'option'
+                                    );
 
-
-            if (visitType)
-            {
-                visitType.addEventListener(
-                    'change',
-                    updateReferralFields
-                );
-            }
-
-
-            if (referralType)
-            {
-                referralType.addEventListener(
-                    'change',
-                    updateReferralFields
-                );
-            }
-
-
-            if (referredFromDepartment && referringDoctor)
-            {
-                referredFromDepartment.addEventListener(
-                    'change',
-                    function ()
-                    {
-                        const sourceDepartmentId =
-                            referredFromDepartment.value;
-
-                        const options =
-                            referringDoctor.querySelectorAll(
-                                'option'
-                            );
-
-                        options.forEach(
-                            function (option)
-                            {
-                                if (!option.value)
+                            options.forEach(
+                                function (option)
                                 {
-                                    option.hidden = false;
-                                    return;
+                                    if (! option.value)
+                                    {
+                                        option.hidden =
+                                            false;
+
+                                        return;
+                                    }
+
+                                    option.hidden =
+                                        sourceDepartmentId &&
+                                        option.dataset.department !==
+                                        sourceDepartmentId;
                                 }
+                            );
 
-                                option.hidden =
-                                    sourceDepartmentId &&
-                                    option.dataset.department
-                                    !== sourceDepartmentId;
+
+                            const selected =
+                                referringDoctor.options[
+                                    referringDoctor.selectedIndex
+                                ];
+
+                            if (
+                                selected &&
+                                selected.value &&
+                                selected.hidden
+                            )
+                            {
+                                referringDoctor.value =
+                                    '';
                             }
-                        );
-
-                        const selected =
-                            referringDoctor.options[
-                                referringDoctor.selectedIndex
-                            ];
-
-                        if (
-                            selected &&
-                            selected.value &&
-                            selected.hidden
-                        )
-                        {
-                            referringDoctor.value = '';
                         }
-                    }
-                );
+                    );
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Initial state
+                |--------------------------------------------------------------------------
+                */
+
+                updateReferralFields();
+                calculatePayment();
             }
+        );
 
-
-            if (amountReceived)
-            {
-                amountReceived.addEventListener(
-                    'input',
-                    calculatePayment
-                );
-            }
-
-
-            if (paymentMode)
-            {
-                paymentMode.addEventListener(
-                    'change',
-                    updatePaymentMode
-                );
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Initial calculation
-            |--------------------------------------------------------------------------
-            */
-
-            updateReferralFields();
-            updatePaymentMode();
-
-        }
-    );
-
-</script>
-
+    </script>
 
 </x-app-layout>

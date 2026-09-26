@@ -184,25 +184,6 @@ class OpdController extends Controller
                 'min:0',
                 'max:999999.99',
             ],
-
-            'payment_mode' => [
-                'required',
-                'in:cash,upi,card,credit,mhis',
-            ],
-
-            'transaction_reference' => [
-                'nullable',
-                'string',
-                'max:255',
-                'required_if:payment_mode,upi,card',
-            ],
-
-            'amount_received' => [
-                'required',
-                'numeric',
-                'min:0',
-                'max:999999.99',
-            ],
         ]);
 
         /*
@@ -233,11 +214,10 @@ class OpdController extends Controller
                     ]);
             }
 
-            $internalReferralFee =
-                round(
-                    (float) $internalReferralService->price,
-                    2
-                );
+            $internalReferralFee = round(
+                (float) $internalReferralService->price,
+                2
+            );
 
             $sourceDepartmentId =
                 (int) $validated['referred_from_department_id'];
@@ -280,10 +260,6 @@ class OpdController extends Controller
         |--------------------------------------------------------------------------
         | Normal department consultation service
         |--------------------------------------------------------------------------
-        |
-        | The backend is authoritative whenever an active OPD-CONS-* service
-        | exists for the selected department.
-        |
         */
         $departmentConsultationService = null;
         $departmentConsultationFee = null;
@@ -312,11 +288,10 @@ class OpdController extends Controller
                 $departmentConsultationServices->first();
 
             if ($departmentConsultationService) {
-                $departmentConsultationFee =
-                    round(
-                        (float) $departmentConsultationService->price,
-                        2
-                    );
+                $departmentConsultationFee = round(
+                    (float) $departmentConsultationService->price,
+                    2
+                );
             }
         }
 
@@ -375,10 +350,13 @@ class OpdController extends Controller
         */
         if ($isInternalReferral) {
             $consultationFee = $internalReferralFee;
+
         } elseif ($isFreeFollowUp) {
             $consultationFee = 0.00;
+
         } elseif ($departmentConsultationService) {
             $consultationFee = $departmentConsultationFee;
+
         } else {
             /*
              * Temporary fallback during Service Master rollout.
@@ -401,57 +379,19 @@ class OpdController extends Controller
             2
         );
 
-        $amountReceived = round(
-            (float) $validated['amount_received'],
-            2
-        );
-
-        if (
-            $validated['payment_mode'] !== 'cash' &&
-            $amountReceived > $totalAmount
-        ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'amount_received' =>
-                        'Amount received cannot be greater than the total bill for this payment mode.',
-                ]);
-        }
-
-        $paymentApplied = min(
-            $amountReceived,
-            $totalAmount
-        );
-
-        $balanceAmount = max(
-            $totalAmount - $paymentApplied,
-            0
-        );
-
-        $changeAmount = max(
-            $amountReceived - $totalAmount,
-            0
-        );
-
-        if ($totalAmount <= 0) {
-            $invoiceStatus = 'paid';
-        } elseif ($paymentApplied <= 0) {
-            $invoiceStatus = 'unpaid';
-        } elseif ($paymentApplied < $totalAmount) {
-            $invoiceStatus = 'partial';
-        } else {
-            $invoiceStatus = 'paid';
-        }
-
+        /*
+        |--------------------------------------------------------------------------
+        | Create encounter and invoice only
+        |--------------------------------------------------------------------------
+        |
+        | Payment is collected separately through the shared invoice payment
+        | screen. No payment or receipt is generated during registration.
+        |
+        */
         $result = DB::transaction(
             function () use (
                 $validated,
-                $totalAmount,
-                $amountReceived,
-                $paymentApplied,
-                $balanceAmount,
-                $changeAmount,
-                $invoiceStatus
+                $totalAmount
             ) {
                 $queueNumber =
                     $this->generateQueueNumber(
@@ -499,6 +439,11 @@ class OpdController extends Controller
                         auth()->id(),
                 ]);
 
+                $invoiceStatus =
+                    $totalAmount > 0
+                        ? 'unpaid'
+                        : 'paid';
+
                 $invoice = Invoice::create([
                     'invoice_no' =>
                         $this->generateInvoiceNumber(),
@@ -525,10 +470,10 @@ class OpdController extends Controller
                         $totalAmount,
 
                     'paid_amount' =>
-                        $paymentApplied,
+                        0,
 
                     'balance_amount' =>
-                        $balanceAmount,
+                        $totalAmount,
 
                     'status' =>
                         $invoiceStatus,
@@ -537,71 +482,9 @@ class OpdController extends Controller
                         auth()->id(),
                 ]);
 
-                $payment = null;
-
-                if ($paymentApplied > 0) {
-                    $remarks = null;
-
-                    if (
-                        $validated['payment_mode'] === 'cash' &&
-                        $changeAmount > 0
-                    ) {
-                        $remarks =
-                            'Cash tendered: ₹'
-                            . number_format(
-                                $amountReceived,
-                                2,
-                                '.',
-                                ''
-                            )
-                            . '; Change returned: ₹'
-                            . number_format(
-                                $changeAmount,
-                                2,
-                                '.',
-                                ''
-                            );
-                    }
-
-                    $payment = Payment::create([
-                        'receipt_no' =>
-                            $this->generateReceiptNumber(),
-
-                        'invoice_id' =>
-                            $invoice->id,
-
-                        'patient_id' =>
-                            $validated['patient_id'],
-
-                        'encounter_id' =>
-                            $encounter->id,
-
-                        'payment_date' =>
-                            now(),
-
-                        'amount' =>
-                            $paymentApplied,
-
-                        'payment_mode' =>
-                            $validated['payment_mode'],
-
-                        'transaction_reference' =>
-                            $validated['transaction_reference']
-                            ?? null,
-
-                        'remarks' =>
-                            $remarks,
-
-                        'received_by' =>
-                            auth()->id(),
-                    ]);
-                }
-
                 return [
                     'encounter' => $encounter,
                     'invoice' => $invoice,
-                    'payment' => $payment,
-                    'change_amount' => $changeAmount,
                 ];
             }
         );
@@ -612,62 +495,46 @@ class OpdController extends Controller
         $invoice =
             $result['invoice'];
 
-        $payment =
-            $result['payment'];
+        /*
+        |--------------------------------------------------------------------------
+        | Payable OPD registration
+        |--------------------------------------------------------------------------
+        */
+        if ($totalAmount > 0) {
+            return redirect()
+                ->route(
+                    'billing.invoice.payment',
+                    $invoice
+                )
+                ->with(
+                    'success',
+                    'OPD registration completed. Queue number: '
+                    . $encounter->queue_number
+                    . '. Please collect payment for invoice '
+                    . $invoice->invoice_no
+                    . '.'
+                );
+        }
 
-        $changeAmount =
-            $result['change_amount'];
-
+        /*
+        |--------------------------------------------------------------------------
+        | Zero-value OPD registration
+        |--------------------------------------------------------------------------
+        |
+        | No payment is required, so return directly to the OPD queue.
+        |
+        */
         $message =
             'OPD registration completed. '
             . 'Queue number: '
             . $encounter->queue_number
             . '. Invoice: '
-            . $invoice->invoice_no;
+            . $invoice->invoice_no
+            . '. No payment required.';
 
-        if ($isInternalReferral) {
+        if ($isFreeFollowUp) {
             $message .=
-                '. Internal referral fee ₹'
-                . number_format(
-                    (float) $internalReferralFee,
-                    2
-                )
-                . ' applied.';
-        } elseif ($isFreeFollowUp) {
-            $message .=
-                '. Free follow-up consultation applied.';
-        } elseif ($departmentConsultationService) {
-            $message .=
-                '. Consultation fee ₹'
-                . number_format(
-                    (float) $departmentConsultationFee,
-                    2
-                )
-                . ' applied from Service Master.';
-        }
-
-        if ($payment) {
-            $message .=
-                '. Receipt: '
-                . $payment->receipt_no;
-        }
-
-        if ($changeAmount > 0) {
-            $message .=
-                '. Change to return: ₹'
-                . number_format(
-                    $changeAmount,
-                    2
-                );
-        }
-
-        if ((float) $invoice->balance_amount > 0) {
-            $message .=
-                '. Balance due: ₹'
-                . number_format(
-                    (float) $invoice->balance_amount,
-                    2
-                );
+                ' Free follow-up consultation applied.';
         }
 
         return redirect()

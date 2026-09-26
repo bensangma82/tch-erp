@@ -4,12 +4,15 @@
         <div class="flex items-center justify-between">
             <div>
                 <h2 class="text-xl font-semibold text-slate-900">
-                    Outstanding Investigation Payment
+                   {{ strtolower((string) $invoice->invoice_type) === 'opd'
+    ? 'OPD Payment'
+    : 'Outstanding Investigation Payment' }}
                 </h2>
 
                 <p class="mt-1 text-sm text-slate-500">
-                    Collect the remaining balance against an existing investigation invoice.
-                </p>
+                    {{ strtolower((string) $invoice->invoice_type) === 'opd'
+    ? 'Collect payment for this OPD registration.'
+    : 'Collect the remaining balance against an existing investigation invoice.' }}
             </div>
 
             <a
@@ -281,6 +284,17 @@
                                     Card
                                 </option>
 
+                                @if ($staffMedicalBenefit)
+    <option
+        value="staff_medical_benefit"
+        @selected(
+            old('payment_mode') === 'staff_medical_benefit'
+        )
+    >
+        Staff Medical Benefit
+    </option>
+@endif
+
                             </select>
 
                         </div>
@@ -475,6 +489,17 @@
             const balance =
                 {{ json_encode(round((float) $invoice->balance_amount, 2)) }};
 
+
+                          const staffMedicalBenefitBalance =
+    {{ json_encode(
+        $staffMedicalBenefit
+            ? round(
+                (float) $staffMedicalBenefit['balance'],
+                2
+            )
+            : 0
+    ) }};
+
             const paymentMode =
                 document.getElementById('payment_mode');
 
@@ -512,6 +537,26 @@
 
                 received =
                     Math.max(received, 0);
+
+                    if (mode === 'staff_medical_benefit') {
+
+    received =
+        Math.min(
+            balance,
+            staffMedicalBenefitBalance
+        );
+
+    amountReceived.value =
+        received.toFixed(2);
+
+    amountReceived.readOnly =
+        true;
+
+} else {
+
+    amountReceived.readOnly =
+        false;
+}
 
 
                 let applied =
