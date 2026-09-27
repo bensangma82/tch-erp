@@ -129,7 +129,19 @@ class User extends Authenticatable
         );
     }
 
+                      public function canApproveCharity(): bool
+{
+    if ($this->isSuperAdmin()) {
+        return true;
+    }
 
+    return $this->permissions()
+        ->where(
+            'permissions.name',
+            'charity.approve'
+        )
+        ->exists();
+}
     /*
     |--------------------------------------------------------------------------
     | Permissions

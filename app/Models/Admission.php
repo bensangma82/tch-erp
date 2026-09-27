@@ -200,4 +200,13 @@ public function admission()
         Admission::class
     );
 }
+
+public function charityAdjustments(): HasMany
+{
+    return $this->hasMany(
+        CharityAdjustment::class
+    )
+        ->orderBy('created_at')
+        ->orderBy('id');
+}
 }

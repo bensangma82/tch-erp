@@ -29,6 +29,7 @@ use App\Http\Controllers\Hr\PayrollRunController;
 use App\Http\Controllers\Hr\StaffMedicalBenefitController;
 use App\Http\Controllers\Administration\AdministrativeRequestController;
 use App\Http\Controllers\InpatientMasterController;
+use App\Http\Controllers\CharityAdjustmentController;
 use App\Http\Controllers\BedTariffController;
 use App\Http\Controllers\IpBillingController;
 use App\Http\Controllers\BillingController;
@@ -421,6 +422,16 @@ Route::get(
     '/hr/medical-benefits/patient-search',
     [StaffMedicalBenefitController::class, 'searchPatients']
 )->name('hr.medical-benefits.patient-search');
+
+Route::post(
+    '/hr/medical-benefits/employees',
+    [
+        StaffMedicalBenefitController::class,
+        'storeEmployeeBenefit',
+    ]
+)->name(
+    'hr.medical-benefits.employees.store'
+);
 
 Route::get(
     '/hr/medical-benefits/{benefitAccount}',
@@ -1441,7 +1452,93 @@ Route::post(
 
     });
 
+                         /*
+|--------------------------------------------------------------------------
+| Charity / Write-off Requests
+|--------------------------------------------------------------------------
+|
+| Billing staff and administrators may submit a request.
+| Submission does not alter the patient's bill.
+|
+*/
 
+Route::middleware(
+    'role:admin,billing'
+)->group(function () {
+
+    Route::post(
+        '/charity-adjustments',
+        [
+            CharityAdjustmentController::class,
+            'store',
+        ]
+    )
+        ->name(
+            'charity-adjustments.store'
+        );
+
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Charity / Write-off Approval
+|--------------------------------------------------------------------------
+|
+| Only authorized administrative / financial users may approve,
+| reject or apply a charity adjustment.
+|
+*/
+
+Route::middleware(
+    'role:admin,finance,management'
+)->group(function () {
+
+    Route::post(
+        '/charity-adjustments/{charityAdjustment}/approve',
+        [
+            CharityAdjustmentController::class,
+            'approve',
+        ]
+    )
+        ->whereNumber(
+            'charityAdjustment'
+        )
+        ->name(
+            'charity-adjustments.approve'
+        );
+
+
+    Route::post(
+        '/charity-adjustments/{charityAdjustment}/reject',
+        [
+            CharityAdjustmentController::class,
+            'reject',
+        ]
+    )
+        ->whereNumber(
+            'charityAdjustment'
+        )
+        ->name(
+            'charity-adjustments.reject'
+        );
+
+
+    Route::post(
+        '/charity-adjustments/{charityAdjustment}/apply',
+        [
+            CharityAdjustmentController::class,
+            'apply',
+        ]
+    )
+        ->whereNumber(
+            'charityAdjustment'
+        )
+        ->name(
+            'charity-adjustments.apply'
+        );
+
+});
     /*
     |--------------------------------------------------------------------------
     | IPD Nursing / Billing Shared Financial Actions

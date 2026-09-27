@@ -79,8 +79,42 @@
                 0
             );
 
-        $isFinalized =
-            $account->status === 'finalized';
+                    $isFinalized =
+    $account->status === 'finalized';
+
+
+$charityAdjustments =
+    $account->charityAdjustments;
+
+
+$charityAppliedAmount =
+    round(
+        (float) $charityAdjustments
+            ->where(
+                'status',
+                'applied'
+            )
+            ->sum(
+                fn ($adjustment) =>
+                    (float) $adjustment->approved_amount
+            ),
+        2
+    );
+
+
+$charityPendingAmount =
+    round(
+        (float) $charityAdjustments
+            ->where(
+                'status',
+                'pending'
+            )
+            ->sum(
+                fn ($adjustment) =>
+                    (float) $adjustment->requested_amount
+            ),
+        2
+    );
     @endphp
 
 
@@ -265,7 +299,7 @@
 
 
             {{-- FINANCIAL SUMMARY --}}
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
 
                 <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
@@ -334,7 +368,26 @@
 
                 </div>
 
+                        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
 
+    <div class="text-xs font-semibold uppercase tracking-wide text-amber-700">
+        Charity / Write-off
+    </div>
+
+    <div class="mt-2 text-2xl font-bold text-amber-800">
+        ₹{{ number_format($charityAppliedAmount, 2) }}
+    </div>
+
+    @if ($charityPendingAmount > 0)
+
+        <div class="mt-2 text-xs font-semibold text-amber-700">
+            Pending request:
+            ₹{{ number_format($charityPendingAmount, 2) }}
+        </div>
+
+    @endif
+
+</div>
                 <div
                     class="rounded-2xl border p-5 shadow-sm
                         @if ((float) $account->balance_amount > 0)
@@ -539,7 +592,613 @@
 
             </div>
 
+                                               {{-- ========================================================= --}}
+{{-- CHARITY / WRITE-OFF --}}
+{{-- ========================================================= --}}
 
+<div class="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+
+    <div class="border-b border-amber-200 bg-amber-50 px-6 py-4">
+
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+            <div>
+
+                <h3 class="text-base font-semibold text-amber-900">
+                    Charity / Write-off
+                </h3>
+
+                <p class="mt-1 text-sm text-amber-700">
+                    Record an approved hospital waiver without changing the original charges.
+                </p>
+
+            </div>
+
+
+            <div class="text-right">
+
+                <div class="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                    Applied
+                </div>
+
+                <div class="mt-1 text-xl font-bold text-amber-900">
+                    ₹{{ number_format($charityAppliedAmount, 2) }}
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="grid gap-6 p-6 lg:grid-cols-2">
+
+
+        {{-- REQUEST FORM --}}
+        <div>
+
+            <h4 class="font-semibold text-slate-900">
+                Request Charity / Write-off
+            </h4>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Submit the patient's remaining balance, or part of it, for approval.
+            </p>
+
+
+            @if ((float) $account->balance_amount > 0)
+
+                <form
+                    method="POST"
+                    action="{{ route('charity-adjustments.store') }}"
+                    class="mt-5 space-y-4"
+                >
+
+                    @csrf
+
+
+                    <input
+                        type="hidden"
+                        name="patient_id"
+                        value="{{ $patient->id }}"
+                    >
+
+                    <input
+                        type="hidden"
+                        name="admission_id"
+                        value="{{ $admission->id }}"
+                    >
+
+                    <input
+                        type="hidden"
+                        name="ip_billing_account_id"
+                        value="{{ $account->id }}"
+                    >
+
+
+                    <div>
+
+                        <label
+                            for="charity_adjustment_type"
+                            class="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            Type
+                        </label>
+
+                        <select
+                            id="charity_adjustment_type"
+                            name="adjustment_type"
+                            required
+                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                        >
+
+                            <option value="charity">
+                                Charity
+                            </option>
+
+                            <option value="write_off">
+                                Write-off
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            for="charity_requested_amount"
+                            class="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            Requested Amount
+                        </label>
+
+
+                        <div class="relative">
+
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                ₹
+                            </span>
+
+                            <input
+                                id="charity_requested_amount"
+                                name="requested_amount"
+                                type="number"
+                                min="0.01"
+                                max="{{ number_format((float) $account->balance_amount, 2, '.', '') }}"
+                                step="0.01"
+                                value="{{ old('requested_amount') }}"
+                                required
+                                class="w-full rounded-lg border-slate-300 pl-8 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                            >
+
+                        </div>
+
+
+                        <div class="mt-1 text-xs text-slate-500">
+                            Current outstanding balance:
+                            <span class="font-semibold text-slate-700">
+                                ₹{{ number_format((float) $account->balance_amount, 2) }}
+                            </span>
+                        </div>
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            for="charity_reason"
+                            class="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            Reason
+                        </label>
+
+                        <input
+                            id="charity_reason"
+                            name="reason"
+                            type="text"
+                            maxlength="255"
+                            value="{{ old('reason') }}"
+                            placeholder="Example: Patient unable to afford residual hospital bill"
+                            required
+                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            for="charity_remarks"
+                            class="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                            Remarks
+                        </label>
+
+                        <textarea
+                            id="charity_remarks"
+                            name="remarks"
+                            rows="3"
+                            placeholder="Optional additional information"
+                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                        >{{ old('remarks') }}</textarea>
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        onclick="return confirm('Submit this charity / write-off request for approval?')"
+                        class="inline-flex items-center justify-center rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+                    >
+                        Submit for Approval
+                    </button>
+
+                </form>
+
+            @else
+
+                <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+
+                    <div class="font-semibold text-emerald-800">
+                        No outstanding patient balance
+                    </div>
+
+                    <p class="mt-1 text-sm text-emerald-700">
+                        Charity / write-off is not required because the current balance is ₹0.00.
+                    </p>
+
+                </div>
+
+            @endif
+
+        </div>
+
+
+
+        {{-- ADJUSTMENT HISTORY --}}
+        <div>
+
+            <h4 class="font-semibold text-slate-900">
+                Charity History
+            </h4>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Requests and approved hospital assistance for this admission.
+            </p>
+
+
+            @if ($charityAdjustments->count() > 0)
+
+                <div class="mt-5 space-y-3">
+
+                    @foreach ($charityAdjustments->sortByDesc('id') as $adjustment)
+
+                        <div class="rounded-xl border border-slate-200 p-4">
+
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+
+                                <div>
+
+                                    <div class="flex flex-wrap items-center gap-2">
+
+                                        <span class="font-semibold text-slate-900">
+                                            {{ ucfirst(str_replace('_', ' ', $adjustment->adjustment_type)) }}
+                                        </span>
+
+
+                                        <span
+                                            class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold
+                                                @if ($adjustment->status === 'applied')
+                                                    bg-emerald-100 text-emerald-700
+                                                @elseif ($adjustment->status === 'approved')
+                                                    bg-blue-100 text-blue-700
+                                                @elseif ($adjustment->status === 'pending')
+                                                    bg-amber-100 text-amber-700
+                                                @elseif ($adjustment->status === 'rejected')
+                                                    bg-red-100 text-red-700
+                                                @else
+                                                    bg-slate-100 text-slate-700
+                                                @endif
+                                            "
+                                        >
+                                            {{ ucfirst($adjustment->status) }}
+                                        </span>
+
+                                    </div>
+
+
+                                    <div class="mt-2 text-sm text-slate-700">
+                                        {{ $adjustment->reason }}
+                                    </div>
+
+
+                                    @if ($adjustment->remarks)
+
+                                        <div class="mt-1 text-xs text-slate-500">
+                                            {{ $adjustment->remarks }}
+                                        </div>
+
+                                    @endif
+
+
+                                    <div class="mt-3 text-xs text-slate-500">
+
+                                        Requested by
+                                        <span class="font-semibold text-slate-700">
+                                            {{ $adjustment->requestedBy?->name ?? 'User' }}
+                                        </span>
+
+                                        @if ($adjustment->requested_at)
+                                            · {{ $adjustment->requested_at->format('d M Y, h:i A') }}
+                                        @endif
+
+                                    </div>
+
+
+                                    @if ($adjustment->approvedBy)
+
+                                        <div class="mt-1 text-xs text-slate-500">
+
+                                            Approved by
+                                            <span class="font-semibold text-slate-700">
+                                                {{ $adjustment->approvedBy?->name ?? 'User' }}
+                                            </span>
+
+                                            @if ($adjustment->approved_at)
+                                                · {{ $adjustment->approved_at->format('d M Y, h:i A') }}
+                                            @endif
+
+                                        </div>
+
+                                    @endif
+
+                                </div>
+
+
+                                <div class="text-left sm:text-right">
+
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Requested
+                                    </div>
+
+                                    <div class="mt-1 font-bold text-slate-900">
+                                        ₹{{ number_format((float) $adjustment->requested_amount, 2) }}
+                                    </div>
+
+
+                                    @if ($adjustment->approved_amount !== null)
+
+                                        <div class="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                            Approved
+                                        </div>
+
+                                        <div class="mt-1 font-bold text-emerald-700">
+                                            ₹{{ number_format((float) $adjustment->approved_amount, 2) }}
+                                        </div>
+
+                                    @endif
+
+                                </div>
+
+                            </div>
+                                               {{-- ========================================================= --}}
+{{-- CHARITY APPROVAL ACTIONS --}}
+{{-- ========================================================= --}}
+
+@if (
+    auth()->user()
+    &&
+    auth()->user()->canApproveCharity()
+)
+
+    @if ($adjustment->status === 'pending')
+
+        <div class="mt-4 border-t border-slate-200 pt-4">
+
+            <div class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Approval
+            </div>
+
+
+            <div class="grid gap-3 lg:grid-cols-2">
+
+
+                {{-- APPROVE --}}
+                <form
+                    method="POST"
+                    action="{{ route(
+                        'charity-adjustments.approve',
+                        $adjustment
+                    ) }}"
+                    class="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
+                >
+
+                    @csrf
+
+
+                    <label
+                        for="approved_amount_{{ $adjustment->id }}"
+                        class="mb-2 block text-sm font-semibold text-emerald-900"
+                    >
+                        Approved Amount
+                    </label>
+
+
+                    <div class="relative">
+
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-emerald-600">
+                            ₹
+                        </span>
+
+                        <input
+                            id="approved_amount_{{ $adjustment->id }}"
+                            name="approved_amount"
+                            type="number"
+                            min="0.01"
+                            max="{{ number_format(
+                                (float) $adjustment->requested_amount,
+                                2,
+                                '.',
+                                ''
+                            ) }}"
+                            step="0.01"
+                            value="{{ number_format(
+                                (float) $adjustment->requested_amount,
+                                2,
+                                '.',
+                                ''
+                            ) }}"
+                            required
+                            class="w-full rounded-lg border-emerald-300 pl-8 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                        >
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        onclick="return confirm(
+                            'Approve this charity / write-off request?'
+                        )"
+                        class="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+                    >
+                        Approve
+                    </button>
+
+                </form>
+
+
+
+                {{-- REJECT --}}
+                <form
+                    method="POST"
+                    action="{{ route(
+                        'charity-adjustments.reject',
+                        $adjustment
+                    ) }}"
+                    class="rounded-xl border border-red-200 bg-red-50 p-4"
+                >
+
+                    @csrf
+
+
+                    <label
+                        for="rejection_remarks_{{ $adjustment->id }}"
+                        class="mb-2 block text-sm font-semibold text-red-900"
+                    >
+                        Rejection Reason
+                    </label>
+
+                    <textarea
+                        id="rejection_remarks_{{ $adjustment->id }}"
+                        name="remarks"
+                        rows="2"
+                        required
+                        placeholder="Reason for rejecting this request"
+                        class="w-full rounded-lg border-red-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+                    ></textarea>
+
+
+                    <button
+                        type="submit"
+                        onclick="return confirm(
+                            'Reject this charity / write-off request?'
+                        )"
+                        class="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+                    >
+                        Reject
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+
+    @elseif ($adjustment->status === 'approved')
+
+        <div class="mt-4 border-t border-slate-200 pt-4">
+
+            <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+                    <div>
+
+                        <div class="font-semibold text-blue-900">
+                            Approved — awaiting application
+                        </div>
+
+                        <div class="mt-1 text-sm text-blue-700">
+                            Approved amount:
+                            ₹{{ number_format(
+                                (float) $adjustment->approved_amount,
+                                2
+                            ) }}
+                        </div>
+
+                    </div>
+
+
+                    <form
+                        method="POST"
+                        action="{{ route(
+                            'charity-adjustments.apply',
+                            $adjustment
+                        ) }}"
+                    >
+
+                        @csrf
+
+                        <button
+                            type="submit"
+                            onclick="return confirm(
+                                'Apply this approved charity / write-off to the patient balance? This will reduce the outstanding balance.'
+                            )"
+                            class="inline-flex items-center justify-center rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-800"
+                        >
+                            Apply to Bill
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+    @elseif ($adjustment->status === 'applied')
+
+        <div class="mt-4 border-t border-slate-200 pt-4">
+
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+
+                <div class="font-semibold text-emerald-800">
+                    Adjustment applied to bill
+                </div>
+
+                <div class="mt-1 text-sm text-emerald-700">
+
+                    ₹{{ number_format(
+                        (float) $adjustment->approved_amount,
+                        2
+                    ) }}
+
+                    has been deducted from the patient's outstanding liability.
+
+                    @if ($adjustment->applied_at)
+
+                        Applied on
+                        {{ $adjustment->applied_at->format(
+                            'd M Y, h:i A'
+                        ) }}.
+
+                    @endif
+
+                </div>
+
+            </div>
+
+        </div>
+
+    @endif
+
+@endif
+                        </div>
+
+                    @endforeach
+
+                </div>
+
+            @else
+
+                <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center">
+
+                    <div class="font-semibold text-slate-700">
+                        No charity requests
+                    </div>
+
+                    <p class="mt-1 text-sm text-slate-500">
+                        No charity or write-off has been recorded for this admission.
+                    </p>
+
+                </div>
+
+            @endif
+
+        </div>
+
+    </div>
+
+</div>
             {{-- CHARGES --}}
             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 

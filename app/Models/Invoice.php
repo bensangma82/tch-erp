@@ -59,4 +59,11 @@ class Invoice extends Model
         InvoiceItem::class
     );
 }
+
+public function charityAdjustments()
+{
+    return $this->hasMany(
+        CharityAdjustment::class
+    );
+}
 }

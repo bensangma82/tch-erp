@@ -137,4 +137,14 @@ public function mhisReceipts(): HasMany
         ->orderBy('transaction_date')
         ->orderBy('id');
 }
+
+public function charityAdjustments(): HasMany
+{
+    return $this->hasMany(
+        CharityAdjustment::class,
+        'ip_billing_account_id'
+    )
+        ->orderBy('created_at')
+        ->orderBy('id');
+}
 }

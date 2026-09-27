@@ -297,15 +297,22 @@ class IpBillingController extends Controller
 
 
     $account->load([
-        'charges.service',
-        'charges.createdBy',
-        'advances.receivedBy',
-        'payments.receivedBy',
-        'mhisClaims.createdBy',
-        'mhisClaims.updatedBy',
-        'mhisClaims.receipts.receivedBy',
-        'mhisReceipts.receivedBy',
-    ]);
+    'charges.service',
+    'charges.createdBy',
+
+    'advances.receivedBy',
+
+    'payments.receivedBy',
+
+    'mhisClaims.createdBy',
+    'mhisClaims.updatedBy',
+    'mhisClaims.receipts.receivedBy',
+    'mhisReceipts.receivedBy',
+
+    'charityAdjustments.requestedBy',
+    'charityAdjustments.approvedBy',
+    'charityAdjustments.cancelledBy',
+]);
 
 
     /*
@@ -3637,165 +3644,302 @@ public function applyStaffMedicalBenefit(
     |--------------------------------------------------------------------------
     */
 
-    private function recalculateAccount(
-        IpBillingAccount $account
-    ): void {
+               private function recalculateAccount(
+    IpBillingAccount $account
+): void {
 
-        $account->load([
-            'charges',
-            'advances',
-            'payments',
-            'mhisClaims',
-            'mhisReceipts',
-            'staffMedicalBenefitTransactions',
-        ]);
+    $account->load([
+        'charges',
+        'advances',
+        'payments',
+        'mhisClaims',
+        'mhisReceipts',
+        'staffMedicalBenefitTransactions',
+        'charityAdjustments',
+    ]);
 
 
-        $activeCharges = $account->charges
+    /*
+    |--------------------------------------------------------------------------
+    | Active Charges
+    |--------------------------------------------------------------------------
+    */
+
+    $activeCharges =
+        $account->charges
             ->where(
                 'status',
                 'active'
             );
 
 
-        $subtotal = round(
-            (float) $activeCharges->sum(
-                function ($charge) {
-                    return round(
-                        (float) $charge->quantity
-                        * (float) $charge->unit_price,
-                        2
-                    );
-                }
-            ),
-            2
-        );
+    /*
+    |--------------------------------------------------------------------------
+    | Gross Subtotal
+    |--------------------------------------------------------------------------
+    */
 
+    $subtotal = round(
+        (float) $activeCharges->sum(
+            function ($charge) {
 
-        $discountAmount = round(
-            (float) $activeCharges->sum(
-                function ($charge) {
-                    return (float) $charge->discount;
-                }
-            ),
-            2
-        );
-
-
-        $netAmount = round(
-            (float) $activeCharges->sum(
-                function ($charge) {
-                    return (float) $charge->amount;
-                }
-            ),
-            2
-        );
-
-
-        $advanceAmount = round(
-            (float) $account->advances
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($advance) {
-                        return (float) $advance->amount;
-                    }
-                ),
-            2
-        );
-
-
-        $paidAmount = round(
-            (float) $account->payments
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($payment) {
-                        return (float) $payment->amount;
-                    }
-                ),
-            2
-        );
-
-
-        $mhisApprovedAmount = round(
-            (float) $account->mhisClaims
-                ->whereIn(
-                    'status',
-                    [
-                        'approved',
-                        'submitted',
-                        'settled',
-                    ]
-                )
-                ->sum(
-                    function ($claim) {
-                        return (float) $claim->approved_amount;
-                    }
-                ),
-            2
-        );
-
-                      $staffMedicalBenefitAmount = round(
-    (float) $account->staffMedicalBenefitTransactions
-        ->where(
-            'status',
-            'active'
-        )
-        ->sum(
-            function ($transaction) {
-                if ($transaction->transaction_type === 'utilization') {
-                    return (float) $transaction->amount;
-                }
-
-                if ($transaction->transaction_type === 'reversal') {
-                    return -1 * (float) $transaction->amount;
-                }
-
-                return 0;
+                return round(
+                    (float) $charge->quantity
+                    * (float) $charge->unit_price,
+                    2
+                );
             }
         ),
-    2
-);                 
-         
-        $balanceAmount = round(
-            max(
-                $netAmount
-                - $advanceAmount
-                - $paidAmount
-                - $mhisApprovedAmount
-                - $staffMedicalBenefitAmount,
-                0
+        2
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Charge-level Discounts
+    |--------------------------------------------------------------------------
+    */
+
+    $discountAmount = round(
+        (float) $activeCharges->sum(
+            function ($charge) {
+
+                return (float)
+                    $charge->discount;
+            }
+        ),
+        2
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Net Hospital Charges
+    |--------------------------------------------------------------------------
+    */
+
+    $netAmount = round(
+        (float) $activeCharges->sum(
+            function ($charge) {
+
+                return (float)
+                    $charge->amount;
+            }
+        ),
+        2
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Active Advances / Deposits
+    |--------------------------------------------------------------------------
+    */
+
+    $advanceAmount = round(
+        (float) $account->advances
+            ->where(
+                'status',
+                'active'
+            )
+            ->sum(
+                function ($advance) {
+
+                    return (float)
+                        $advance->amount;
+                }
             ),
-            2
-        );
+        2
+    );
 
 
-        $account->update([
-            'subtotal' =>
-                $subtotal,
+    /*
+    |--------------------------------------------------------------------------
+    | Other Active Payments
+    |--------------------------------------------------------------------------
+    */
 
-            'discount_amount' =>
-                $discountAmount,
+    $paidAmount = round(
+        (float) $account->payments
+            ->where(
+                'status',
+                'active'
+            )
+            ->sum(
+                function ($payment) {
 
-            'net_amount' =>
-                $netAmount,
+                    return (float)
+                        $payment->amount;
+                }
+            ),
+        2
+    );
 
-            'advance_amount' =>
-                $advanceAmount,
 
-            'paid_amount' =>
-                $paidAmount,
+    /*
+    |--------------------------------------------------------------------------
+    | MHIS Approved Benefit
+    |--------------------------------------------------------------------------
+    |
+    | MHIS is treated as approved third-party benefit coverage.
+    | It reduces the patient's liability without reducing the original
+    | hospital charges.
+    |
+    */
 
-            'balance_amount' =>
-                $balanceAmount,
-        ]);
-    }
+    $mhisApprovedAmount = round(
+        (float) $account->mhisClaims
+            ->whereIn(
+                'status',
+                [
+                    'approved',
+                    'submitted',
+                    'settled',
+                ]
+            )
+            ->sum(
+                function ($claim) {
 
+                    return (float)
+                        $claim->approved_amount;
+                }
+            ),
+        2
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Staff Medical Benefit
+    |--------------------------------------------------------------------------
+    */
+
+    $staffMedicalBenefitAmount = round(
+        (float)
+        $account
+            ->staffMedicalBenefitTransactions
+            ->where(
+                'status',
+                'active'
+            )
+            ->sum(
+                function ($transaction) {
+
+                    if (
+                        $transaction
+                            ->transaction_type
+                        === 'utilization'
+                    ) {
+                        return (float)
+                            $transaction->amount;
+                    }
+
+
+                    if (
+                        $transaction
+                            ->transaction_type
+                        === 'reversal'
+                    ) {
+                        return -1
+                            * (float)
+                                $transaction->amount;
+                    }
+
+
+                    return 0;
+                }
+            ),
+        2
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Applied Charity / Write-off
+    |--------------------------------------------------------------------------
+    |
+    | Only adjustments that have actually been applied affect the balance.
+    |
+    | Pending, approved-but-not-applied, rejected and cancelled requests
+    | do not reduce the patient's liability.
+    |
+    */
+
+    $charityAmount = round(
+        (float)
+        $account
+            ->charityAdjustments
+            ->where(
+                'status',
+                'applied'
+            )
+            ->sum(
+                function ($adjustment) {
+
+                    return (float)
+                        $adjustment
+                            ->approved_amount;
+                }
+            ),
+        2
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Outstanding Patient Balance
+    |--------------------------------------------------------------------------
+    |
+    | Net Hospital Charges
+    | - Advances
+    | - Other Payments
+    | - MHIS Approved Benefit
+    | - Staff Medical Benefit
+    | - Charity / Write-off
+    | = Outstanding Balance
+    |
+    */
+
+    $balanceAmount = round(
+        max(
+            $netAmount
+            - $advanceAmount
+            - $paidAmount
+            - $mhisApprovedAmount
+            - $staffMedicalBenefitAmount
+            - $charityAmount,
+            0
+        ),
+        2
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Persist Account Totals
+    |--------------------------------------------------------------------------
+    */
+
+    $account->update([
+        'subtotal' =>
+            $subtotal,
+
+        'discount_amount' =>
+            $discountAmount,
+
+        'net_amount' =>
+            $netAmount,
+
+        'advance_amount' =>
+            $advanceAmount,
+
+        'paid_amount' =>
+            $paidAmount,
+
+        'balance_amount' =>
+            $balanceAmount,
+    ]);
+}
 
     /*
     |--------------------------------------------------------------------------

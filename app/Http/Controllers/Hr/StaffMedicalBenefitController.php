@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Hr;
 
 use App\Http\Controllers\Controller;
-use App\Models\EmployeeDependent;
 use App\Models\Employee;
+use App\Models\EmployeeDependent;
 use App\Models\Patient;
 use App\Models\StaffMedicalBenefitAccount;
 use App\Models\StaffMedicalBenefitPolicy;
@@ -43,7 +43,9 @@ class StaffMedicalBenefitController extends Controller
          * Employee search.
          */
         if ($request->filled('search')) {
-            $search = trim((string) $request->input('search'));
+            $search = trim(
+                (string) $request->input('search')
+            );
 
             $query->whereHas(
                 'employee',
@@ -76,23 +78,257 @@ class StaffMedicalBenefitController extends Controller
             );
         }
 
+        /*
+         * Existing benefit accounts.
+         */
         $accounts = $query
             ->orderByDesc('financial_year_start')
             ->orderBy('employee_id')
             ->paginate(25)
             ->withQueryString();
 
+        /*
+         * Benefit policies.
+         */
         $policies = StaffMedicalBenefitPolicy::query()
             ->orderByDesc('financial_year_start')
+            ->get();
+
+        /*
+         * Active employees available for benefit enrolment.
+         */
+        $employees = Employee::query()
+            ->with([
+                'department',
+                'patient',
+            ])
+            ->where(
+                'is_active',
+                true
+            )
+            ->orderBy('first_name')
+            ->orderBy('last_name')
             ->get();
 
         return view(
             'admin.hr.medical-benefits.index',
             compact(
                 'accounts',
-                'policies'
+                'policies',
+                'employees'
             )
         );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Add Employee to Staff Medical Benefit
+    |--------------------------------------------------------------------------
+    */
+
+    public function storeEmployeeBenefit(
+        Request $request
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'employee_id' => [
+                'required',
+                'integer',
+                'exists:employees,id',
+            ],
+            'policy_id' => [
+                'required',
+                'integer',
+                'exists:staff_medical_benefit_policies,id',
+            ],
+            'eligible_from' => [
+                'required',
+                'date',
+            ],
+            'eligible_until' => [
+                'nullable',
+                'date',
+                'after_or_equal:eligible_from',
+            ],
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:5000',
+            ],
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Employee
+        |--------------------------------------------------------------------------
+        */
+
+        $employee = Employee::query()
+            ->whereKey(
+                $validated['employee_id']
+            )
+            ->where(
+                'is_active',
+                true
+            )
+            ->firstOrFail();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Policy
+        |--------------------------------------------------------------------------
+        */
+
+        $policy = StaffMedicalBenefitPolicy::query()
+            ->whereKey(
+                $validated['policy_id']
+            )
+            ->where(
+                'is_active',
+                true
+            )
+            ->firstOrFail();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Prevent Duplicate Benefit Account
+        |--------------------------------------------------------------------------
+        |
+        | An employee should have only one benefit account for the same
+        | financial-year policy.
+        |
+        */
+
+        $alreadyExists = StaffMedicalBenefitAccount::query()
+            ->where(
+                'employee_id',
+                $employee->id
+            )
+            ->where(
+                'policy_id',
+                $policy->id
+            )
+            ->exists();
+
+        if ($alreadyExists) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'employee_id' =>
+                        'This employee already has a Staff Medical Benefit '
+                        . 'account for the selected financial year.',
+                ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Eligibility Dates
+        |--------------------------------------------------------------------------
+        */
+
+        $eligibleFrom = \Carbon\Carbon::parse(
+            $validated['eligible_from']
+        )->startOfDay();
+
+        $financialYearStart = $policy
+            ->financial_year_start
+            ->copy()
+            ->startOfDay();
+
+        $financialYearEnd = $policy
+            ->financial_year_end
+            ->copy()
+            ->endOfDay();
+
+        if (
+            $eligibleFrom->lt($financialYearStart) ||
+            $eligibleFrom->gt($financialYearEnd)
+        ) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'eligible_from' =>
+                        'Eligibility start date must fall within the '
+                        . 'selected financial year.',
+                ]);
+        }
+
+        $eligibleUntil = null;
+
+        if (
+            ! empty(
+                $validated['eligible_until']
+            )
+        ) {
+            $eligibleUntil = \Carbon\Carbon::parse(
+                $validated['eligible_until']
+            )->endOfDay();
+
+            if (
+                $eligibleUntil->gt($financialYearEnd)
+            ) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'eligible_until' =>
+                            'Eligibility end date cannot be after the '
+                            . 'selected financial year.',
+                    ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Benefit Account
+        |--------------------------------------------------------------------------
+        */
+
+        $benefitAccount = StaffMedicalBenefitAccount::create([
+            'employee_id' =>
+                $employee->id,
+
+            'policy_id' =>
+                $policy->id,
+
+            'financial_year_start' =>
+                $policy->financial_year_start,
+
+            'financial_year_end' =>
+                $policy->financial_year_end,
+
+            'employee_entitlement' =>
+                $policy->employee_annual_limit,
+
+            'dependent_family_entitlement' =>
+                $policy->dependent_family_annual_limit,
+
+            'eligible_from' =>
+                $eligibleFrom->toDateString(),
+
+            'eligible_until' =>
+                $eligibleUntil?->toDateString(),
+
+            'status' =>
+                'active',
+
+            'remarks' =>
+                $validated['remarks'] ?? null,
+
+            'created_by' =>
+                auth()->id(),
+
+            'updated_by' =>
+                auth()->id(),
+        ]);
+
+        return redirect()
+            ->route(
+                'admin.hr.medical-benefits.show',
+                $benefitAccount
+            )
+            ->with(
+                'success',
+                'Employee added to Staff Medical Benefit successfully.'
+            );
     }
 
     /*
@@ -140,43 +376,50 @@ class StaffMedicalBenefitController extends Controller
             ],
         ]);
 
-        $search = trim($validated['q']);
+        $search = trim(
+            $validated['q']
+        );
 
         $patients = Patient::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($search) {
-                $query
-                    ->where(
-                        'uhid',
-                        'ilike',
-                        "%{$search}%"
-                    )
-                    ->orWhere(
-                        'mrd_number',
-                        'ilike',
-                        "%{$search}%"
-                    )
-                    ->orWhere(
-                        'first_name',
-                        'ilike',
-                        "%{$search}%"
-                    )
-                    ->orWhere(
-                        'middle_name',
-                        'ilike',
-                        "%{$search}%"
-                    )
-                    ->orWhere(
-                        'last_name',
-                        'ilike',
-                        "%{$search}%"
-                    )
-                    ->orWhere(
-                        'phone',
-                        'ilike',
-                        "%{$search}%"
-                    );
-            })
+            ->where(
+                'is_active',
+                true
+            )
+            ->where(
+                function ($query) use ($search) {
+                    $query
+                        ->where(
+                            'uhid',
+                            'ilike',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'mrd_number',
+                            'ilike',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'first_name',
+                            'ilike',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'middle_name',
+                            'ilike',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'last_name',
+                            'ilike',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'phone',
+                            'ilike',
+                            "%{$search}%"
+                        );
+                }
+            )
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->limit(20)
@@ -194,20 +437,36 @@ class StaffMedicalBenefitController extends Controller
             ]);
 
         return response()->json([
-            'patients' => $patients->map(
-                function (Patient $patient) {
-                    return [
-                        'id' => $patient->id,
-                        'uhid' => $patient->uhid,
-                        'mrd_number' => $patient->mrd_number,
-                        'name' => $patient->full_name,
-                        'date_of_birth' =>
-                            $patient->date_of_birth?->toDateString(),
-                        'sex' => $patient->sex,
-                        'phone' => $patient->phone,
-                    ];
-                }
-            )->values(),
+            'patients' => $patients
+                ->map(
+                    function (Patient $patient) {
+                        return [
+                            'id' =>
+                                $patient->id,
+
+                            'uhid' =>
+                                $patient->uhid,
+
+                            'mrd_number' =>
+                                $patient->mrd_number,
+
+                            'name' =>
+                                $patient->full_name,
+
+                            'date_of_birth' =>
+                                $patient
+                                    ->date_of_birth
+                                    ?->toDateString(),
+
+                            'sex' =>
+                                $patient->sex,
+
+                            'phone' =>
+                                $patient->phone,
+                        ];
+                    }
+                )
+                ->values(),
         ]);
     }
 
@@ -230,16 +489,26 @@ class StaffMedicalBenefitController extends Controller
         ]);
 
         $patient = Patient::query()
-            ->whereKey($validated['patient_id'])
-            ->where('is_active', true)
+            ->whereKey(
+                $validated['patient_id']
+            )
+            ->where(
+                'is_active',
+                true
+            )
             ->firstOrFail();
 
         /*
          * One Patient/UHID cannot be linked directly to two employees.
          */
         $alreadyLinkedEmployee = Employee::query()
-            ->where('patient_id', $patient->id)
-            ->whereKeyNot($employee->id)
+            ->where(
+                'patient_id',
+                $patient->id
+            )
+            ->whereKeyNot(
+                $employee->id
+            )
             ->first();
 
         if ($alreadyLinkedEmployee) {
@@ -252,7 +521,8 @@ class StaffMedicalBenefitController extends Controller
         }
 
         $employee->update([
-            'patient_id' => $patient->id,
+            'patient_id' =>
+                $patient->id,
         ]);
 
         return back()->with(
@@ -288,7 +558,10 @@ class StaffMedicalBenefitController extends Controller
          * the historical patient linkage should not be casually changed.
          */
         $hasTransactions = StaffMedicalBenefitAccount::query()
-            ->where('employee_id', $employee->id)
+            ->where(
+                'employee_id',
+                $employee->id
+            )
             ->whereHas(
                 'transactions',
                 function ($query) use ($employee) {
@@ -315,7 +588,8 @@ class StaffMedicalBenefitController extends Controller
         }
 
         $employee->update([
-            'patient_id' => null,
+            'patient_id' =>
+                null,
         ]);
 
         return back()->with(
@@ -324,7 +598,7 @@ class StaffMedicalBenefitController extends Controller
         );
     }
 
-                  /*
+    /*
     |--------------------------------------------------------------------------
     | Register Medical Benefit Dependent
     |--------------------------------------------------------------------------
@@ -344,23 +618,29 @@ class StaffMedicalBenefitController extends Controller
                 'integer',
                 'exists:patients,id',
             ],
+
             'relationship' => [
                 'required',
                 'string',
                 'in:spouse,child',
             ],
+
             'eligible_from' => [
                 'required',
                 'date',
             ],
         ]);
 
-        $benefitAccount->load('employee');
+        $benefitAccount->load(
+            'employee'
+        );
 
         /*
          * Dependents can only be added to an active benefit account.
          */
-        if ($benefitAccount->status !== 'active') {
+        if (
+            $benefitAccount->status !== 'active'
+        ) {
             return back()->withErrors([
                 'dependent' =>
                     'Dependents cannot be added to an inactive '
@@ -386,20 +666,31 @@ class StaffMedicalBenefitController extends Controller
             ->copy()
             ->endOfDay();
 
-        if ($benefitAccount->eligible_until) {
+        if (
+            $benefitAccount->eligible_until
+        ) {
             $employeeEligibleUntil = $benefitAccount
                 ->eligible_until
                 ->copy()
                 ->endOfDay();
 
-            if ($employeeEligibleUntil->lt($maximumEligibleDate)) {
-                $maximumEligibleDate = $employeeEligibleUntil;
+            if (
+                $employeeEligibleUntil->lt(
+                    $maximumEligibleDate
+                )
+            ) {
+                $maximumEligibleDate =
+                    $employeeEligibleUntil;
             }
         }
 
         if (
-            $eligibleFrom->lt($minimumEligibleDate) ||
-            $eligibleFrom->gt($maximumEligibleDate)
+            $eligibleFrom->lt(
+                $minimumEligibleDate
+            ) ||
+            $eligibleFrom->gt(
+                $maximumEligibleDate
+            )
         ) {
             return back()->withErrors([
                 'eligible_from' =>
@@ -412,16 +703,25 @@ class StaffMedicalBenefitController extends Controller
          * The selected patient must be an active Patient Registry record.
          */
         $patient = Patient::query()
-            ->whereKey($validated['patient_id'])
-            ->where('is_active', true)
+            ->whereKey(
+                $validated['patient_id']
+            )
+            ->where(
+                'is_active',
+                true
+            )
             ->firstOrFail();
 
         /*
          * The employee cannot be registered as their own dependent.
          */
         if (
-            $benefitAccount->employee->patient_id &&
-            (int) $benefitAccount->employee->patient_id ===
+            $benefitAccount
+                ->employee
+                ->patient_id &&
+            (int) $benefitAccount
+                ->employee
+                ->patient_id ===
             (int) $patient->id
         ) {
             return back()->withErrors([
@@ -456,39 +756,51 @@ class StaffMedicalBenefitController extends Controller
         /*
          * A patient directly linked as another employee is not
          * automatically rejected here. This matters when both spouses
-         * are TCH employees. Dual-benefit rules will be enforced at
-         * utilization rather than corrupting the patient identity.
+         * are TCH employees. Dual-benefit rules are enforced at
+         * utilization rather than corrupting patient identity.
          */
 
         EmployeeDependent::create([
             'employee_id' =>
                 $benefitAccount->employee_id,
+
             'patient_id' =>
                 $patient->id,
+
             'relationship' =>
                 $validated['relationship'],
+
             'eligible_from' =>
                 $eligibleFrom->toDateString(),
+
             'eligible_until' =>
-                $benefitAccount->eligible_until?->toDateString(),
+                $benefitAccount
+                    ->eligible_until
+                    ?->toDateString(),
+
             'is_active' =>
                 true,
+
             'remarks' =>
                 null,
+
             'created_by' =>
                 auth()->id(),
+
             'updated_by' =>
                 auth()->id(),
         ]);
 
         return back()->with(
             'success',
-            ucfirst($validated['relationship'])
+            ucfirst(
+                $validated['relationship']
+            )
             . ' successfully registered as an eligible dependent.'
         );
     }
 
-                        /*
+    /*
     |--------------------------------------------------------------------------
     | Deactivate Medical Benefit Dependent
     |--------------------------------------------------------------------------
@@ -524,11 +836,17 @@ class StaffMedicalBenefitController extends Controller
          * End eligibility today, but never before the original
          * eligibility start date.
          */
-        $today = now()->startOfDay();
+        $today =
+            now()->startOfDay();
 
         if (
             $dependent->eligible_from &&
-            $today->lt($dependent->eligible_from->copy()->startOfDay())
+            $today->lt(
+                $dependent
+                    ->eligible_from
+                    ->copy()
+                    ->startOfDay()
+            )
         ) {
             return back()->withErrors([
                 'dependent' =>
@@ -538,9 +856,14 @@ class StaffMedicalBenefitController extends Controller
         }
 
         $dependent->update([
-            'is_active' => false,
-            'eligible_until' => $today->toDateString(),
-            'updated_by' => auth()->id(),
+            'is_active' =>
+                false,
+
+            'eligible_until' =>
+                $today->toDateString(),
+
+            'updated_by' =>
+                auth()->id(),
         ]);
 
         return back()->with(
@@ -549,5 +872,4 @@ class StaffMedicalBenefitController extends Controller
             . 'Previous benefit history has been preserved.'
         );
     }
-
 }
