@@ -383,6 +383,7 @@ class RolePermissionSeeder extends Seeder
 
             'nursing' => [
                 'patients.view',
+                'patients.create',
                 'opd.view',
                 'nursing.view',
                 'nursing.vitals',

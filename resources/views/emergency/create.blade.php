@@ -101,16 +101,7 @@
                         </div>
 
 
-                        @if (
-                            in_array(
-                                auth()->user()?->role,
-                                [
-                                    'reception',
-                                    'admin',
-                                ],
-                                true
-                            )
-                        )
+                        @if (auth()->user()?->hasPermission('patients.create'))
 
                             <a
                                 href="{{ route(
@@ -161,16 +152,7 @@
                                 </label>
 
 
-                                @if (
-                                    in_array(
-                                        auth()->user()?->role,
-                                        [
-                                            'reception',
-                                            'admin',
-                                        ],
-                                        true
-                                    )
-                                )
+                                @if (auth()->user()?->hasPermission('patients.create'))
 
                                     <a
                                         href="{{ route(
