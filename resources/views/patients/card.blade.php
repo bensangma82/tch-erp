@@ -322,7 +322,7 @@
                 </div>
 
             </div>
-
+                     <x-print-audit />
 
             <div class="footer">
                 Please bring this card on every hospital visit.

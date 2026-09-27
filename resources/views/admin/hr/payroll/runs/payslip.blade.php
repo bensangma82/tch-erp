@@ -399,6 +399,8 @@
             <div class="signature">Authorised Signatory</div>
         </div>
 
+                    <x-print-audit />
+
         <p class="note">
             This payslip is generated from the approved payroll snapshot.
         </p>

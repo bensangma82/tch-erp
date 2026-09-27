@@ -267,6 +267,7 @@
                         </section>
                     @endforeach
 
+                    <x-print-audit />
                     <div class="footer">
                         <div class="note">
                             This report contains only finalized/verified laboratory investigations from order

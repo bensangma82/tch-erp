@@ -602,7 +602,7 @@
 
         <div class="divider"></div>
 
-
+               <x-print-audit />
         <div class="footer">
 
             Thank you.

@@ -535,6 +535,7 @@ if (
 
 
             <div class="footer">
+                <x-print-audit />
 
                 <div class="signature-row">
 

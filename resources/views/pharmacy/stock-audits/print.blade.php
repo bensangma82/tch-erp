@@ -1096,17 +1096,16 @@
     {{-- FOOTER --}}
     {{-- ============================================================= --}}
 
+             <x-print-audit />
     <div class="footer">
 
         Generated from Tura Christian Hospital ERP
 
-        ·
-
-        {{ now()->format('d M Y, h:i A') }}
+        
 
         @if ($auditLocation)
 
-            ·
+            
 
             Location:
             {{ $auditLocation->name }}

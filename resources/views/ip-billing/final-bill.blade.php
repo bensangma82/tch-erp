@@ -1802,7 +1802,7 @@
 
         </section>
 
-
+                <x-print-audit />
         <footer class="footer">
             Finalized by
             {{ $account->finalizedBy?->name ?? '—' }}

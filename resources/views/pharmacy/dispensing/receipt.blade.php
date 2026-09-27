@@ -880,8 +880,10 @@
         </div>
 
 
-
+            <x-print-audit />
         <div class="footer">
+
+        
 
             Dispensed by:
             {{ $sale->createdBy?->name ?? 'Pharmacy' }}

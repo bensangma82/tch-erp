@@ -387,7 +387,9 @@
 
             </div>
 
-
+                         <div class="mt-4">
+    <x-print-audit />
+</div>
 
             <div class="no-print flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
 

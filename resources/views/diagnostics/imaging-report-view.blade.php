@@ -948,6 +948,7 @@
 
                 </div>
 
+                           <x-print-audit />
                 <div class="screen-actions screen-only">
                     <a
                         href="{{ route('imaging.index') }}"

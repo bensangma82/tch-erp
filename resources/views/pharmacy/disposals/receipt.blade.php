@@ -389,7 +389,7 @@
 
         @endif
 
-
+              <x-print-audit />
 
         <div class="footer">
 

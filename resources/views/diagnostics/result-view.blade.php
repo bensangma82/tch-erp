@@ -1120,6 +1120,7 @@
 
                 </div>
 
+                        <x-print-audit />
 
                 {{-- SCREEN ACTIONS --}}
                 <div class="screen-actions screen-only">
