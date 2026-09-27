@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admission;
+use App\Models\IpBillingAccount;
 use App\Models\Bed;
 use App\Models\BedAllocation;
 use App\Models\Department;
@@ -483,6 +484,60 @@ class EmergencyAdmissionController extends Controller
                             auth()->id(),
                     ]);
 
+   
+/*
+|--------------------------------------------------------------------------
+| Create IP Billing Account
+|--------------------------------------------------------------------------
+*/
+
+IpBillingAccount::firstOrCreate(
+    [
+        'admission_id' => $admission->id,
+    ],
+    [
+        'patient_id' =>
+            $admission->patient_id,
+
+        'account_no' =>
+            'IPB-'
+            . now()->format('Ymd')
+            . '-'
+            . str_pad(
+                (string) $admission->id,
+                6,
+                '0',
+                STR_PAD_LEFT
+            ),
+
+        'opened_at' =>
+            now(),
+
+        'status' =>
+            'open',
+
+        'subtotal' =>
+            0,
+
+        'discount_amount' =>
+            0,
+
+        'net_amount' =>
+            0,
+
+        'advance_amount' =>
+            0,
+
+        'paid_amount' =>
+            0,
+
+        'balance_amount' =>
+            0,
+
+        'created_by' =>
+            auth()->id(),
+    ]
+);
 
                 /*
                 |--------------------------------------------------------------------------

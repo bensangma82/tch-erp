@@ -1836,7 +1836,14 @@ Route::put(
         )
             ->whereNumber('sale')
             ->name('pharmacy.dispensing.receipt');
-
+                               Route::post(
+    '/pharmacy/dispensing/{admission}/interim-payment',
+    [IpBillingController::class, 'receiveAdvance']
+)
+    ->whereNumber('admission')
+    ->name(
+        'pharmacy.dispensing.interim-payment.store'
+    );
 
         Route::get(
             '/pharmacy/dispensing/{sale}',

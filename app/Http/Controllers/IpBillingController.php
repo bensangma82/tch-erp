@@ -10,6 +10,7 @@ use App\Models\IpBillingCharge;
 use App\Models\IpBillingMhisClaim;
 use App\Models\IpBillingMhisReceipt;
 use App\Models\IpBillingPayment;
+use App\Models\PharmacySale;
 use App\Models\Service;
 use App\Models\ServiceOrder;
 use App\Models\ServiceOrderItem;
@@ -1322,6 +1323,19 @@ class IpBillingController extends Controller
                 'in:cash,upi,card',
             ],
 
+
+                  'source_type' => [
+    'nullable',
+    'string',
+    'in:pharmacy_sale',
+],
+
+'source_id' => [
+    'nullable',
+    'integer',
+    'required_with:source_type',
+],
+
             'transaction_reference' => [
                 'nullable',
                 'string',
@@ -1362,6 +1376,79 @@ class IpBillingController extends Controller
             $admission
         );
 
+        $sourceSale = null;
+
+if (
+    ($validated['source_type'] ?? null)
+    === 'pharmacy_sale'
+) {
+    $sourceSale = PharmacySale::query()
+        ->whereKey(
+            $validated['source_id']
+        )
+        ->where(
+            'admission_id',
+            $admission->id
+        )
+        ->where(
+            'patient_id',
+            $admission->patient_id
+        )
+        ->first();
+
+    if (! $sourceSale) {
+        throw ValidationException::withMessages([
+            'amount' =>
+                'The pharmacy sale does not belong to this admission.',
+        ]);
+    }
+
+                 $alreadyCollectedAgainstSale = IpBillingAdvance::query()
+    ->where(
+        'source_type',
+        'pharmacy_sale'
+    )
+    ->where(
+        'source_id',
+        $sourceSale->id
+    )
+    ->where(
+        'status',
+        'active'
+    )
+    ->sum('amount');
+
+
+$remainingSaleAmount = round(
+    max(
+        (float) $sourceSale->total_amount
+        - (float) $alreadyCollectedAgainstSale,
+        0
+    ),
+    2
+);
+
+
+$requestedAmount = round(
+    (float) $validated['amount'],
+    2
+);
+
+
+if ($requestedAmount > $remainingSaleAmount) {
+    throw ValidationException::withMessages([
+        'amount' =>
+            'Payment cannot exceed the remaining pharmacy sale amount of ₹'
+            . number_format(
+                $remainingSaleAmount,
+                2
+            )
+            . '.',
+    ]);
+}
+
+}
+
 
         if ($account->status !== 'open') {
             throw ValidationException::withMessages([
@@ -1372,10 +1459,11 @@ class IpBillingController extends Controller
 
 
         $advance = DB::transaction(function () use (
-            $validated,
-            $admission,
-            $account
-        ) {
+    $validated,
+    $admission,
+    $account,
+    $sourceSale
+) {
 
             $lockedAccount = IpBillingAccount::query()
                 ->whereKey($account->id)
@@ -1416,13 +1504,33 @@ class IpBillingController extends Controller
                 'payment_mode' =>
                     $validated['payment_mode'],
 
+                    'source_type' =>
+    $validated['source_type']
+    ?? null,
+
+'source_id' =>
+    $validated['source_id']
+    ?? null,
+
                 'transaction_reference' =>
                     $validated['transaction_reference']
                     ?? null,
 
                 'remarks' =>
-                    $validated['remarks']
-                    ?? null,
+    $sourceSale
+        ? (
+            'Pharmacy interim payment against '
+            . $sourceSale->sale_no
+            . (
+                ! empty($validated['remarks'])
+                    ? ' | ' . $validated['remarks']
+                    : ''
+            )
+        )
+        : (
+            $validated['remarks']
+            ?? null
+        ),
 
                 'status' =>
                     'active',
@@ -1433,26 +1541,59 @@ class IpBillingController extends Controller
         });
 
 
-        $this->recalculateAccount(
-            $account
+       $this->recalculateAccount(
+    $account
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| Pharmacy Interim Payment Redirect
+|--------------------------------------------------------------------------
+*/
+
+if ($sourceSale) {
+    return redirect()
+        ->route(
+            'pharmacy.dispensing.show',
+            $sourceSale
+        )
+        ->with(
+            'success',
+            'Interim payment of ₹' .
+            number_format(
+                (float) $advance->amount,
+                2
+            ) .
+            ' received successfully against pharmacy sale ' .
+            $sourceSale->sale_no .
+            '. Receipt: ' .
+            $advance->receipt_no
         );
+}
 
 
-        return redirect()
-            ->route(
-                'ip-billing.show',
-                $admission
-            )
-            ->with(
-                'success',
-                'Advance of ₹' .
-                number_format(
-                    (float) $advance->amount,
-                    2
-                ) .
-                ' received successfully. Receipt: ' .
-                $advance->receipt_no
-            );
+/*
+|--------------------------------------------------------------------------
+| Normal IP Advance Redirect
+|--------------------------------------------------------------------------
+*/
+
+return redirect()
+    ->route(
+        'ip-billing.show',
+        $admission
+    )
+    ->with(
+        'success',
+        'Advance of ₹' .
+        number_format(
+            (float) $advance->amount,
+            2
+        ) .
+        ' received successfully. Receipt: ' .
+        $advance->receipt_no
+    );
     }
 
 

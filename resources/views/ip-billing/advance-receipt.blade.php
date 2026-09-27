@@ -239,6 +239,20 @@
 
     @php
 
+
+    $sourcePharmacySale = null;
+
+if (
+    $ipBillingAdvance->source_type
+    === 'pharmacy_sale'
+    && $ipBillingAdvance->source_id
+) {
+    $sourcePharmacySale =
+        \App\Models\PharmacySale::find(
+            $ipBillingAdvance->source_id
+        );
+}
+
         $currentAllocation =
             $admission->currentBedAllocation;
 
@@ -432,6 +446,34 @@
                             Payment Mode:
                             {{ strtoupper($ipBillingAdvance->payment_mode) }}
                         </div>
+                        @if ($sourcePharmacySale)
+
+    <div>
+
+        <div class="field-label">
+            Payment Source
+        </div>
+
+        <div class="field-value">
+            Pharmacy Interim Payment
+        </div>
+
+    </div>
+
+
+    <div>
+
+        <div class="field-label">
+            Pharmacy Sale
+        </div>
+
+        <div class="field-value">
+            {{ $sourcePharmacySale->sale_no }}
+        </div>
+
+    </div>
+
+@endif
 
                     </div>
 

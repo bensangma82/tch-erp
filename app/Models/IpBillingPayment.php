@@ -11,22 +11,23 @@ class IpBillingPayment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'ip_billing_account_id',
-        'admission_id',
-        'patient_id',
-        'receipt_no',
-        'payment_date',
-        'amount',
-        'payment_mode',
-        'transaction_reference',
-        'remarks',
-        'status',
-        'received_by',
-        'cancelled_by',
-        'cancelled_at',
-        'cancellation_reason',
-    ];
-
+    'ip_billing_account_id',
+    'admission_id',
+    'patient_id',
+    'receipt_no',
+    'payment_date',
+    'amount',
+    'payment_mode',
+    'source_type',
+    'source_id',
+    'transaction_reference',
+    'remarks',
+    'status',
+    'received_by',
+    'cancelled_by',
+    'cancelled_at',
+    'cancellation_reason',
+];
     protected $casts = [
         'payment_date' => 'datetime',
         'amount' => 'decimal:2',

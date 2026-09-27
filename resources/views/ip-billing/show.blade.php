@@ -1404,6 +1404,10 @@ $charityPendingAmount =
                                     </th>
 
                                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+    Source
+</th>
+
+                                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                         Reference
                                     </th>
 
@@ -1437,6 +1441,35 @@ $charityPendingAmount =
                                         <td class="px-5 py-4 text-sm font-semibold uppercase text-slate-700">
                                             {{ $advance->payment_mode }}
                                         </td>
+
+                                        <td class="px-5 py-4 text-sm text-slate-700">
+
+    @if ($advance->source_type === 'pharmacy_sale')
+
+        @php
+            $sourcePharmacySale =
+                \App\Models\PharmacySale::find(
+                    $advance->source_id
+                );
+        @endphp
+
+        <div class="font-semibold text-violet-700">
+            Pharmacy
+        </div>
+
+        <div class="mt-1 font-mono text-xs text-slate-500">
+            {{ $sourcePharmacySale?->sale_no ?? 'Sale #' . $advance->source_id }}
+        </div>
+
+    @else
+
+        <span class="text-slate-500">
+            IP Advance
+        </span>
+
+    @endif
+
+</td>
 
                                         <td class="px-5 py-4 text-sm text-slate-700">
                                             {{ $advance->transaction_reference ?: '—' }}

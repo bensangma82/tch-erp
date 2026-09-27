@@ -413,7 +413,42 @@ $recentEncounters =
         ->limit(1000)
         ->get();
 
+                    /*
+|--------------------------------------------------------------------------
+| Active Inpatient Admissions
+|--------------------------------------------------------------------------
+|
+| Allows Pharmacy to select a currently admitted patient and dispense
+| medicines directly against the patient's running IP billing account.
+|
+*/
 
+$activeAdmissions =
+    Admission::query()
+        ->with([
+            'patient',
+            'department',
+            'consultant',
+            'bed.ward',
+            'currentBedAllocation.bed.ward',
+        ])
+        ->where(
+            'status',
+            'admitted'
+        )
+        ->whereHas(
+            'patient',
+            function ($query) {
+                $query->where(
+                    'is_active',
+                    true
+                );
+            }
+        )
+        ->orderByDesc(
+            'admitted_at'
+        )
+        ->get();
         return view(
             'pharmacy.dispensing.create',
             compact(
@@ -421,7 +456,8 @@ $recentEncounters =
                 'encounter',
                 'admission',
                 'medicines',
-                'recentEncounters'
+                'recentEncounters',
+                'activeAdmissions'
             )
         );
     }
@@ -1975,18 +2011,19 @@ $recentEncounters =
      * Show completed pharmacy sale.
      */
     public function show(
-        PharmacySale $sale
-    ): View {
+    PharmacySale $sale
+): View {
 
-        $sale->load([
-            'patient',
-            'encounter.department',
-            'encounter.doctor',
-            'items.medicine',
-            'items.stockBatch',
-            'createdBy',
-            'returns.items',
-        ]);
+    $sale->load([
+        'patient',
+        'admission',
+        'encounter.department',
+        'encounter.doctor',
+        'items.medicine',
+        'items.stockBatch',
+        'createdBy',
+        'returns.items',
+    ]);
 
 
         return view(

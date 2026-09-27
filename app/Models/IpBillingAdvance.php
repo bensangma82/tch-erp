@@ -18,6 +18,8 @@ class IpBillingAdvance extends Model
         'payment_date',
         'amount',
         'payment_mode',
+        'source_type',
+        'source_id',
         'transaction_reference',
         'remarks',
         'status',

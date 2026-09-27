@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'sale_no',
     'patient_id',
     'encounter_id',
+    'admission_id',
     'sale_at',
     'subtotal',
     'discount',
@@ -62,6 +63,13 @@ class PharmacySale extends Model
         );
     }
 
+    public function admission(): BelongsTo
+    {
+        return $this->belongsTo(
+            Admission::class
+        );
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(
@@ -76,10 +84,11 @@ class PharmacySale extends Model
             'created_by'
         );
     }
-    public function returns()
-{
-    return $this->hasMany(
-        PharmacyReturn::class
-    );
-}
+
+    public function returns(): HasMany
+    {
+        return $this->hasMany(
+            PharmacyReturn::class
+        );
+    }
 }
