@@ -16,7 +16,6 @@
 
             </div>
 
-
             <a
                 href="{{ route('emergency.index') }}"
                 class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -114,10 +113,6 @@
                 true
             );
 
-
-        $userRole =
-            auth()->user()?->role;
-
     @endphp
 
 
@@ -139,7 +134,6 @@
             @endif
 
 
-
             {{-- ========================================================= --}}
             {{-- EMERGENCY HEADER --}}
             {{-- ========================================================= --}}
@@ -147,7 +141,6 @@
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                 <div class="flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
-
 
                     <div>
 
@@ -178,14 +171,7 @@
                         @if (
                             ! $isClosed
                             &&
-                            in_array(
-                                $userRole,
-                                [
-                                    'nursing',
-                                    'admin',
-                                ],
-                                true
-                            )
+                            auth()->user()?->hasPermission('emergency.triage')
                         )
 
                             <a
@@ -196,7 +182,6 @@
                             </a>
 
                         @endif
-
 
 
                         @if (
@@ -215,15 +200,7 @@
                                 true
                             )
                             &&
-                            in_array(
-                                $userRole,
-                                [
-                                    'reception',
-                                    'doctor',
-                                    'admin',
-                                ],
-                                true
-                            )
+                            auth()->user()?->hasPermission('emergency.admit')
                         )
 
                             <a
@@ -236,7 +213,6 @@
                         @endif
 
 
-
                         @if ($admission)
 
                             <a
@@ -246,15 +222,20 @@
                                 Open IPD Admission
                             </a>
 
-                        @endif
+                            <a
+                                href="{{ route('ip-billing.show', $admission) }}?action=advance"
+                                class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                            >
+                                Receive Advance
+                            </a>
 
+                        @endif
 
                     </div>
 
                 </div>
 
             </div>
-
 
 
             {{-- ========================================================= --}}
@@ -277,7 +258,6 @@
 
 
                 <div class="grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
-
 
                     <div>
 
@@ -341,7 +321,6 @@
                     </div>
 
 
-
                     <div>
 
                         <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -353,7 +332,6 @@
                         </div>
 
                     </div>
-
 
 
                     <div>
@@ -387,7 +365,6 @@
                     </div>
 
 
-
                     <div>
 
                         <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -399,7 +376,6 @@
                         </div>
 
                     </div>
-
 
 
                     <div class="sm:col-span-2 lg:col-span-4">
@@ -414,11 +390,9 @@
 
                     </div>
 
-
                 </div>
 
             </div>
-
 
 
             {{-- ========================================================= --}}
@@ -445,14 +419,7 @@
                     @if (
                         ! $isClosed
                         &&
-                        in_array(
-                            $userRole,
-                            [
-                                'nursing',
-                                'admin',
-                            ],
-                            true
-                        )
+                        auth()->user()?->hasPermission('emergency.triage')
                     )
 
                         <a
@@ -470,7 +437,6 @@
                 @if ($latestTriage)
 
                     <div class="grid gap-x-8 gap-y-6 p-6 sm:grid-cols-2 lg:grid-cols-5">
-
 
                         <div>
 
@@ -495,7 +461,6 @@
                         </div>
 
 
-
                         <div>
 
                             <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -511,7 +476,6 @@
                         </div>
 
 
-
                         <div>
 
                             <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -525,7 +489,6 @@
                         </div>
 
 
-
                         <div>
 
                             <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -537,7 +500,6 @@
                             </div>
 
                         </div>
-
 
 
                         <div>
@@ -559,7 +521,6 @@
                         </div>
 
 
-
                         <div>
 
                             <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -579,7 +540,6 @@
                         </div>
 
 
-
                         <div>
 
                             <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -591,7 +551,6 @@
                             </div>
 
                         </div>
-
 
 
                         <div>
@@ -607,7 +566,6 @@
                         </div>
 
 
-
                         <div>
 
                             <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -619,7 +577,6 @@
                             </div>
 
                         </div>
-
 
 
                         <div>
@@ -651,7 +608,6 @@
 
                         @endif
 
-
                     </div>
 
 
@@ -676,7 +632,6 @@
                 @endif
 
             </div>
-
 
 
             {{-- ========================================================= --}}
@@ -744,7 +699,6 @@
 
                         <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
 
-
                             <div>
 
                                 <div class="text-xs font-semibold uppercase tracking-wide text-emerald-600">
@@ -756,7 +710,6 @@
                                 </div>
 
                             </div>
-
 
 
                             <div>
@@ -772,7 +725,6 @@
                             </div>
 
 
-
                             <div>
 
                                 <div class="text-xs font-semibold uppercase tracking-wide text-emerald-600">
@@ -786,7 +738,6 @@
                             </div>
 
 
-
                             <div>
 
                                 <div class="text-xs font-semibold uppercase tracking-wide text-emerald-600">
@@ -798,7 +749,6 @@
                                 </div>
 
                             </div>
-
 
                         </div>
 
@@ -837,17 +787,7 @@
                         </div>
 
 
-                        @if (
-                            in_array(
-                                $userRole,
-                                [
-                                    'reception',
-                                    'doctor',
-                                    'admin',
-                                ],
-                                true
-                            )
-                        )
+                        @if (auth()->user()?->hasPermission('emergency.admit'))
 
                             <a
                                 href="{{ route('emergency.admission.create', $emergencyVisit) }}"
@@ -863,7 +803,6 @@
                 </div>
 
             @endif
-
 
 
             {{-- ========================================================= --}}
@@ -938,16 +877,7 @@
                         <div class="mt-5 flex flex-wrap gap-3">
 
 
-                            @if (
-                                in_array(
-                                    $userRole,
-                                    [
-                                        'nursing',
-                                        'admin',
-                                    ],
-                                    true
-                                )
-                            )
+                            @if (auth()->user()?->hasPermission('emergency.triage'))
 
                                 <a
                                     href="{{ route('emergency.triage.create', $emergencyVisit) }}"
@@ -959,17 +889,7 @@
                             @endif
 
 
-                            @if (
-                                in_array(
-                                    $userRole,
-                                    [
-                                        'reception',
-                                        'doctor',
-                                        'admin',
-                                    ],
-                                    true
-                                )
-                            )
+                            @if (auth()->user()?->hasPermission('emergency.admit'))
 
                                 <a
                                     href="{{ route('emergency.admission.create', $emergencyVisit) }}"
@@ -980,7 +900,6 @@
 
                             @endif
 
-
                         </div>
 
                     @endif
@@ -988,7 +907,6 @@
                 </div>
 
             </div>
-
 
         </div>
 

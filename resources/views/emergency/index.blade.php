@@ -17,16 +17,7 @@
             </div>
 
 
-            @if (
-                in_array(
-                    auth()->user()?->role,
-                    [
-                        'reception',
-                        'admin', 'nursing', 'emergency'
-                    ],
-                    true
-                )
-            )
+            @if (auth()->user()?->hasPermission('patients.create'))
 
                 <a
                     href="{{ route('emergency.create') }}"

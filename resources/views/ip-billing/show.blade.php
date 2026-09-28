@@ -3523,6 +3523,14 @@ $charityPendingAmount =
                 openAdvanceModal
             );
 
+            if (
+    advanceModal
+    &&
+    new URLSearchParams(window.location.search).get('action') === 'advance'
+) {
+    openAdvanceModal();
+}
+
             closeAdvanceButton?.addEventListener(
                 'click',
                 closeAdvanceModal
