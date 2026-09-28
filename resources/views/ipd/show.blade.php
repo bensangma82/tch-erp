@@ -116,11 +116,9 @@
 
 
         $canEditDischargeSummary =
-            in_array(
-                auth()->user()?->role,
-                ['doctor', 'admin'],
-                true
-            );
+    auth()->user()?->hasPermission(
+        'ipd.discharge-summary.edit'
+    );
 
 
         $dischargeSummaryPreparedBy =

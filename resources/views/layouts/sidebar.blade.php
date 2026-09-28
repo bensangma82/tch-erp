@@ -131,6 +131,11 @@
         $hrOpen =
     request()->routeIs('admin.hr.*');
 
+    $assetOpen =
+    request()->routeIs('admin.asset-categories.*')
+    || request()->routeIs('admin.asset-categories.*')
+    || request()->routeIs('admin.asset-vendors.*');
+
     $businessOpen =
         request()->routeIs('billing.*')
         || request()->routeIs('ip-billing.*')
@@ -184,6 +189,7 @@
         business: {{ $businessOpen ? 'true' : 'false' }},
         finance: {{ $financeOpen ? 'true' : 'false' }},
         hr: {{ $hrOpen ? 'true' : 'false' }},
+        asset: {{ $assetOpen ? 'true' : 'false' }},
         administration: {{ $administrationOpen ? 'true' : 'false' }},
         masterData: {{ $masterDataOpen ? 'true' : 'false' }}
     }"
@@ -1009,6 +1015,105 @@
     </div>
 
 @endif
+
+{{-- ASSET MANAGEMENT --}}
+@if ($isAdmin)
+
+    <div>
+
+        <button
+            type="button"
+            @click="asset = !asset"
+            class="group flex w-full items-center gap-3 rounded-md px-3 py-1.5 font-medium transition
+                {{
+                    $assetOpen
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-300 hover:bg-slate-900/70 hover:text-white'
+                }}"
+        >
+
+            <span class="flex h-6 w-6 shrink-0 items-center justify-center text-slate-400">
+                <svg
+                    class="h-4.5 w-4.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M4 7h16v13H4V7zm3 0V4h10v3M8 11h8M8 15h5"
+                    />
+                </svg>
+            </span>
+
+            <span class="flex-1 text-left">
+                Asset Management
+            </span>
+
+            <svg
+                class="h-4 w-4 text-slate-500 transition-transform duration-200"
+                :class="{ 'rotate-90': asset }"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9 5l7 7-7 7"
+                />
+            </svg>
+
+        </button>
+
+
+        <div
+            x-show="asset"
+            x-collapse
+            class="ml-6 mt-0.5 space-y-0.5 border-l border-slate-800 pl-3"
+        >
+                         <a
+    href="{{ route('admin.assets.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.assets.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Asset Register</a>
+            <a
+                href="{{ route('admin.asset-categories.index') }}"
+                class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+                    {{
+                        request()->routeIs('admin.asset-categories.*')
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+                    }}"
+            >
+                Asset Categories
+            </a>
+
+                              <a
+    href="{{ route('admin.asset-vendors.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+        {{
+            request()->routeIs('admin.asset-vendors.*')
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+        }}"
+>
+    Vendors
+</a>
+
+        </div>
+
+    </div>
+
+@endif
         {{-- ADMINISTRATION --}}
         @if ($canAdministration)
 
@@ -1210,7 +1315,21 @@
                             </a>
 
                         @endif
+@if ($isAdmin)
 
+    <a
+        href="{{ route('admin.bed-tariffs.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+            {{
+                request()->routeIs('admin.bed-tariffs.*')
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+            }}"
+    >
+        Bed Tariff Master
+    </a>
+
+@endif
                     </div>
 
                 </div>

@@ -74,6 +74,15 @@ public function serviceOrders()
     );
 }
 
-
+public function admission()
+{
+    return $this->hasOne(
+        Admission::class,
+        'source_id'
+    )->where(
+        'source_type',
+        'opd'
+    );
+}
 }
 

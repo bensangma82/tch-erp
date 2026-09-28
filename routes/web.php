@@ -16,6 +16,10 @@ use App\Http\Controllers\Admin\EmployeeLeaveBalanceController;
 use App\Http\Controllers\Admin\LeaveRequestController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\AssetCategoryController;
+use App\Http\Controllers\Admin\AssetVendorController;
+use App\Http\Controllers\Admin\AssetController;
+use App\Http\Controllers\Admin\AssetMovementController;
 use App\Http\Controllers\Admin\EmployeeDocumentController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Finance\FinanceMasterController;
@@ -41,6 +45,7 @@ use App\Http\Controllers\LaboratoryTestParameterController;
 use App\Http\Controllers\DiagnosticWorklistController;
 use App\Http\Controllers\AdmissionClosureController;
 use App\Http\Controllers\EmergencyAdmissionController;
+use App\Http\Controllers\OpdAdmissionController;
 use App\Http\Controllers\EmergencyTriageController;
 use App\Http\Controllers\EmergencyVisitController;
 use App\Http\Controllers\NursingController;
@@ -174,7 +179,53 @@ Route::middleware([
 
     });
 
+                     /*
+|--------------------------------------------------------------------------
+| Asset Management
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware('role:admin')
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+
+        Route::resource(
+    'asset-categories',
+    AssetCategoryController::class
+)->except([
+    'show',
+    'destroy',
+]);
+
+Route::resource(
+    'asset-vendors',
+    AssetVendorController::class
+)->except([
+    'show',
+    'destroy',
+]);
+
+
+          Route::resource(
+    'assets',
+    AssetController::class
+)->except([
+    'destroy',
+]);
+
+
+      Route::get(
+    'assets/{asset}/movements/create',
+    [AssetMovementController::class, 'create']
+)->name('assets.movements.create');
+
+Route::post(
+    'assets/{asset}/movements',
+    [AssetMovementController::class, 'store']
+)->name('assets.movements.store');
+
+    });
     /*
     |--------------------------------------------------------------------------
     | Admin / HR - Department & Employee Masters
@@ -864,9 +915,9 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:reception,nursing,medical_records,emergency'
-    )->group(function () {
+   Route::middleware(
+    'permission:patients.create'
+)->group(function () {
 
         Route::get(
             '/patients/create',
@@ -889,8 +940,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,nursing,billing,laboratory,radiology,doctor,medical_records,emergency,ipd'
-    )->group(function () {
+    'permission:patients.view'
+)->group(function () {
 
         Route::get(
             '/patients',
@@ -915,8 +966,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,medical_records'
-    )->group(function () {
+    'permission:patients.card'
+)->group(function () {
 
         Route::get(
             '/patients/{patient}/card',
@@ -941,8 +992,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,nursing,emergency'
-    )->group(function () {
+    'permission:emergency.create'
+)->group(function () {
 
         Route::get(
             '/emergency/register',
@@ -965,9 +1016,9 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:reception,nursing,doctor,emergency,ipd'
-    )->group(function () {
+                                        Route::middleware(
+    'permission:emergency.view'
+)->group(function () {
 
         Route::get(
             '/emergency',
@@ -994,9 +1045,9 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:nursing,emergency'
-    )->group(function () {
+   Route::middleware(
+    'permission:emergency.triage'
+)->group(function () {
 
         Route::get(
             '/emergency/{emergencyVisit}/triage',
@@ -1024,9 +1075,9 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:reception,doctor,emergency'
-    )->group(function () {
+   Route::middleware(
+    'permission:emergency.admit'
+)->group(function () {
 
         Route::get(
             '/emergency/{emergencyVisit}/admit',
@@ -1046,7 +1097,32 @@ Route::get(
     });
 
 
+                      /*
+|--------------------------------------------------------------------------
+| OPD - Admission
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware(
+    'permission:ipd.admit'
+)->group(function () {
+
+    Route::get(
+        '/opd/{encounter}/admit',
+        [OpdAdmissionController::class, 'create']
+    )
+        ->whereNumber('encounter')
+        ->name('opd.admission.create');
+
+
+    Route::post(
+        '/opd/{encounter}/admit',
+        [OpdAdmissionController::class, 'store']
+    )
+        ->whereNumber('encounter')
+        ->name('opd.admission.store');
+
+});
            /*
     |--------------------------------------------------------------------------
     | IPD - Inpatient Census / Admission View
@@ -1054,8 +1130,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,nursing,doctor,admin,ipd'
-    )->group(function () {
+    'permission:ipd.view'
+)->group(function () {
 
         Route::get(
             '/ipd',
@@ -1070,12 +1146,17 @@ Route::get(
             ->whereNumber('admission')
             ->name('ipd.show');
 
-
+    });
         /*
         |--------------------------------------------------------------------------
         | IPD - Bed Transfer
         |--------------------------------------------------------------------------
         */
+
+        Route::middleware(
+    'permission:ipd.transfer'
+)->group(function () {
+
 
         Route::get(
             '/ipd/{admission}/transfer',
@@ -1093,11 +1174,18 @@ Route::get(
             ->name('ipd.transfer.store');
 
 
+        });
+
+
         /*
         |--------------------------------------------------------------------------
         | IPD - Admission Closure
         |--------------------------------------------------------------------------
         */
+
+               Route::middleware(
+    'permission:ipd.close'
+)->group(function () {
 
         Route::get(
             '/ipd/{admission}/close',
@@ -1114,6 +1202,13 @@ Route::get(
             ->whereNumber('admission')
             ->name('ipd.closure.store');
 
+
+        });
+
+
+Route::middleware(
+    'permission:ipd.discharge-summary.view'
+)->group(function () {
 
         /*
         |--------------------------------------------------------------------------
@@ -1147,8 +1242,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:doctor,admin'
-    )->group(function () {
+    'permission:ipd.discharge-summary.edit'
+)->group(function () {
 
         Route::get(
             '/ipd/{admission}/discharge-summary/edit',
@@ -1176,24 +1271,30 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:reception,nursing,billing,doctor,medical_records,management'
-    )->group(function () {
+   Route::middleware(
+    'permission:opd.view'
+)->group(function () {
 
-        Route::get(
-            '/opd',
-            [OpdController::class, 'index']
-        )->name('opd.index');
+    Route::get(
+        '/opd',
+        [OpdController::class, 'index']
+    )->name('opd.index');
+
+});
 
 
-        Route::get(
-            '/opd/{encounter}/card',
-            [OpdController::class, 'card']
-        )
-            ->whereNumber('encounter')
-            ->name('opd.card');
-    });
+Route::middleware(
+    'permission:opd.card'
+)->group(function () {
 
+    Route::get(
+        '/opd/{encounter}/card',
+        [OpdController::class, 'card']
+    )
+        ->whereNumber('encounter')
+        ->name('opd.card');
+
+});
 
 
     /*
@@ -1203,9 +1304,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,medical_records'
-    )->group(function () {
-
+    'permission:opd.create'
+)->group(function () {
         Route::get(
             '/opd/register',
             [OpdController::class, 'create']
@@ -1227,8 +1327,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:reception,billing,finance'
-    )->group(function () {
+    'permission:billing.view'
+)->group(function () {
 
         Route::get(
             '/payments/{payment}/receipt',
@@ -1246,31 +1346,37 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:nursing'
-    )->group(function () {
+   Route::middleware(
+    'permission:nursing.view'
+)->group(function () {
 
-        Route::get(
-            '/nursing',
-            [NursingController::class, 'index']
-        )->name('nursing.index');
+    Route::get(
+        '/nursing',
+        [NursingController::class, 'index']
+    )->name('nursing.index');
 
-
-        Route::get(
-            '/nursing/{encounter}/vitals',
-            [NursingController::class, 'createVitals']
-        )
-            ->whereNumber('encounter')
-            ->name('nursing.vitals.create');
+});
 
 
-        Route::post(
-            '/nursing/{encounter}/vitals',
-            [NursingController::class, 'storeVitals']
-        )
-            ->whereNumber('encounter')
-            ->name('nursing.vitals.store');
-    });
+Route::middleware(
+    'permission:nursing.vitals'
+)->group(function () {
+
+    Route::get(
+        '/nursing/{encounter}/vitals',
+        [NursingController::class, 'createVitals']
+    )
+        ->whereNumber('encounter')
+        ->name('nursing.vitals.create');
+
+    Route::post(
+        '/nursing/{encounter}/vitals',
+        [NursingController::class, 'storeVitals']
+    )
+        ->whereNumber('encounter')
+        ->name('nursing.vitals.store');
+
+});
 
 
 
@@ -1281,9 +1387,8 @@ Route::get(
     */
 
     Route::middleware(
-        'role:admin'
-    )->group(function () {
-
+    'permission:system.services'
+)->group(function () {
         Route::resource(
             'services',
             ServiceController::class
@@ -1304,153 +1409,178 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:billing'
-    )->group(function () {
+   /*
+|--------------------------------------------------------------------------
+| Billing Counter - View
+|--------------------------------------------------------------------------
+*/
 
-        Route::get(
-            '/billing',
-            [BillingController::class, 'index']
-        )->name('billing.index');
+Route::middleware(
+    'permission:billing.view'
+)->group(function () {
 
+    Route::get(
+        '/billing',
+        [BillingController::class, 'index']
+    )->name('billing.index');
 
-        Route::get(
-            '/billing/{encounter}/investigations',
-            [BillingController::class, 'create']
-        )
-            ->whereNumber('encounter')
-            ->name('billing.create');
+    Route::get(
+        '/billing/orders/{serviceOrder}/payment',
+        [BillingController::class, 'payment']
+    )
+        ->whereNumber('serviceOrder')
+        ->name('billing.payment');
 
+    Route::get(
+        '/billing/invoices/{invoice}/payment',
+        [BillingController::class, 'invoicePayment']
+    )
+        ->whereNumber('invoice')
+        ->name('billing.invoice.payment');
 
-        Route::post(
-            '/billing/{encounter}/investigations',
-            [BillingController::class, 'store']
-        )
-            ->whereNumber('encounter')
-            ->name('billing.store');
-
-
-        Route::get(
-            '/billing/orders/{serviceOrder}/payment',
-            [BillingController::class, 'payment']
-        )
-            ->whereNumber('serviceOrder')
-            ->name('billing.payment');
-
-
-        Route::post(
-            '/billing/orders/{serviceOrder}/payment',
-            [BillingController::class, 'processPayment']
-        )
-            ->whereNumber('serviceOrder')
-            ->name('billing.payment.store');
-
-                 Route::get(
-    '/billing/invoices/{invoice}/payment',
-    [BillingController::class, 'invoicePayment']
-)
-    ->whereNumber('invoice')
-    ->name('billing.invoice.payment');
+    Route::get(
+        '/billing/payments/{payment}/receipt',
+        [BillingController::class, 'receipt']
+    )
+        ->whereNumber('payment')
+        ->name('billing.receipt');
+});
 
 
-Route::post(
-    '/billing/invoices/{invoice}/payment',
-    [BillingController::class, 'processInvoicePayment']
-)
-    ->whereNumber('invoice')
-    ->name('billing.invoice.payment.store');
-        Route::get(
-            '/billing/payments/{payment}/receipt',
-            [BillingController::class, 'receipt']
-        )
-            ->whereNumber('payment')
-            ->name('billing.receipt');
+/*
+|--------------------------------------------------------------------------
+| Billing Counter - Investigation Ordering
+|--------------------------------------------------------------------------
+*/
 
-    });
+Route::middleware(
+    'permission:billing.order-investigations'
+)->group(function () {
 
+    Route::get(
+        '/billing/{encounter}/investigations',
+        [BillingController::class, 'create']
+    )
+        ->whereNumber('encounter')
+        ->name('billing.create');
+
+    Route::post(
+        '/billing/{encounter}/investigations',
+        [BillingController::class, 'store']
+    )
+        ->whereNumber('encounter')
+        ->name('billing.store');
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Billing Counter - Payment Collection
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'permission:billing.collect'
+)->group(function () {
+
+    Route::post(
+        '/billing/orders/{serviceOrder}/payment',
+        [BillingController::class, 'processPayment']
+    )
+        ->whereNumber('serviceOrder')
+        ->name('billing.payment.store');
+
+    Route::post(
+        '/billing/invoices/{invoice}/payment',
+        [BillingController::class, 'processInvoicePayment']
+    )
+        ->whereNumber('invoice')
+        ->name('billing.invoice.payment.store');
+});
 
     /*
-    |--------------------------------------------------------------------------
-    | Inpatient Billing
-    |--------------------------------------------------------------------------
-    |
-    | Available to administrators and billing users.
-    |
-    */
+|--------------------------------------------------------------------------
+| Inpatient Billing - View
+|--------------------------------------------------------------------------
+*/
 
-    Route::middleware(
-        'role:admin,billing'
-    )->group(function () {
+Route::middleware(
+    'permission:ip-billing.view'
+)->group(function () {
 
-        Route::get(
-            '/ip-billing',
-            [IpBillingController::class, 'index']
-        )->name('ip-billing.index');
+    Route::get(
+        '/ip-billing',
+        [IpBillingController::class, 'index']
+    )->name('ip-billing.index');
 
-
-        Route::get(
-            '/ip-billing/{admission}/final-bill',
-            [IpBillingController::class, 'finalBill']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.final-bill');
+    Route::get(
+        '/ip-billing/{admission}/final-bill',
+        [IpBillingController::class, 'finalBill']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.final-bill');
+});
 
 
-        Route::post(
-            '/ip-billing/{admission}/generate-bed-charges',
-            [IpBillingController::class, 'generateBedCharges']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.generate-bed-charges');
+/*
+|--------------------------------------------------------------------------
+| Inpatient Billing - Management
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware(
+    'permission:ip-billing.manage'
+)->group(function () {
 
-Route::post(
-    '/ip-billing/{admission}/payment',
-    [IpBillingController::class, 'receivePayment']
-)
-    ->whereNumber('admission')
-    ->name('ip-billing.payment.store');
+    Route::post(
+        '/ip-billing/{admission}/generate-bed-charges',
+        [IpBillingController::class, 'generateBedCharges']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.generate-bed-charges');
 
-                    Route::post(
-    '/ip-billing/{admission}/staff-medical-benefit',
-    [IpBillingController::class, 'applyStaffMedicalBenefit']
-)
-    ->whereNumber('admission')
-    ->name('ip-billing.staff-medical-benefit.store');
+    Route::post(
+        '/ip-billing/{admission}/payment',
+        [IpBillingController::class, 'receivePayment']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.payment.store');
 
+    Route::post(
+        '/ip-billing/{admission}/staff-medical-benefit',
+        [IpBillingController::class, 'applyStaffMedicalBenefit']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.staff-medical-benefit.store');
 
-        Route::post(
-            '/ip-billing/{admission}/charges',
-            [IpBillingController::class, 'storeCharge']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.charges.store');
+    Route::post(
+        '/ip-billing/{admission}/charges',
+        [IpBillingController::class, 'storeCharge']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.charges.store');
 
+    Route::post(
+        '/ip-billing/{admission}/mhis',
+        [IpBillingController::class, 'storeMhisClaim']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.mhis.store');
 
-        Route::post(
-            '/ip-billing/{admission}/mhis',
-            [IpBillingController::class, 'storeMhisClaim']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.mhis.store');
+    Route::post(
+        '/ip-billing/{admission}/mhis/receipts',
+        [IpBillingController::class, 'storeMhisReceipt']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.mhis.receipts.store');
 
-
-        Route::post(
-            '/ip-billing/{admission}/mhis/receipts',
-            [IpBillingController::class, 'storeMhisReceipt']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.mhis.receipts.store');
-
-
-        Route::post(
-            '/ip-billing/{admission}/finalize',
-            [IpBillingController::class, 'finalizeBill']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.finalize');
-
-    });
+    Route::post(
+        '/ip-billing/{admission}/finalize',
+        [IpBillingController::class, 'finalizeBill']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.finalize');
+});
 
                          /*
 |--------------------------------------------------------------------------
@@ -1550,34 +1680,49 @@ Route::middleware(
     |
     */
 
-    Route::middleware(
-        'role:admin,billing,nursing'
-    )->group(function () {
+    /*
+|--------------------------------------------------------------------------
+| IP Billing - View
+|--------------------------------------------------------------------------
+*/
 
-        Route::get(
-            '/ip-billing/advances/{ipBillingAdvance}/receipt',
-            [IpBillingController::class, 'advanceReceipt']
-        )
-            ->whereNumber('ipBillingAdvance')
-            ->name('ip-billing.advance.receipt');
+Route::middleware(
+    'permission:ip-billing.view'
+)->group(function () {
+
+    Route::get(
+        '/ip-billing/{admission}',
+        [IpBillingController::class, 'show']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.show');
+});
 
 
-        Route::get(
-            '/ip-billing/{admission}',
-            [IpBillingController::class, 'show']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.show');
+/*
+|--------------------------------------------------------------------------
+| IP Billing - Advance Collection
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware(
+    'permission:ip-billing.advance'
+)->group(function () {
 
-        Route::post(
-            '/ip-billing/{admission}/advance',
-            [IpBillingController::class, 'receiveAdvance']
-        )
-            ->whereNumber('admission')
-            ->name('ip-billing.advance.store');
+    Route::get(
+        '/ip-billing/advances/{ipBillingAdvance}/receipt',
+        [IpBillingController::class, 'advanceReceipt']
+    )
+        ->whereNumber('ipBillingAdvance')
+        ->name('ip-billing.advance.receipt');
 
-    });
+    Route::post(
+        '/ip-billing/{admission}/advance',
+        [IpBillingController::class, 'receiveAdvance']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.advance.store');
+});
 
 
     /*
@@ -1591,10 +1736,9 @@ Route::middleware(
     |
     */
 
-    Route::middleware(
-        'role:admin,billing,nursing,doctor'
-    )->group(function () {
-
+   Route::middleware(
+    'permission:ip-billing.order-investigations'
+)->group(function () {
         Route::get(
             '/ip-billing/{admission}/investigations',
             [IpBillingController::class, 'createInvestigationOrder']
@@ -1621,8 +1765,8 @@ Route::middleware(
     */
 
     Route::middleware(
-        'role:laboratory,radiology'
-    )->group(function () {
+    'permission:laboratory.results,radiology.report'
+)->group(function () {
 
         Route::patch(
             '/diagnostics/items/{serviceOrderItem}/status',
@@ -1640,101 +1784,132 @@ Route::middleware(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:laboratory'
-    )->group(function () {
+   /*
+|--------------------------------------------------------------------------
+| Laboratory - View
+|--------------------------------------------------------------------------
+*/
 
-        Route::get(
-            '/laboratory',
-            [DiagnosticWorklistController::class, 'laboratory']
-        )->name('laboratory.index');
+Route::middleware(
+    'permission:laboratory.view'
+)->group(function () {
 
+    Route::get(
+        '/laboratory',
+        [DiagnosticWorklistController::class, 'laboratory']
+    )->name('laboratory.index');
 
-        Route::get(
-    '/diagnostics/items/{serviceOrderItem}/sample',
-    [DiagnosticSampleController::class, 'create']
-)
-    ->whereNumber('serviceOrderItem')
-    ->name('diagnostics.items.sample.create');
+    Route::get(
+        '/diagnostics/items/{serviceOrderItem}/result/view',
+        [DiagnosticWorklistController::class, 'showResult']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.result.show');
 
-
-Route::post(
-    '/diagnostics/items/{serviceOrderItem}/sample',
-    [DiagnosticSampleController::class, 'store']
-)
-    ->whereNumber('serviceOrderItem')
-    ->name('diagnostics.items.sample.store');
-
-
-Route::get(
-    '/diagnostics/items/{serviceOrderItem}/sample/reject',
-    [DiagnosticSampleController::class, 'rejectForm']
-)
-    ->whereNumber('serviceOrderItem')
-    ->name('diagnostics.items.sample.reject-form');
+    Route::get(
+        '/diagnostics/orders/{serviceOrderId}/results/group',
+        [DiagnosticWorklistController::class, 'showGroupedResults']
+    )
+        ->whereNumber('serviceOrderId')
+        ->name('diagnostics.orders.results.group');
+});
 
 
-Route::post(
-    '/diagnostics/items/{serviceOrderItem}/sample/reject',
-    [DiagnosticSampleController::class, 'reject']
-)
-    ->whereNumber('serviceOrderItem')
-    ->name('diagnostics.items.sample.reject');
+/*
+|--------------------------------------------------------------------------
+| Laboratory - Sample Processing
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'permission:laboratory.sample'
+)->group(function () {
+
+    Route::get(
+        '/diagnostics/items/{serviceOrderItem}/sample',
+        [DiagnosticSampleController::class, 'create']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.sample.create');
+
+    Route::post(
+        '/diagnostics/items/{serviceOrderItem}/sample',
+        [DiagnosticSampleController::class, 'store']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.sample.store');
+
+    Route::get(
+        '/diagnostics/items/{serviceOrderItem}/sample/reject',
+        [DiagnosticSampleController::class, 'rejectForm']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.sample.reject-form');
+
+    Route::post(
+        '/diagnostics/items/{serviceOrderItem}/sample/reject',
+        [DiagnosticSampleController::class, 'reject']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.sample.reject');
+});
 
 
-        Route::get(
-            '/diagnostics/items/{serviceOrderItem}/result',
-            [DiagnosticWorklistController::class, 'editResult']
-        )
-            ->whereNumber('serviceOrderItem')
-            ->name('diagnostics.items.result.edit');
+/*
+|--------------------------------------------------------------------------
+| Laboratory - Result Entry
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'permission:laboratory.results'
+)->group(function () {
+
+    Route::get(
+        '/diagnostics/items/{serviceOrderItem}/result',
+        [DiagnosticWorklistController::class, 'editResult']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.result.edit');
+
+    Route::post(
+        '/diagnostics/items/{serviceOrderItem}/result',
+        [DiagnosticWorklistController::class, 'saveResult']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.result.save');
+});
 
 
-        Route::post(
-            '/diagnostics/items/{serviceOrderItem}/result',
-            [DiagnosticWorklistController::class, 'saveResult']
-        )
-            ->whereNumber('serviceOrderItem')
-            ->name('diagnostics.items.result.save');
+/*
+|--------------------------------------------------------------------------
+| Laboratory - Parameter Master
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware(
+    'permission:laboratory.parameters'
+)->group(function () {
 
-        Route::get(
-            '/diagnostics/items/{serviceOrderItem}/result/view',
-            [DiagnosticWorklistController::class, 'showResult']
-        )
-            ->whereNumber('serviceOrderItem')
-            ->name('diagnostics.items.result.show');
+    Route::get(
+        '/admin/laboratory-parameters',
+        [LaboratoryTestParameterController::class, 'index']
+    )->name('admin.laboratory-parameters.index');
 
-                    Route::get(
-            '/diagnostics/orders/{serviceOrderId}/results/group',
-            [DiagnosticWorklistController::class, 'showGroupedResults']
-        )
-            ->whereNumber('serviceOrderId')
-            ->name('diagnostics.orders.results.group');
+    Route::get(
+        '/admin/laboratory-parameters/{service}/edit',
+        [LaboratoryTestParameterController::class, 'edit']
+    )
+        ->whereNumber('service')
+        ->name('admin.laboratory-parameters.edit');
 
-
-         Route::get(
-    '/admin/laboratory-parameters',
-    [LaboratoryTestParameterController::class, 'index']
-)->name('admin.laboratory-parameters.index');
-
-
-Route::get(
-    '/admin/laboratory-parameters/{service}/edit',
-    [LaboratoryTestParameterController::class, 'edit']
-)
-    ->whereNumber('service')
-    ->name('admin.laboratory-parameters.edit');
-
-
-Route::put(
-    '/admin/laboratory-parameters/{service}',
-    [LaboratoryTestParameterController::class, 'update']
-)
-    ->whereNumber('service')
-    ->name('admin.laboratory-parameters.update');   
-
-    });
+    Route::put(
+        '/admin/laboratory-parameters/{service}',
+        [LaboratoryTestParameterController::class, 'update']
+    )
+        ->whereNumber('service')
+        ->name('admin.laboratory-parameters.update');
+});
 
 
 
@@ -1746,40 +1921,54 @@ Route::put(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:radiology'
-    )->group(function () {
+   /*
+|--------------------------------------------------------------------------
+| Imaging / Radiology - View
+|--------------------------------------------------------------------------
+*/
 
-        Route::get(
-            '/imaging',
-            [DiagnosticWorklistController::class, 'imaging']
-        )->name('imaging.index');
+Route::middleware(
+    'permission:radiology.view'
+)->group(function () {
 
+    Route::get(
+        '/imaging',
+        [DiagnosticWorklistController::class, 'imaging']
+    )->name('imaging.index');
 
-        Route::get(
-            '/diagnostics/items/{serviceOrderItem}/imaging-report',
-            [DiagnosticWorklistController::class, 'editImagingReport']
-        )
-            ->whereNumber('serviceOrderItem')
-            ->name('diagnostics.items.imaging-report.edit');
-
-
-        Route::post(
-            '/diagnostics/items/{serviceOrderItem}/imaging-report',
-            [DiagnosticWorklistController::class, 'saveImagingReport']
-        )
-            ->whereNumber('serviceOrderItem')
-            ->name('diagnostics.items.imaging-report.save');
+    Route::get(
+        '/diagnostics/items/{serviceOrderItem}/imaging-report/view',
+        [DiagnosticWorklistController::class, 'showImagingReport']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.imaging-report.show');
+});
 
 
-        Route::get(
-            '/diagnostics/items/{serviceOrderItem}/imaging-report/view',
-            [DiagnosticWorklistController::class, 'showImagingReport']
-        )
-            ->whereNumber('serviceOrderItem')
-            ->name('diagnostics.items.imaging-report.show');
-    });
+/*
+|--------------------------------------------------------------------------
+| Imaging / Radiology - Reporting
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware(
+    'permission:radiology.report'
+)->group(function () {
+
+    Route::get(
+        '/diagnostics/items/{serviceOrderItem}/imaging-report',
+        [DiagnosticWorklistController::class, 'editImagingReport']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.imaging-report.edit');
+
+    Route::post(
+        '/diagnostics/items/{serviceOrderItem}/imaging-report',
+        [DiagnosticWorklistController::class, 'saveImagingReport']
+    )
+        ->whereNumber('serviceOrderItem')
+        ->name('diagnostics.items.imaging-report.save');
+});
 
 
     /*
@@ -1789,8 +1978,8 @@ Route::put(
     */
 
     Route::middleware(
-        'role:pharmacy'
-    )->group(function () {
+    'permission:pharmacy.view'
+)->group(function () {
 
 
         /*
@@ -1819,15 +2008,18 @@ Route::put(
 
 
         Route::get(
-            '/pharmacy/dispensing/create',
-            [DispensingController::class, 'create']
-        )->name('pharmacy.dispensing.create');
-
+    '/pharmacy/dispensing/create',
+    [DispensingController::class, 'create']
+)
+    ->middleware('permission:pharmacy.dispense')
+    ->name('pharmacy.dispensing.create');
 
         Route::post(
-            '/pharmacy/dispensing',
-            [DispensingController::class, 'store']
-        )->name('pharmacy.dispensing.store');
+    '/pharmacy/dispensing',
+    [DispensingController::class, 'store']
+)
+    ->middleware('permission:pharmacy.dispense')
+    ->name('pharmacy.dispensing.store');
 
 
         Route::get(
@@ -1836,14 +2028,8 @@ Route::put(
         )
             ->whereNumber('sale')
             ->name('pharmacy.dispensing.receipt');
-                               Route::post(
-    '/pharmacy/dispensing/{admission}/interim-payment',
-    [IpBillingController::class, 'receiveAdvance']
-)
-    ->whereNumber('admission')
-    ->name(
-        'pharmacy.dispensing.interim-payment.store'
-    );
+
+
 
         Route::get(
             '/pharmacy/dispensing/{sale}',
@@ -1861,20 +2047,21 @@ Route::put(
         */
 
         Route::get(
-            '/pharmacy/dispensing/{sale}/return',
-            [PharmacyReturnController::class, 'create']
-        )
-            ->whereNumber('sale')
-            ->name('pharmacy.returns.create');
+    '/pharmacy/dispensing/{sale}/return',
+    [PharmacyReturnController::class, 'create']
+)
+    ->whereNumber('sale')
+    ->middleware('permission:pharmacy.returns')
+    ->name('pharmacy.returns.create');
 
 
         Route::post(
-            '/pharmacy/dispensing/{sale}/return',
-            [PharmacyReturnController::class, 'store']
-        )
-            ->whereNumber('sale')
-            ->name('pharmacy.returns.store');
-
+    '/pharmacy/dispensing/{sale}/return',
+    [PharmacyReturnController::class, 'store']
+)
+    ->whereNumber('sale')
+    ->middleware('permission:pharmacy.returns')
+    ->name('pharmacy.returns.store');
 
         Route::get(
             '/pharmacy/returns/{pharmacyReturn}/receipt',
@@ -1898,39 +2085,45 @@ Route::put(
 
 
         Route::get(
-            '/pharmacy/medicines/create',
-            [MedicineController::class, 'create']
-        )->name('pharmacy.medicines.create');
+    '/pharmacy/medicines/create',
+    [MedicineController::class, 'create']
+)
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.medicines.create');
 
 
-        Route::post(
-            '/pharmacy/medicines',
-            [MedicineController::class, 'store']
-        )->name('pharmacy.medicines.store');
-
+       Route::post(
+    '/pharmacy/medicines',
+    [MedicineController::class, 'store']
+)
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.medicines.store');
 
         Route::get(
-            '/pharmacy/medicines/{medicine}/edit',
-            [MedicineController::class, 'edit']
-        )
-            ->whereNumber('medicine')
-            ->name('pharmacy.medicines.edit');
+    '/pharmacy/medicines/{medicine}/edit',
+    [MedicineController::class, 'edit']
+)
+    ->whereNumber('medicine')
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.medicines.edit');
 
 
         Route::put(
-            '/pharmacy/medicines/{medicine}',
-            [MedicineController::class, 'update']
-        )
-            ->whereNumber('medicine')
-            ->name('pharmacy.medicines.update');
+    '/pharmacy/medicines/{medicine}',
+    [MedicineController::class, 'update']
+)
+    ->whereNumber('medicine')
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.medicines.update');
 
 
-        Route::patch(
-            '/pharmacy/medicines/{medicine}/status',
-            [MedicineController::class, 'toggleStatus']
-        )
-            ->whereNumber('medicine')
-            ->name('pharmacy.medicines.status');
+      Route::patch(
+    '/pharmacy/medicines/{medicine}/status',
+    [MedicineController::class, 'toggleStatus']
+)
+    ->whereNumber('medicine')
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.medicines.status');
 
 
 
@@ -1947,15 +2140,19 @@ Route::put(
 
 
         Route::get(
-            '/pharmacy/stock-batches/create',
-            [StockBatchController::class, 'create']
-        )->name('pharmacy.stock-batches.create');
+    '/pharmacy/stock-batches/create',
+    [StockBatchController::class, 'create']
+)
+    ->middleware('permission:pharmacy.opening-stock.create')
+    ->name('pharmacy.stock-batches.create');
 
 
         Route::post(
-            '/pharmacy/stock-batches',
-            [StockBatchController::class, 'store']
-        )->name('pharmacy.stock-batches.store');
+    '/pharmacy/stock-batches',
+    [StockBatchController::class, 'store']
+)
+    ->middleware('permission:pharmacy.opening-stock.create')
+    ->name('pharmacy.stock-batches.store');
 
 
         Route::get(
@@ -1967,28 +2164,30 @@ Route::put(
 
 
         Route::get(
-            '/pharmacy/stock-batches/{stockBatch}/edit',
-            [StockBatchController::class, 'edit']
-        )
-            ->whereNumber('stockBatch')
-            ->name('pharmacy.stock-batches.edit');
+    '/pharmacy/stock-batches/{stockBatch}/edit',
+    [StockBatchController::class, 'edit']
+)
+    ->whereNumber('stockBatch')
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.stock-batches.edit');
 
 
-        Route::put(
-            '/pharmacy/stock-batches/{stockBatch}',
-            [StockBatchController::class, 'update']
-        )
-            ->whereNumber('stockBatch')
-            ->name('pharmacy.stock-batches.update');
+       Route::put(
+    '/pharmacy/stock-batches/{stockBatch}',
+    [StockBatchController::class, 'update']
+)
+    ->whereNumber('stockBatch')
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.stock-batches.update');
 
 
         Route::patch(
-            '/pharmacy/stock-batches/{stockBatch}/status',
-            [StockBatchController::class, 'toggleStatus']
-        )
-            ->whereNumber('stockBatch')
-            ->name('pharmacy.stock-batches.status');
-
+    '/pharmacy/stock-batches/{stockBatch}/status',
+    [StockBatchController::class, 'toggleStatus']
+)
+    ->whereNumber('stockBatch')
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.stock-batches.status');
 
 
         /*
@@ -2076,15 +2275,19 @@ Route::put(
 
 
         Route::get(
-            '/pharmacy/suppliers/create',
-            [PharmacySupplierController::class, 'create']
-        )->name('pharmacy.suppliers.create');
+    '/pharmacy/suppliers/create',
+    [PharmacySupplierController::class, 'create']
+)
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.suppliers.create');
 
 
-        Route::post(
-            '/pharmacy/suppliers',
-            [PharmacySupplierController::class, 'store']
-        )->name('pharmacy.suppliers.store');
+       Route::post(
+    '/pharmacy/suppliers',
+    [PharmacySupplierController::class, 'store']
+)
+    ->middleware('permission:pharmacy.master')
+    ->name('pharmacy.suppliers.store');
 
 
         Route::get(
@@ -2092,6 +2295,7 @@ Route::put(
             [PharmacySupplierController::class, 'edit']
         )
             ->whereNumber('pharmacySupplier')
+            ->middleware('permission:pharmacy.master')
             ->name('pharmacy.suppliers.edit');
 
 
@@ -2100,6 +2304,7 @@ Route::put(
             [PharmacySupplierController::class, 'update']
         )
             ->whereNumber('pharmacySupplier')
+            ->middleware('permission:pharmacy.master')
             ->name('pharmacy.suppliers.update');
 
 
@@ -2108,6 +2313,7 @@ Route::put(
             [PharmacySupplierController::class, 'toggleStatus']
         )
             ->whereNumber('pharmacySupplier')
+            ->middleware('permission:pharmacy.master')
             ->name('pharmacy.suppliers.status');
 
 
@@ -2164,12 +2370,12 @@ Route::put(
 
 
         Route::patch(
-            '/pharmacy/purchase-orders/{pharmacyPurchaseOrder}/cancel',
-            [PharmacyPurchaseOrderController::class, 'cancel']
-        )
-            ->whereNumber('pharmacyPurchaseOrder')
-            ->name('pharmacy.purchase-orders.cancel');
-
+    '/pharmacy/purchase-orders/{pharmacyPurchaseOrder}/cancel',
+    [PharmacyPurchaseOrderController::class, 'cancel']
+)
+    ->whereNumber('pharmacyPurchaseOrder')
+    ->middleware('permission:pharmacy.po.create')
+    ->name('pharmacy.purchase-orders.cancel');
 
 
         /*
@@ -2271,11 +2477,12 @@ Route::put(
 
 
         Route::post(
-            '/pharmacy/grns/{pharmacyGrn}/supplier-payable',
-            [PharmacySupplierPayableController::class, 'createFromGrn']
-        )
-            ->whereNumber('pharmacyGrn')
-            ->name('pharmacy.supplier-payables.create-from-grn');
+    '/pharmacy/grns/{pharmacyGrn}/supplier-payable',
+    [PharmacySupplierPayableController::class, 'createFromGrn']
+)
+    ->whereNumber('pharmacyGrn')
+    ->middleware('permission:pharmacy.grn.create')
+    ->name('pharmacy.supplier-payables.create-from-grn');
 
 
         Route::get(
@@ -2421,14 +2628,17 @@ Route::get(
 Route::get(
     '/pharmacy/stock-transfers/create',
     [PharmacyStockTransferController::class, 'create']
-)->name('pharmacy.stock-transfers.create');
+)
+    ->middleware('permission:stores.transfer')
+    ->name('pharmacy.stock-transfers.create');
 
 
 Route::post(
     '/pharmacy/stock-transfers',
     [PharmacyStockTransferController::class, 'store']
-)->name('pharmacy.stock-transfers.store');
-
+)
+    ->middleware('permission:stores.transfer')
+    ->name('pharmacy.stock-transfers.store');
 
 Route::get(
     '/pharmacy/stock-transfers/{pharmacyStockTransfer}',
@@ -2443,6 +2653,7 @@ Route::patch(
     [PharmacyStockTransferController::class, 'issue']
 )
     ->whereNumber('pharmacyStockTransfer')
+    ->middleware('permission:stores.transfer')
     ->name('pharmacy.stock-transfers.issue');
 
 
@@ -2451,6 +2662,7 @@ Route::patch(
     [PharmacyStockTransferController::class, 'receive']
 )
     ->whereNumber('pharmacyStockTransfer')
+    ->middleware('permission:stores.transfer')
     ->name('pharmacy.stock-transfers.receive');
 
 
@@ -2459,10 +2671,17 @@ Route::patch(
     [PharmacyStockTransferController::class, 'cancel']
 )
     ->whereNumber('pharmacyStockTransfer')
+    ->middleware('permission:stores.transfer')
     ->name('pharmacy.stock-transfers.cancel');   
     });
 
-
+Route::post(
+    '/pharmacy/dispensing/{admission}/interim-payment',
+    [IpBillingController::class, 'receiveAdvance']
+)
+    ->whereNumber('admission')
+    ->middleware('permission:ip-billing.advance')
+    ->name('pharmacy.dispensing.interim-payment.store');
 
     /*
     |--------------------------------------------------------------------------

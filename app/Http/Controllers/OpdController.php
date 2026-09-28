@@ -22,6 +22,7 @@ class OpdController extends Controller
                 'doctor',
                 'payments',
                 'invoices',
+                'admission',
             ])
             ->where('encounter_type', 'OPD')
             ->whereDate('encounter_date', today())

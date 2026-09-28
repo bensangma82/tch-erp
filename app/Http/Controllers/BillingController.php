@@ -230,11 +230,20 @@ class BillingController extends Controller
             return $order;
         });
 
-        return redirect()
-            ->route(
-                'billing.payment',
-                $order
-            );
+        if (auth()->user()?->hasPermission('billing.collect')) {
+    return redirect()
+        ->route(
+            'billing.payment',
+            $order
+        );
+}
+
+return redirect()
+    ->route('opd.index')
+    ->with(
+        'success',
+        'Investigation order created successfully and sent to Billing for payment.'
+    );
     }
 
 

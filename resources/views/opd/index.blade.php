@@ -301,7 +301,25 @@
                                                     No receipt
                                                 </div>
                                             @endif
+                                             @if ($encounter->admission)
 
+    <a
+        href="{{ route('ipd.show', $encounter->admission) }}"
+        class="inline-flex items-center justify-center rounded-lg bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
+    >
+        View Admission
+    </a>
+
+@elseif (auth()->user()?->hasPermission('ipd.admit'))
+
+    <a
+        href="{{ route('opd.admission.create', $encounter) }}"
+        class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-700"
+    >
+        Admit Patient
+    </a>
+
+@endif
                                         </div>
                                     </td>
 

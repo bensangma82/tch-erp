@@ -100,6 +100,12 @@ class RolePermissionSeeder extends Seeder
 
             // IPD
             [
+    'name' => 'ipd.admit',
+    'label' => 'Admit Patient to IPD',
+    'module' => 'ipd',
+    'description' => 'Admit a patient into IPD from OPD.',
+],
+            [
                 'name' => 'ipd.view',
                 'label' => 'View IPD',
                 'module' => 'ipd',
@@ -137,6 +143,13 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'billing',
                 'description' => 'Access OPD billing and investigation billing.',
             ],
+
+            [
+    'name' => 'billing.order-investigations',
+    'label' => 'Order OPD Investigations',
+    'module' => 'billing',
+    'description' => 'Create investigation and service orders for OPD encounters.',
+],
             [
                 'name' => 'billing.collect',
                 'label' => 'Collect OPD Payments',
@@ -149,6 +162,21 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'billing',
                 'description' => 'View inpatient billing accounts.',
             ],
+
+            [
+    'name' => 'ip-billing.advance',
+    'label' => 'Collect IP Advances',
+    'module' => 'billing',
+    'description' => 'Collect inpatient advances and print advance receipts.',
+],
+
+
+              [
+    'name' => 'ip-billing.order-investigations',
+    'label' => 'Order IP Investigations',
+    'module' => 'billing',
+    'description' => 'Create investigation and service orders for admitted patients.',
+],
             [
                 'name' => 'ip-billing.manage',
                 'label' => 'Manage IP Billing',
@@ -259,6 +287,81 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'pharmacy',
                 'description' => 'Process medicine returns from patients.',
             ],
+
+            [
+    'name' => 'pharmacy.master',
+    'label' => 'Manage Pharmacy Master Data',
+    'module' => 'pharmacy',
+    'description' => 'Create and update medicines, suppliers and pharmacy stock master data.',
+],
+
+[
+    'name' => 'pharmacy.opening-stock.create',
+    'label' => 'Create Opening Stock',
+    'module' => 'pharmacy',
+    'description' => 'Create opening pharmacy stock batches and initial Central Store balances.',
+],
+
+            [
+    'name' => 'pharmacy.po.create',
+    'label' => 'Create Purchase Orders',
+    'module' => 'pharmacy',
+    'description' => 'Create pharmacy purchase orders.',
+],
+[
+    'name' => 'pharmacy.po.approve',
+    'label' => 'Approve Purchase Orders',
+    'module' => 'pharmacy',
+    'description' => 'Approve pharmacy purchase orders.',
+],
+[
+    'name' => 'pharmacy.grn.create',
+    'label' => 'Create GRN',
+    'module' => 'pharmacy',
+    'description' => 'Receive pharmacy goods and create goods receipt notes.',
+],
+[
+    'name' => 'pharmacy.purchase-return.create',
+    'label' => 'Create Purchase Returns',
+    'module' => 'pharmacy',
+    'description' => 'Create pharmacy purchase returns to suppliers.',
+],
+[
+    'name' => 'pharmacy.supplier-payment.record',
+    'label' => 'Record Supplier Payments',
+    'module' => 'pharmacy',
+    'description' => 'Record payments against pharmacy supplier payables.',
+],
+[
+    'name' => 'pharmacy.stock-adjustment.create',
+    'label' => 'Create Stock Adjustments',
+    'module' => 'pharmacy',
+    'description' => 'Create manual pharmacy stock adjustments.',
+],
+[
+    'name' => 'pharmacy.disposal.create',
+    'label' => 'Create Stock Disposals',
+    'module' => 'pharmacy',
+    'description' => 'Record disposal or write-off of pharmacy stock.',
+],
+[
+    'name' => 'pharmacy.stock-audit.create',
+    'label' => 'Create Stock Audits',
+    'module' => 'pharmacy',
+    'description' => 'Create and perform pharmacy stock audits.',
+],
+[
+    'name' => 'pharmacy.stock-audit.approve',
+    'label' => 'Approve Stock Audits',
+    'module' => 'pharmacy',
+    'description' => 'Review and approve pharmacy stock audits.',
+],
+[
+    'name' => 'pharmacy.stock-audit.post',
+    'label' => 'Post Stock Audits',
+    'module' => 'pharmacy',
+    'description' => 'Post approved pharmacy stock audit adjustments.',
+],
 
             // STORES
             [
@@ -376,6 +479,7 @@ class RolePermissionSeeder extends Seeder
                 'opd.create',
                 'opd.card',
                 'billing.view',
+                'billing.order-investigations',
                 'billing.collect',
                 'emergency.view',
                 'emergency.create',
@@ -385,6 +489,7 @@ class RolePermissionSeeder extends Seeder
                 'patients.view',
                 'patients.create',
                 'opd.view',
+                'billing.order-investigations',
                 'nursing.view',
                 'nursing.vitals',
                 'emergency.view',
@@ -392,16 +497,21 @@ class RolePermissionSeeder extends Seeder
                 'ipd.view',
                 'ipd.transfer',
                 'ipd.discharge-summary.view',
+                'ip-billing.view',
+                'ip-billing.advance',
+                'ip-billing.order-investigations',
             ],
 
             'doctor' => [
                 'patients.view',
                 'opd.view',
+                'billing.order-investigations',
                 'nursing.view',
                 'emergency.view',
                 'ipd.view',
                 'ipd.discharge-summary.view',
                 'ipd.discharge-summary.edit',
+                'ip-billing.order-investigations',
                 'laboratory.view',
                 'radiology.view',
             ],
@@ -410,8 +520,11 @@ class RolePermissionSeeder extends Seeder
                 'patients.view',
                 'opd.view',
                 'billing.view',
+                'billing.order-investigations',
                 'billing.collect',
                 'ip-billing.view',
+                'ip-billing.advance',
+                'ip-billing.order-investigations',
                 'ip-billing.manage',
             ],
 
@@ -450,6 +563,8 @@ class RolePermissionSeeder extends Seeder
                 'pharmacy.view',
                 'pharmacy.dispense',
                 'pharmacy.returns',
+                'pharmacy.master',
+                'pharmacy.opening-stock.create',
                 'pharmacy.po.create',
                 'pharmacy.po.approve',
                 'pharmacy.grn.create',
@@ -506,6 +621,7 @@ class RolePermissionSeeder extends Seeder
                 'nursing.view',
                 'nursing.vitals',
                 'ipd.view',
+                'ipd.admit',
                 'ipd.transfer',
                 'ipd.close',
                 'ipd.discharge-summary.view',
