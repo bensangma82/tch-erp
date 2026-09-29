@@ -27,7 +27,6 @@ class PatientController extends Controller
                     $search
                 );
 
-
             $query->where(
                 function ($q) use (
                     $search,
@@ -70,7 +69,6 @@ class PatientController extends Controller
                         "%{$search}%"
                     );
 
-
                     if ($normalizedPhone) {
 
                         $q->orWhere(
@@ -83,13 +81,11 @@ class PatientController extends Controller
             );
         }
 
-
         $patients =
             $query
                 ->latest()
                 ->paginate(20)
                 ->withQueryString();
-
 
         return view(
             'patients.index',
@@ -119,7 +115,6 @@ class PatientController extends Controller
         $duplicates =
             collect();
 
-
         /*
         |--------------------------------------------------------------------------
         | Registration return destination
@@ -137,7 +132,6 @@ class PatientController extends Controller
                 )
             );
 
-
         /*
         |--------------------------------------------------------------------------
         | Duplicate search input
@@ -151,7 +145,6 @@ class PatientController extends Controller
                 )
             );
 
-
         $lastName =
             trim(
                 (string) $request->input(
@@ -159,12 +152,10 @@ class PatientController extends Controller
                 )
             );
 
-
         $dob =
             $request->input(
                 'date_of_birth'
             );
-
 
         $phone =
             $this->normalizePhone(
@@ -173,22 +164,10 @@ class PatientController extends Controller
                 )
             );
 
-
         /*
         |--------------------------------------------------------------------------
         | Possible duplicate check
         |--------------------------------------------------------------------------
-        |
-        | IMPORTANT:
-        |
-        | Do not run an empty grouped WHERE condition.
-        |
-        | The previous code entered the duplicate query whenever ANY of
-        | first name, last name, DOB or phone was present. If only a field
-        | such as last_name was supplied, none of the actual matching rules
-        | inside the query were added. PostgreSQL/Laravel could therefore
-        | return the latest patients, making unrelated patients appear as
-        | "possible duplicates".
         |
         | Only run the query when at least one real duplicate rule exists:
         |
@@ -212,7 +191,6 @@ class PatientController extends Controller
                 &&
                 ! empty($dob)
             );
-
 
         if ($hasDuplicateCriteria) {
 
@@ -238,7 +216,6 @@ class PatientController extends Controller
                                     $phone
                                 );
                             }
-
 
                             /*
                              * Rule 2:
@@ -270,7 +247,6 @@ class PatientController extends Controller
                                     }
                                 );
                             }
-
 
                             /*
                              * Rule 3:
@@ -308,7 +284,6 @@ class PatientController extends Controller
                     ->get();
         }
 
-
         return view(
             'patients.create',
             compact(
@@ -325,157 +300,16 @@ class PatientController extends Controller
     public function store(Request $request)
     {
         $validated =
-            $request->validate([
-
-                'title' => [
-                    'nullable',
-                    'string',
-                    'max:20',
-                ],
-
-                'first_name' => [
-                    'required',
-                    'string',
-                    'max:100',
-                ],
-
-                'middle_name' => [
-                    'nullable',
-                    'string',
-                    'max:100',
-                ],
-
-                'last_name' => [
-                    'nullable',
-                    'string',
-                    'max:100',
-                ],
-
-                'date_of_birth' => [
-                    'nullable',
-                    'date',
-                    'before_or_equal:today',
-                ],
-
-                'age' => [
-                    'nullable',
-                    'integer',
-                    'min:0',
-                    'max:130',
-                ],
-
-                'sex' => [
-                    'required',
-                    'string',
-                    'max:20',
-                ],
-
-                'phone' => [
-                    'nullable',
-                    'string',
-                    'max:20',
-                ],
-
-                'alternate_phone' => [
-                    'nullable',
-                    'string',
-                    'max:20',
-                ],
-
-                'email' => [
-                    'nullable',
-                    'email',
-                    'max:255',
-                ],
-
-                'address' => [
-                    'nullable',
-                    'string',
-                ],
-
-                'locality' => [
-                    'nullable',
-                    'string',
-                    'max:150',
-                ],
-
-                'district' => [
-                    'nullable',
-                    'string',
-                    'max:150',
-                ],
-
-                'state' => [
-                    'nullable',
-                    'string',
-                    'max:150',
-                ],
-
-                'pin_code' => [
-                    'nullable',
-                    'string',
-                    'max:10',
-                ],
-
-                'blood_group' => [
-                    'nullable',
-                    'string',
-                    'max:10',
-                ],
-
-                'emergency_contact_name' => [
-                    'nullable',
-                    'string',
-                    'max:150',
-                ],
-
-                'emergency_contact_phone' => [
-                    'nullable',
-                    'string',
-                    'max:20',
-                ],
-
-                'emergency_contact_relation' => [
-                    'nullable',
-                    'string',
-                    'max:100',
-                ],
-
-                'abha_number' => [
-                    'nullable',
-                    'string',
-                    'max:100',
-                ],
-
-                'mhis_number' => [
-                    'nullable',
-                    'string',
-                    'max:100',
-                ],
-
-                'known_allergies' => [
-                    'nullable',
-                    'string',
-                ],
-
-                /*
-                 * Workflow return target.
-                 */
-                'return_to' => [
-                    'nullable',
-                    'string',
-                    'max:500',
-                ],
-            ]);
-
+            $request->validate(
+                $this->patientValidationRules(
+                    includeReturnTo: true
+                )
+            );
 
         /*
         |--------------------------------------------------------------------------
         | Extract workflow return target
         |--------------------------------------------------------------------------
-        |
-        | Do not send this field to Patient::create().
-        |
         */
 
         $returnTo =
@@ -484,70 +318,20 @@ class PatientController extends Controller
                 ?? null
             );
 
-
         unset(
             $validated['return_to']
         );
 
-
         /*
         |--------------------------------------------------------------------------
-        | Clean name fields
+        | Normalize patient data
         |--------------------------------------------------------------------------
         */
 
-        $validated['first_name'] =
-            trim(
-                $validated['first_name']
+        $validated =
+            $this->normalizePatientData(
+                $validated
             );
-
-
-        $validated['middle_name'] =
-            ! empty(
-                $validated['middle_name']
-            )
-                ? trim(
-                    $validated['middle_name']
-                )
-                : null;
-
-
-        $validated['last_name'] =
-            ! empty(
-                $validated['last_name']
-            )
-                ? trim(
-                    $validated['last_name']
-                )
-                : null;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Normalize phone numbers
-        |--------------------------------------------------------------------------
-        */
-
-        $validated['phone'] =
-            $this->normalizePhone(
-                $validated['phone']
-                ?? null
-            );
-
-
-        $validated['alternate_phone'] =
-            $this->normalizePhone(
-                $validated['alternate_phone']
-                ?? null
-            );
-
-
-        $validated['emergency_contact_phone'] =
-            $this->normalizePhone(
-                $validated['emergency_contact_phone']
-                ?? null
-            );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -559,7 +343,6 @@ class PatientController extends Controller
             $this->findStrongDuplicate(
                 $validated
             );
-
 
         if ($duplicate) {
 
@@ -581,7 +364,6 @@ class PatientController extends Controller
                 ]);
         }
 
-
         /*
         |--------------------------------------------------------------------------
         | Create Patient
@@ -597,10 +379,8 @@ class PatientController extends Controller
                     $validated['uhid'] =
                         $this->generateUhid();
 
-
                     $validated['mrd_number'] =
                         $this->generateMrdNumber();
-
 
                     return Patient::create(
                         $validated
@@ -608,16 +388,10 @@ class PatientController extends Controller
                 }
             );
 
-
         /*
         |--------------------------------------------------------------------------
         | Emergency Registration Return
         |--------------------------------------------------------------------------
-        |
-        | When the patient-registration form was opened from Emergency,
-        | return directly to Emergency Registration and pass the newly
-        | created patient ID so that patient can be selected automatically.
-        |
         */
 
         if (
@@ -645,7 +419,6 @@ class PatientController extends Controller
                     . '. Complete the Emergency registration below.'
                 );
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -682,17 +455,361 @@ class PatientController extends Controller
 
 
     /**
+     * Show the patient demographic edit form.
+     */
+    public function edit(Patient $patient)
+    {
+        return view(
+            'patients.edit',
+            compact('patient')
+        );
+    }
+
+
+    /**
+     * Update patient demographic and contact information.
+     *
+     * UHID and MRD are intentionally not accepted here.
+     */
+    public function update(
+        Request $request,
+        Patient $patient
+    ) {
+        $validated =
+            $request->validate(
+                $this->patientValidationRules()
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normalize patient data
+        |--------------------------------------------------------------------------
+        */
+
+        $validated =
+            $this->normalizePatientData(
+                $validated
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Duplicate protection
+        |--------------------------------------------------------------------------
+        |
+        | Exclude the patient currently being edited.
+        |
+        */
+
+        $duplicate =
+            $this->findStrongDuplicate(
+                $validated,
+                $patient->id
+            );
+
+        if ($duplicate) {
+
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'duplicate' =>
+                        'Update stopped. These details match another patient. '
+                        . 'UHID: '
+                        . $duplicate->uhid
+                        . ' | MRD: '
+                        . (
+                            $duplicate->mrd_number
+                            ?: 'Not assigned'
+                        )
+                        . ' | Patient: '
+                        . $duplicate->full_name
+                        . '. Please verify the patient before saving these changes.',
+                ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update Patient
+        |--------------------------------------------------------------------------
+        |
+        | Only validated demographic/contact fields are updated.
+        |
+        | UHID, MRD number, database ID and registration timestamps are not
+        | included in $validated and therefore cannot be changed here.
+        |
+        */
+
+        DB::transaction(
+            function () use (
+                $patient,
+                $validated
+            ) {
+
+                $patient->update(
+                    $validated
+                );
+            }
+        );
+
+        return redirect()
+            ->route(
+                'patients.show',
+                $patient
+            )
+            ->with(
+                'success',
+                'Patient details updated successfully. '
+                . 'UHID: '
+                . $patient->uhid
+                . ' | MRD: '
+                . (
+                    $patient->mrd_number
+                    ?: 'Not assigned'
+                )
+            );
+    }
+
+
+    /**
+     * Validation rules shared by patient registration and editing.
+     */
+    private function patientValidationRules(
+        bool $includeReturnTo = false
+    ): array {
+
+        $rules = [
+
+            'title' => [
+                'nullable',
+                'string',
+                'max:20',
+            ],
+
+            'first_name' => [
+                'required',
+                'string',
+                'max:100',
+            ],
+
+            'middle_name' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'last_name' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'date_of_birth' => [
+                'nullable',
+                'date',
+                'before_or_equal:today',
+            ],
+
+            'age' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:130',
+            ],
+
+            'sex' => [
+                'required',
+                'string',
+                'max:20',
+            ],
+
+            'phone' => [
+                'nullable',
+                'string',
+                'max:20',
+            ],
+
+            'alternate_phone' => [
+                'nullable',
+                'string',
+                'max:20',
+            ],
+
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+            ],
+
+            'address' => [
+                'nullable',
+                'string',
+            ],
+
+            'locality' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+
+            'district' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+
+            'state' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+
+            'pin_code' => [
+                'nullable',
+                'string',
+                'max:10',
+            ],
+
+            'blood_group' => [
+                'nullable',
+                'string',
+                'max:10',
+            ],
+
+            'emergency_contact_name' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
+
+            'emergency_contact_phone' => [
+                'nullable',
+                'string',
+                'max:20',
+            ],
+
+            'emergency_contact_relation' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'abha_number' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'mhis_number' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'known_allergies' => [
+                'nullable',
+                'string',
+            ],
+        ];
+
+        if ($includeReturnTo) {
+
+            $rules['return_to'] = [
+                'nullable',
+                'string',
+                'max:500',
+            ];
+        }
+
+        return $rules;
+    }
+
+
+    /**
+     * Normalize patient demographic data before storage.
+     */
+    private function normalizePatientData(
+        array $validated
+    ): array {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Clean name fields
+        |--------------------------------------------------------------------------
+        */
+
+        $validated['first_name'] =
+    mb_convert_case(
+        trim($validated['first_name']),
+        MB_CASE_TITLE,
+        'UTF-8'
+    );
+
+$validated['middle_name'] =
+    ! empty($validated['middle_name'])
+        ? mb_convert_case(
+            trim($validated['middle_name']),
+            MB_CASE_TITLE,
+            'UTF-8'
+        )
+        : null;
+
+$validated['last_name'] =
+    ! empty($validated['last_name'])
+        ? mb_convert_case(
+            trim($validated['last_name']),
+            MB_CASE_TITLE,
+            'UTF-8'
+        )
+        : null;
+
+$validated['emergency_contact_name'] =
+    ! empty($validated['emergency_contact_name'])
+        ? mb_convert_case(
+            trim($validated['emergency_contact_name']),
+            MB_CASE_TITLE,
+            'UTF-8'
+        )
+        : null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normalize phone numbers
+        |--------------------------------------------------------------------------
+        */
+
+        $validated['phone'] =
+            $this->normalizePhone(
+                $validated['phone']
+                ?? null
+            );
+
+        $validated['alternate_phone'] =
+            $this->normalizePhone(
+                $validated['alternate_phone']
+                ?? null
+            );
+
+        $validated['emergency_contact_phone'] =
+            $this->normalizePhone(
+                $validated['emergency_contact_phone']
+                ?? null
+            );
+
+        return $validated;
+    }
+
+
+    /**
      * Find a strong duplicate.
      */
     private function findStrongDuplicate(
-        array $data
+        array $data,
+        ?int $excludePatientId = null
     ): ?Patient {
 
         $firstName =
             trim(
                 $data['first_name']
             );
-
 
         $lastName =
             ! empty(
@@ -703,16 +820,13 @@ class PatientController extends Controller
                 )
                 : null;
 
-
         $phone =
             $data['phone']
             ?? null;
 
-
         $dob =
             $data['date_of_birth']
             ?? null;
-
 
         /*
          * Rule 1:
@@ -727,6 +841,15 @@ class PatientController extends Controller
 
             $patient =
                 Patient::query()
+                    ->when(
+                        $excludePatientId,
+                        fn ($query) =>
+                            $query->where(
+                                'id',
+                                '!=',
+                                $excludePatientId
+                            )
+                    )
                     ->where(
                         'phone',
                         $phone
@@ -738,13 +861,11 @@ class PatientController extends Controller
                     )
                     ->first();
 
-
             if ($patient) {
 
                 return $patient;
             }
         }
-
 
         /*
          * Rule 2:
@@ -761,6 +882,15 @@ class PatientController extends Controller
 
             $patient =
                 Patient::query()
+                    ->when(
+                        $excludePatientId,
+                        fn ($query) =>
+                            $query->where(
+                                'id',
+                                '!=',
+                                $excludePatientId
+                            )
+                    )
                     ->where(
                         'first_name',
                         'ilike',
@@ -777,13 +907,11 @@ class PatientController extends Controller
                     )
                     ->first();
 
-
             if ($patient) {
 
                 return $patient;
             }
         }
-
 
         return null;
     }
@@ -805,12 +933,10 @@ class PatientController extends Controller
             return null;
         }
 
-
         $emergencyRegistrationUrl =
             route(
                 'emergency.create'
             );
-
 
         /*
          * Exact generated Laravel route URL.
@@ -824,7 +950,6 @@ class PatientController extends Controller
             return $emergencyRegistrationUrl;
         }
 
-
         /*
          * Also allow the local path form.
          */
@@ -835,13 +960,11 @@ class PatientController extends Controller
                 PHP_URL_PATH
             );
 
-
         $expectedPath =
             parse_url(
                 $emergencyRegistrationUrl,
                 PHP_URL_PATH
             );
-
 
         if (
             $path
@@ -851,7 +974,6 @@ class PatientController extends Controller
 
             return $emergencyRegistrationUrl;
         }
-
 
         return null;
     }
@@ -880,7 +1002,6 @@ class PatientController extends Controller
             return null;
         }
 
-
         /*
          * Remove everything except digits.
          */
@@ -892,12 +1013,10 @@ class PatientController extends Controller
                 $phone
             );
 
-
         if (! $digits) {
 
             return null;
         }
-
 
         /*
          * Remove Indian country code 91.
@@ -921,7 +1040,6 @@ class PatientController extends Controller
                 );
         }
 
-
         /*
          * Remove leading zero.
          */
@@ -944,7 +1062,6 @@ class PatientController extends Controller
                 );
         }
 
-
         /*
          * If still more than 10 digits,
          * keep the last 10 digits.
@@ -962,7 +1079,6 @@ class PatientController extends Controller
                     -10
                 );
         }
-
 
         return $digits
             ?: null;
@@ -982,7 +1098,6 @@ class PatientController extends Controller
                 'Y'
             );
 
-
         $lastPatient =
             Patient::withTrashed()
                 ->where(
@@ -995,10 +1110,8 @@ class PatientController extends Controller
                 )
                 ->first();
 
-
         $nextNumber =
             1;
-
 
         if ($lastPatient) {
 
@@ -1008,17 +1121,14 @@ class PatientController extends Controller
                     $lastPatient->uhid
                 );
 
-
             $lastNumber =
                 (int) end(
                     $parts
                 );
 
-
             $nextNumber =
                 $lastNumber + 1;
         }
-
 
         return sprintf(
             'TCH-%s-%06d',
@@ -1041,7 +1151,6 @@ class PatientController extends Controller
                 'Y'
             );
 
-
         $lastPatient =
             Patient::withTrashed()
                 ->whereNotNull(
@@ -1057,10 +1166,8 @@ class PatientController extends Controller
                 )
                 ->first();
 
-
         $nextNumber =
             1;
-
 
         if ($lastPatient) {
 
@@ -1070,17 +1177,14 @@ class PatientController extends Controller
                     $lastPatient->mrd_number
                 );
 
-
             $lastNumber =
                 (int) end(
                     $parts
                 );
 
-
             $nextNumber =
                 $lastNumber + 1;
         }
-
 
         return sprintf(
             'MRD-%s-%06d',

@@ -147,4 +147,23 @@ public function charityAdjustments(): HasMany
         ->orderBy('created_at')
         ->orderBy('id');
 }
+
+public function refunds(): HasMany
+{
+    return $this->hasMany(
+        IpBillingRefund::class,
+        'ip_billing_account_id'
+    )
+        ->orderBy('refund_date')
+        ->orderBy('id');
+}
+public function mhisAdjustments(): HasMany
+{
+    return $this->hasMany(
+        IpBillingMhisAdjustment::class,
+        'ip_billing_account_id'
+    )
+        ->orderBy('adjustment_date')
+        ->orderBy('id');
+}
 }

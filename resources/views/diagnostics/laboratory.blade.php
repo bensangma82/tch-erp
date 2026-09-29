@@ -74,6 +74,9 @@
                             $patient = $order?->patient;
                             $encounter = $order?->encounter;
                             $admission = $order?->admission;
+                            $orderSource = $admission
+    ? 'IPD'
+    : ($encounter ? 'OPD' : 'OTHER');
 
                             $departmentName = $admission?->department?->name
                                 ?? $encounter?->department?->name
@@ -118,9 +121,27 @@
                         <tbody x-data="{ open: false }" class="border-b border-gray-200 last:border-b-0">
                             <tr class="align-top hover:bg-gray-50">
                                 <td class="px-4 py-4">
-                                    <div class="break-all font-mono text-xs font-semibold text-gray-900">
-                                        {{ $order?->order_no ?? '—' }}
-                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+    <span class="break-all font-mono text-xs font-semibold text-gray-900">
+        {{ $order?->order_no ?? '—' }}
+    </span>
+
+    @if ($orderSource === 'IPD')
+        <span
+            class="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
+            style="background-color: #7c3aed;"
+        >
+            IPD
+        </span>
+    @elseif ($orderSource === 'OPD')
+        <span
+            class="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
+            style="background-color: #2563eb;"
+        >
+            OPD
+        </span>
+    @endif
+</div>
                                     <div class="mt-1 text-[11px] leading-4 text-gray-400">
                                         {{ $order?->ordered_at?->format('d M Y') ?? '—' }}
                                     </div>

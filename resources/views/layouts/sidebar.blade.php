@@ -55,6 +55,7 @@
     $canRadiologyView = $canUsePermission('radiology.view');
 
     $canPharmacyView = $canUsePermission('pharmacy.view');
+    $canPharmacyGstReport = $canUsePermission('pharmacy.gst-report');
 
     $canBillingView = $canUsePermission('billing.view');
     $canIpBillingView = $canUsePermission('ip-billing.view');
@@ -607,6 +608,15 @@
                                class="block rounded-md px-3 py-1.5 text-[12.5px] transition {{ request()->routeIs('pharmacy.grns.*') ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-white' }}">
                                 GRN Register
                             </a>
+
+                            @if ($canPharmacyGstReport)
+
+    <a href="{{ route('pharmacy.reports.gst-purchases.index') }}"
+       class="block rounded-md px-3 py-1.5 text-[12.5px] transition {{ request()->routeIs('pharmacy.reports.gst-purchases.*') ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-white' }}">
+        GST Purchase Report
+    </a>
+
+@endif
 
                             <a href="{{ route('pharmacy.purchase-returns.index') }}"
                                class="block rounded-md px-3 py-1.5 text-[12.5px] transition {{ request()->routeIs('pharmacy.purchase-returns.*') ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-white' }}">

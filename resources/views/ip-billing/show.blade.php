@@ -115,6 +115,143 @@ $charityPendingAmount =
             ),
         2
     );
+
+    /*
+|--------------------------------------------------------------------------
+| MHIS Package Adjustment
+|--------------------------------------------------------------------------
+*/
+
+$mhisAdjustmentAmount =
+    round(
+        (float) $account->mhisAdjustments
+            ->where('status', 'active')
+            ->sum(
+                fn ($adjustment) =>
+                    (float) $adjustment->amount
+            ),
+        2
+    );
+
+
+/*
+|--------------------------------------------------------------------------
+| Adjusted Bill Amount
+|--------------------------------------------------------------------------
+*/
+
+$adjustedBillAmount =
+    round(
+        (float) $account->net_amount
+        + $mhisAdjustmentAmount,
+        2
+    );
+
+
+/*
+|--------------------------------------------------------------------------
+| Refunds Already Processed
+|--------------------------------------------------------------------------
+*/
+
+$refundAmount =
+    round(
+        (float) $account->refunds
+            ->where('status', 'active')
+            ->sum(
+                fn ($refund) =>
+                    (float) $refund->amount
+            ),
+        2
+    );
+
+
+
+    /*
+|--------------------------------------------------------------------------
+| Staff Medical Benefit
+|--------------------------------------------------------------------------
+*/
+
+$staffMedicalBenefitAmount =
+    round(
+        (float) $account
+            ->staffMedicalBenefitTransactions
+            ->where('status', 'active')
+            ->sum(
+                function ($transaction) {
+
+                    if ($transaction->transaction_type === 'utilization') {
+                        return (float) $transaction->amount;
+                    }
+
+                    if ($transaction->transaction_type === 'reversal') {
+                        return -1 * (float) $transaction->amount;
+                    }
+
+                    return 0;
+                }
+            ),
+        2
+    );
+/*
+|--------------------------------------------------------------------------
+| Patient Liability
+|--------------------------------------------------------------------------
+*/
+
+$patientLiability =
+    round(
+        max(
+            $adjustedBillAmount
+            - (float) $mhisApprovedAmount
+            - $staffMedicalBenefitAmount
+            - $charityAppliedAmount,
+            0
+        ),
+        2
+    );
+
+
+/*
+|--------------------------------------------------------------------------
+| Patient Money Held
+|--------------------------------------------------------------------------
+*/
+
+$patientMoneyReceived =
+    round(
+        (float) $account->advance_amount
+        + (float) $account->paid_amount,
+        2
+    );
+
+$netPatientMoneyHeld =
+    round(
+        max(
+            $patientMoneyReceived
+            - $refundAmount,
+            0
+        ),
+        2
+    );
+
+
+/*
+|--------------------------------------------------------------------------
+| Refund Due
+|--------------------------------------------------------------------------
+*/
+
+$refundDue =
+    round(
+        max(
+            $netPatientMoneyHeld
+            - $patientLiability,
+            0
+        ),
+        2
+    );
     @endphp
 
 
@@ -407,7 +544,7 @@ $charityPendingAmount =
                             @endif
                         "
                     >
-                        Balance
+                        Balance Due
                     </div>
 
                     <div
@@ -426,7 +563,89 @@ $charityPendingAmount =
 
             </div>
 
+                                   {{-- SETTLEMENT SUMMARY --}}
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
+                <div class="rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+
+                    <div class="text-xs font-semibold uppercase tracking-wide text-violet-600">
+                        MHIS Package Adjustment
+                    </div>
+
+                    <div class="mt-2 text-xl font-bold text-violet-700">
+                        ₹{{ number_format($mhisAdjustmentAmount, 2) }}
+                    </div>
+
+                </div>
+
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Adjusted Bill
+                    </div>
+
+                    <div class="mt-2 text-xl font-bold text-slate-900">
+                        ₹{{ number_format($adjustedBillAmount, 2) }}
+                    </div>
+
+                    <div class="mt-2 text-xs text-slate-500">
+                        Charges + MHIS package adjustment
+                    </div>
+
+                </div>
+
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Refunds Paid
+                    </div>
+
+                    <div class="mt-2 text-xl font-bold text-slate-900">
+                        ₹{{ number_format($refundAmount, 2) }}
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="rounded-2xl border p-5 shadow-sm
+                        @if ($refundDue > 0)
+                            border-amber-200 bg-amber-50
+                        @else
+                            border-emerald-200 bg-emerald-50
+                        @endif
+                    "
+                >
+
+                    <div
+                        class="text-xs font-semibold uppercase tracking-wide
+                            @if ($refundDue > 0)
+                                text-amber-700
+                            @else
+                                text-emerald-600
+                            @endif
+                        "
+                    >
+                        Refund Due
+                    </div>
+
+                    <div
+                        class="mt-2 text-xl font-bold
+                            @if ($refundDue > 0)
+                                text-amber-800
+                            @else
+                                text-emerald-700
+                            @endif
+                        "
+                    >
+                        ₹{{ number_format($refundDue, 2) }}
+                    </div>
+
+                </div>
+
+            </div>
             {{-- CURRENT ACTIONS --}}
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
@@ -450,6 +669,21 @@ $charityPendingAmount =
 
 
                     <div class="flex flex-wrap gap-2">
+
+                          @if (
+    $isFinalized
+    && $refundDue > 0
+    && auth()->user()?->hasPermission('ip-billing.refund')
+)
+    <button
+        type="button"
+        id="open-refund-modal"
+        class="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+style="background-color: #dc2626;"
+    >
+        Process Refund
+    </button>
+@endif
 
                         @if (! $isFinalized)
 
@@ -511,7 +745,18 @@ $charityPendingAmount =
                         >
                             {{ $mhisClaim ? 'Update MHIS' : 'MHIS' }}
                         </button>
-
+                             @if (
+    $mhisApprovedAmount > 0
+    && $adjustedBillAmount < $mhisApprovedAmount
+)
+    <button
+        type="button"
+        id="open-mhis-adjustment-modal-primary"
+        class="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+    >
+        Package Adjustment
+    </button>
+@endif
 
                         @if (
                             $mhisClaim
@@ -1537,13 +1782,30 @@ $charityPendingAmount =
                             </p>
                         </div>
 
-                        <button
-                            type="button"
-                            id="open-mhis-modal-secondary"
-                            class="inline-flex items-center justify-center rounded-lg border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-50"
-                        >
-                            {{ $mhisClaim ? 'Update MHIS' : 'Add MHIS' }}
-                        </button>
+                        <div class="flex flex-wrap items-center gap-2">
+
+    @if (
+        $mhisApprovedAmount > 0
+        && $adjustedBillAmount < $mhisApprovedAmount
+    )
+        <button
+            type="button"
+            id="open-mhis-adjustment-modal"
+            class="inline-flex items-center justify-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm hover:bg-amber-100"
+        >
+            Package Adjustment
+        </button>
+    @endif
+
+    <button
+        type="button"
+        id="open-mhis-modal-secondary"
+        class="inline-flex items-center justify-center rounded-lg border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-50"
+    >
+        {{ $mhisClaim ? 'Update MHIS' : 'Add MHIS' }}
+    </button>
+
+</div>
 
                     </div>
 
@@ -1714,7 +1976,410 @@ $charityPendingAmount =
 
             </div>
 
+                        {{-- MHIS PACKAGE ADJUSTMENT MODAL --}}
+    <div
+        id="mhis-adjustment-modal"
+        class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto bg-black/40 p-4"
+        aria-hidden="true"
+    >
+        <div class="my-8 w-full max-w-xl rounded-2xl bg-white shadow-2xl">
 
+            <div class="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">
+                        MHIS Package Adjustment
+                    </h3>
+
+                    <p class="mt-1 text-sm text-slate-500">
+                        Adjust the bill up to the approved MHIS package amount.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    id="close-mhis-adjustment-modal"
+                    class="rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Close"
+                >
+                    ✕
+                </button>
+
+            </div>
+
+
+            <form
+                method="POST"
+                action="{{ route('ip-billing.mhis-adjustments.store', $admission) }}"
+                class="space-y-5 p-6"
+            >
+                @csrf
+
+
+                <div class="grid gap-4 sm:grid-cols-3">
+
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Running Charges
+                        </div>
+
+                        <div class="mt-1 text-lg font-bold text-slate-900">
+                            ₹{{ number_format((float) $account->net_amount, 2) }}
+                        </div>
+                    </div>
+
+
+                    <div class="rounded-xl border border-violet-200 bg-violet-50 p-4">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-violet-600">
+                            MHIS Approved
+                        </div>
+
+                        <div class="mt-1 text-lg font-bold text-violet-700">
+                            ₹{{ number_format((float) $mhisApprovedAmount, 2) }}
+                        </div>
+                    </div>
+
+
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                            Available Adjustment
+                        </div>
+
+                        <div class="mt-1 text-lg font-bold text-amber-800">
+                            ₹{{ number_format(
+                                max(
+                                    (float) $mhisApprovedAmount
+                                    - (float) $adjustedBillAmount,
+                                    0
+                                ),
+                                2
+                            ) }}
+                        </div>
+                    </div>
+
+                </div>
+
+
+                <div>
+                    <label
+                        for="mhis_adjustment_amount"
+                        class="block text-sm font-semibold text-slate-700"
+                    >
+                        Adjustment Amount
+                    </label>
+
+                    <input
+                        type="number"
+                        id="mhis_adjustment_amount"
+                        name="amount"
+                        step="0.01"
+                        min="0.01"
+                        max="{{ number_format(
+                            max(
+                                (float) $mhisApprovedAmount
+                                - (float) $adjustedBillAmount,
+                                0
+                            ),
+                            2,
+                            '.',
+                            ''
+                        ) }}"
+                        value="{{ old(
+                            'amount',
+                            number_format(
+                                max(
+                                    (float) $mhisApprovedAmount
+                                    - (float) $adjustedBillAmount,
+                                    0
+                                ),
+                                2,
+                                '.',
+                                ''
+                            )
+                        ) }}"
+                        required
+                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                    >
+
+                    @error('amount')
+                        <p class="mt-1 text-sm text-red-600">
+                            {{ $message }}
+                        </p>
+                    @enderror
+                </div>
+
+
+                <div>
+                    <label
+                        for="mhis_adjustment_reason"
+                        class="block text-sm font-semibold text-slate-700"
+                    >
+                        Reason
+                    </label>
+
+                    <textarea
+                        id="mhis_adjustment_reason"
+                        name="reason"
+                        rows="3"
+                        maxlength="3000"
+                        required
+                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                    >{{ old('reason', 'Adjustment to approved MHIS package amount') }}</textarea>
+                </div>
+
+
+                <div>
+                    <label
+                        for="mhis_adjustment_remarks"
+                        class="block text-sm font-semibold text-slate-700"
+                    >
+                        Remarks
+                    </label>
+
+                    <textarea
+                        id="mhis_adjustment_remarks"
+                        name="remarks"
+                        rows="3"
+                        maxlength="3000"
+                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                    >{{ old('remarks') }}</textarea>
+                </div>
+
+
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    This creates a separate auditable MHIS package adjustment. It does not alter or replace the original hospital charges.
+                </div>
+
+
+                <div class="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+
+                    <button
+                        type="button"
+                        id="cancel-mhis-adjustment-modal"
+                        class="inline-flex justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="inline-flex justify-center rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+                    >
+                        Apply Adjustment
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    {{-- PATIENT REFUND MODAL --}}
+<div
+    id="refund-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4"
+    aria-hidden="true"
+>
+    <div class="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+
+        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900">
+                    Process Patient Refund
+                </h3>
+
+                <p class="mt-1 text-sm text-slate-500">
+                    Record money returned to the patient against this finalized IP bill.
+                </p>
+            </div>
+
+            <button
+                type="button"
+                id="close-refund-modal"
+                class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+                ✕
+            </button>
+
+        </div>
+
+
+        <form
+            method="POST"
+            action="{{ route('ip-billing.refunds.store', $admission) }}"
+            class="space-y-5 p-6"
+        >
+            @csrf
+
+
+            <div class="grid gap-4 sm:grid-cols-2">
+
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Patient Liability
+                    </div>
+
+                    <div class="mt-1 text-lg font-bold text-slate-900">
+                        ₹{{ number_format($patientLiability, 2) }}
+                    </div>
+                </div>
+
+
+                <div class="rounded-xl border border-orange-200 bg-orange-50 p-4">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                        Refund Due
+                    </div>
+
+                    <div class="mt-1 text-lg font-bold text-orange-800">
+                        ₹{{ number_format($refundDue, 2) }}
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div>
+                <label
+                    for="refund_amount"
+                    class="block text-sm font-medium text-slate-700"
+                >
+                    Refund Amount
+                </label>
+
+                <input
+                    type="number"
+                    name="amount"
+                    id="refund_amount"
+                    min="0.01"
+                    max="{{ number_format($refundDue, 2, '.', '') }}"
+                    step="0.01"
+                    value="{{ old('amount', number_format($refundDue, 2, '.', '')) }}"
+                    required
+                    class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                >
+            </div>
+
+
+            <div>
+                <label
+                    for="refund_payment_mode"
+                    class="block text-sm font-medium text-slate-700"
+                >
+                    Refund Mode
+                </label>
+
+                <select
+                    name="payment_mode"
+                    id="refund_payment_mode"
+                    required
+                    class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                >
+                    <option value="cash" @selected(old('payment_mode') === 'cash')>
+                        Cash
+                    </option>
+
+                    <option value="upi" @selected(old('payment_mode') === 'upi')>
+                        UPI
+                    </option>
+
+                    <option value="card" @selected(old('payment_mode') === 'card')>
+                        Card
+                    </option>
+                </select>
+            </div>
+
+
+            <div>
+                <label
+                    for="refund_transaction_reference"
+                    class="block text-sm font-medium text-slate-700"
+                >
+                    Transaction Reference
+                </label>
+
+                <input
+                    type="text"
+                    name="transaction_reference"
+                    id="refund_transaction_reference"
+                    maxlength="255"
+                    value="{{ old('transaction_reference') }}"
+                    class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                >
+
+                <p class="mt-1 text-xs text-slate-500">
+                    Required for UPI or card refunds.
+                </p>
+            </div>
+
+
+            <div>
+                <label
+                    for="refund_reason"
+                    class="block text-sm font-medium text-slate-700"
+                >
+                    Reason for Refund
+                </label>
+
+                <textarea
+                    name="reason"
+                    id="refund_reason"
+                    rows="3"
+                    maxlength="3000"
+                    required
+                    class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                >{{ old('reason', 'Excess patient payment after final bill settlement') }}</textarea>
+            </div>
+
+
+            <div>
+                <label
+                    for="refund_remarks"
+                    class="block text-sm font-medium text-slate-700"
+                >
+                    Remarks
+                </label>
+
+                <textarea
+                    name="remarks"
+                    id="refund_remarks"
+                    rows="2"
+                    maxlength="3000"
+                    class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                >{{ old('remarks') }}</textarea>
+            </div>
+
+
+            <div class="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
+                The original advance or payment will remain unchanged. This refund will be recorded as a separate auditable transaction.
+            </div>
+
+
+            <div class="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+
+                <button
+                    type="button"
+                    id="cancel-refund-modal"
+                    class="inline-flex justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                    Cancel
+                </button>
+
+                <button
+    type="submit"
+    class="inline-flex justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm"
+    style="background-color: #dc2626;"
+>
+    Process Refund
+</button>
+
+            </div>
+
+        </form>
+
+    </div>
+</div>
 
             {{-- MHIS RECEIPT HISTORY --}}
             @if ($mhisClaim)
@@ -3083,6 +3748,33 @@ $charityPendingAmount =
             const cancelMhisReceiptButton =
                 document.getElementById('cancel-mhis-receipt-modal');
 
+                const mhisAdjustmentModal =
+    document.getElementById('mhis-adjustment-modal');
+
+const openMhisAdjustmentButton =
+    document.getElementById('open-mhis-adjustment-modal');
+
+    const openMhisAdjustmentButtonPrimary =
+    document.getElementById('open-mhis-adjustment-modal-primary');
+
+const closeMhisAdjustmentButton =
+    document.getElementById('close-mhis-adjustment-modal');
+
+const cancelMhisAdjustmentButton =
+    document.getElementById('cancel-mhis-adjustment-modal');
+
+    const refundModal =
+    document.getElementById('refund-modal');
+
+const openRefundButton =
+    document.getElementById('open-refund-modal');
+
+const closeRefundButton =
+    document.getElementById('close-refund-modal');
+
+const cancelRefundButton =
+    document.getElementById('cancel-refund-modal');
+
 
             function openMhisModal() {
                 mhisModal.classList.remove('hidden');
@@ -3122,6 +3814,44 @@ $charityPendingAmount =
                 mhisReceiptModal?.setAttribute('aria-hidden', 'true');
                 document.body.classList.remove('overflow-hidden');
             }
+
+            function openMhisAdjustmentModal() {
+    mhisAdjustmentModal?.classList.remove('hidden');
+    mhisAdjustmentModal?.classList.add('flex');
+    mhisAdjustmentModal?.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('overflow-hidden');
+
+    setTimeout(function () {
+        document.getElementById('mhis_adjustment_amount')?.focus();
+    }, 50);
+}
+
+
+function closeMhisAdjustmentModal() {
+    mhisAdjustmentModal?.classList.add('hidden');
+    mhisAdjustmentModal?.classList.remove('flex');
+    mhisAdjustmentModal?.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('overflow-hidden');
+}
+
+function openRefundModal() {
+    refundModal?.classList.remove('hidden');
+    refundModal?.classList.add('flex');
+    refundModal?.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('overflow-hidden');
+
+    setTimeout(function () {
+        document.getElementById('refund_amount')?.focus();
+    }, 50);
+}
+
+
+function closeRefundModal() {
+    refundModal?.classList.add('hidden');
+    refundModal?.classList.remove('flex');
+    refundModal?.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('overflow-hidden');
+}
 
 
             openMhisButton?.addEventListener(
@@ -3164,6 +3894,58 @@ $charityPendingAmount =
                 closeMhisReceiptModal
             );
 
+            openMhisAdjustmentButton?.addEventListener(
+    'click',
+    openMhisAdjustmentModal
+);
+
+openMhisAdjustmentButtonPrimary?.addEventListener(
+    'click',
+    openMhisAdjustmentModal
+);
+
+closeMhisAdjustmentButton?.addEventListener(
+    'click',
+    closeMhisAdjustmentModal
+);
+
+cancelMhisAdjustmentButton?.addEventListener(
+    'click',
+    closeMhisAdjustmentModal
+);
+
+mhisAdjustmentModal?.addEventListener(
+    'click',
+    function (event) {
+        if (event.target === mhisAdjustmentModal) {
+            closeMhisAdjustmentModal();
+        }
+    }
+);
+
+openRefundButton?.addEventListener(
+    'click',
+    openRefundModal
+);
+
+closeRefundButton?.addEventListener(
+    'click',
+    closeRefundModal
+);
+
+cancelRefundButton?.addEventListener(
+    'click',
+    closeRefundModal
+);
+
+refundModal?.addEventListener(
+    'click',
+    function (event) {
+        if (event.target === refundModal) {
+            closeRefundModal();
+        }
+    }
+);
             mhisReceiptModal?.addEventListener(
                 'click',
                 function (event) {

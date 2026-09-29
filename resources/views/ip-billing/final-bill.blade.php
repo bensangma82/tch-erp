@@ -1389,9 +1389,9 @@
                             </span>
                         </div>
 
-                        <div class="summary-row net">
+                                                <div class="summary-row net">
                             <span class="summary-label">
-                                Net Bill
+                                Net Hospital Charges
                             </span>
 
                             <span class="summary-value">
@@ -1400,11 +1400,37 @@
                         </div>
 
 
+                        @if ((float) $mhisAdjustmentAmount > 0)
+
+                            <div class="summary-row">
+                                <span class="summary-label">
+                                    Add: MHIS Package Adjustment
+                                </span>
+
+                                <span class="summary-value violet">
+                                    ₹{{ number_format((float) $mhisAdjustmentAmount, 2) }}
+                                </span>
+                            </div>
+
+                        @endif
+
+
+                        <div class="summary-row net">
+                            <span class="summary-label">
+                                Adjusted Bill
+                            </span>
+
+                            <span class="summary-value">
+                                ₹{{ number_format((float) $adjustedBillAmount, 2) }}
+                            </span>
+                        </div>
+
+
                         @if ((float) $mhisApprovedAmount > 0)
 
                             <div class="summary-row">
                                 <span class="summary-label">
-                                    Less: MHIS Approved Share
+                                    Less: MHIS Approved
                                 </span>
 
                                 <span class="summary-value violet">
@@ -1412,17 +1438,48 @@
                                 </span>
                             </div>
 
+                        @endif
+
+
+                        @if ((float) $staffMedicalBenefitAmount > 0)
+
                             <div class="summary-row">
                                 <span class="summary-label">
-                                    Patient Liability Before Payments
+                                    Less: Staff Medical Benefit
                                 </span>
 
-                                <span class="summary-value">
-                                    ₹{{ number_format((float) $patientLiabilityBeforePayments, 2) }}
+                                <span class="summary-value" style="color: var(--blue);">
+                                    ₹{{ number_format((float) $staffMedicalBenefitAmount, 2) }}
                                 </span>
                             </div>
 
                         @endif
+
+
+                        @if ((float) $charityAmount > 0)
+
+                            <div class="summary-row">
+                                <span class="summary-label">
+                                    Less: Charity Adjustment
+                                </span>
+
+                                <span class="summary-value" style="color: var(--blue);">
+                                    ₹{{ number_format((float) $charityAmount, 2) }}
+                                </span>
+                            </div>
+
+                        @endif
+
+
+                        <div class="summary-row">
+                            <span class="summary-label">
+                                Patient Liability
+                            </span>
+
+                            <span class="summary-value">
+                                ₹{{ number_format((float) $patientLiability, 2) }}
+                            </span>
+                        </div>
 
 
                         <div class="summary-row">
@@ -1451,24 +1508,24 @@
                         @endif
 
 
-                            @if ((float) $staffMedicalBenefitAmount > 0)
+                        @if ((float) $refundAmount > 0)
 
-    <div class="summary-row">
-        <span class="summary-label">
-            Less: Staff Medical Benefit
-        </span>
+                            <div class="summary-row">
+                                <span class="summary-label">
+                                    Refunds Paid
+                                </span>
 
-        <span class="summary-value" style="color: var(--blue);">
-            ₹{{ number_format((float) $staffMedicalBenefitAmount, 2) }}
-        </span>
-    </div>
+                                <span class="summary-value">
+                                    ₹{{ number_format((float) $refundAmount, 2) }}
+                                </span>
+                            </div>
 
-@endif
+                        @endif
 
 
                         <div class="summary-row patient-balance">
                             <span class="summary-label">
-                                Patient Balance Payable
+                                Balance Due
                             </span>
 
                             <span class="summary-value">
@@ -1476,6 +1533,20 @@
                             </span>
                         </div>
 
+
+                        @if ((float) $refundDue > 0)
+
+                            <div class="summary-row patient-balance">
+                                <span class="summary-label">
+                                    Refund Due to Patient
+                                </span>
+
+                                <span class="summary-value">
+                                    ₹{{ number_format((float) $refundDue, 2) }}
+                                </span>
+                            </div>
+
+                        @endif
                     </div>
 
 

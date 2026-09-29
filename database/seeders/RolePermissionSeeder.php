@@ -32,6 +32,12 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Create new patient records and assign UHID/MRD.',
             ],
             [
+    'name' => 'patients.edit',
+    'label' => 'Edit Patient Demographics',
+    'module' => 'patients',
+    'description' => 'Correct patient demographic and contact information without changing UHID/MRD.',
+],
+            [
                 'name' => 'patients.card',
                 'label' => 'Print Patient Card',
                 'module' => 'patients',
@@ -177,7 +183,14 @@ class RolePermissionSeeder extends Seeder
     'module' => 'billing',
     'description' => 'Create investigation and service orders for admitted patients.',
 ],
-            [
+
+[
+    'name' => 'ip-billing.refund',
+    'label' => 'Process IP Refunds',
+    'module' => 'billing',
+    'description' => 'Process patient refunds against finalized inpatient bills.',
+],
+[
                 'name' => 'ip-billing.manage',
                 'label' => 'Manage IP Billing',
                 'module' => 'billing',
@@ -363,6 +376,13 @@ class RolePermissionSeeder extends Seeder
     'description' => 'Post approved pharmacy stock audit adjustments.',
 ],
 
+[
+    'name' => 'pharmacy.gst-report',
+    'label' => 'View Pharmacy GST Reports',
+    'module' => 'pharmacy',
+    'description' => 'View and export pharmacy GST purchase reports.',
+],
+
             // STORES
             [
                 'name' => 'stores.view',
@@ -474,6 +494,7 @@ class RolePermissionSeeder extends Seeder
             'reception' => [
                 'patients.view',
                 'patients.create',
+                'patients.edit',
                 'patients.card',
                 'opd.view',
                 'opd.create',
@@ -525,6 +546,7 @@ class RolePermissionSeeder extends Seeder
                 'ip-billing.view',
                 'ip-billing.advance',
                 'ip-billing.order-investigations',
+                'ip-billing.refund',
                 'ip-billing.manage',
             ],
 
@@ -537,6 +559,7 @@ class RolePermissionSeeder extends Seeder
                 'finance.vouchers.post',
                 'finance.vouchers.cancel',
                 'finance.reports',
+                'pharmacy.gst-report',
                 'finance.master',
             ],
 
@@ -563,6 +586,7 @@ class RolePermissionSeeder extends Seeder
                 'pharmacy.view',
                 'pharmacy.dispense',
                 'pharmacy.returns',
+                'pharmacy.gst-report',
                 'pharmacy.master',
                 'pharmacy.opening-stock.create',
                 'pharmacy.po.create',

@@ -6,6 +6,7 @@ use App\Http\Controllers\Pharmacy\PharmacyStockAuditController;
 use App\Http\Controllers\Pharmacy\PharmacySupplierPayableController;
 use App\Http\Controllers\Pharmacy\PharmacyPurchaseReturnController;
 use App\Http\Controllers\Pharmacy\PharmacyGrnController;
+use App\Http\Controllers\Pharmacy\GstPurchaseReportController;
 use App\Http\Controllers\Pharmacy\PharmacyPurchaseOrderController;
 use App\Http\Controllers\Pharmacy\PharmacySupplierController;
 
@@ -957,7 +958,31 @@ Route::get(
             ->name('patients.show');
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Patient Edit Access
+    |--------------------------------------------------------------------------
+    */
 
+    Route::middleware(
+        'permission:patients.edit'
+    )->group(function () {
+
+        Route::get(
+            '/patients/{patient}/edit',
+            [PatientController::class, 'edit']
+        )
+            ->whereNumber('patient')
+            ->name('patients.edit');
+
+
+        Route::put(
+            '/patients/{patient}',
+            [PatientController::class, 'update']
+        )
+            ->whereNumber('patient')
+            ->name('patients.update');
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -1567,6 +1592,13 @@ Route::middleware(
         ->whereNumber('admission')
         ->name('ip-billing.mhis.store');
 
+        Route::post(
+    '/ip-billing/{admission}/mhis/adjustments',
+    [IpBillingController::class, 'storeMhisAdjustment']
+)
+    ->whereNumber('admission')
+    ->name('ip-billing.mhis-adjustments.store');
+
     Route::post(
         '/ip-billing/{admission}/mhis/receipts',
         [IpBillingController::class, 'storeMhisReceipt']
@@ -1582,7 +1614,24 @@ Route::middleware(
         ->name('ip-billing.finalize');
 });
 
-                         /*
+   /*
+|--------------------------------------------------------------------------
+| Inpatient Billing - Patient Refunds
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'permission:ip-billing.refund'
+)->group(function () {
+
+    Route::post(
+        '/ip-billing/{admission}/refunds',
+        [IpBillingController::class, 'storeRefund']
+    )
+        ->whereNumber('admission')
+        ->name('ip-billing.refunds.store');
+});
+/*
 |--------------------------------------------------------------------------
 | Charity / Write-off Requests
 |--------------------------------------------------------------------------
@@ -2672,7 +2721,7 @@ Route::patch(
 )
     ->whereNumber('pharmacyStockTransfer')
     ->middleware('permission:stores.transfer')
-    ->name('pharmacy.stock-transfers.cancel');   
+    ->name('pharmacy.stock-transfers.cancel');
     });
 
 Route::post(
@@ -2682,6 +2731,29 @@ Route::post(
     ->whereNumber('admission')
     ->middleware('permission:ip-billing.advance')
     ->name('pharmacy.dispensing.interim-payment.store');
+
+   /*
+|--------------------------------------------------------------------------
+| Pharmacy GST Purchase Report
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'permission:pharmacy.gst-report'
+)->group(function () {
+
+    Route::get(
+        '/pharmacy/reports/gst-purchases',
+        [GstPurchaseReportController::class, 'index']
+    )->name('pharmacy.reports.gst-purchases.index');
+
+    Route::get(
+        '/pharmacy/reports/gst-purchases/export',
+        [GstPurchaseReportController::class, 'export']
+    )->name('pharmacy.reports.gst-purchases.export');
+
+});
+
 
     /*
     |--------------------------------------------------------------------------

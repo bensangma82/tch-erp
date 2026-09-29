@@ -256,12 +256,28 @@
 
 
                                             {{-- VIEW PATIENT --}}
-                                            <a
-                                                href="{{ route('patients.show', $patient) }}"
-                                                class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                            >
-                                                View
-                                            </a>
+<a
+    href="{{ route('patients.show', $patient) }}"
+    class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+>
+    View
+</a>
+
+
+{{-- EDIT PATIENT --}}
+@if (auth()->user()?->hasPermission('patients.edit'))
+
+    <a
+        href="{{ route('patients.edit', $patient) }}"
+        class="inline-flex items-center rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
+    >
+        Edit
+    </a>
+
+@endif
+
+
+{{-- REGISTER OPD --}}
 
 
                                             {{-- REGISTER OPD --}}
