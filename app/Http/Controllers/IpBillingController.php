@@ -227,7 +227,7 @@ class IpBillingController extends Controller
                     2
                 );
                        $refundAmount = round(
-    (float) $lockedAccount->refunds
+    (float) $account->refunds
         ->where(
             'status',
             'active'
@@ -1470,7 +1470,7 @@ $requestedAmount = round(
 );
 
 $charityAmount = round(
-    (float) $lockedAccount->charityAdjustments
+    (float) $account->charityAdjustments
         ->where(
             'status',
             'applied'
