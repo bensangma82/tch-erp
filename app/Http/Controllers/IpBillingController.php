@@ -52,8 +52,12 @@ class IpBillingController extends Controller
                 'billingAccount.charges',
                 'billingAccount.advances',
                 'billingAccount.payments',
+                'billingAccount.refunds',
                 'billingAccount.mhisClaims',
                 'billingAccount.mhisReceipts',
+                'billingAccount.mhisAdjustments',
+                'billingAccount.staffMedicalBenefitTransactions',
+                'billingAccount.charityAdjustments',
             ])
             ->whereNull('closed_at')
             ->whereNull('discharged_at')
@@ -61,47 +65,49 @@ class IpBillingController extends Controller
                 $search !== '',
                 function ($query) use ($search) {
 
-                    $query->where(function ($subQuery) use ($search) {
+                    $query->where(
+                        function ($subQuery) use ($search) {
 
-                        $subQuery
-                            ->where(
-                                'admission_no',
-                                'ilike',
-                                '%' . $search . '%'
-                            )
-                            ->orWhereHas(
-                                'patient',
-                                function ($patientQuery) use ($search) {
+                            $subQuery
+                                ->where(
+                                    'admission_no',
+                                    'ilike',
+                                    '%' . $search . '%'
+                                )
+                                ->orWhereHas(
+                                    'patient',
+                                    function ($patientQuery) use ($search) {
 
-                                    $patientQuery
-                                        ->where(
-                                            'uhid',
-                                            'ilike',
-                                            '%' . $search . '%'
-                                        )
-                                        ->orWhere(
-                                            'mrd_number',
-                                            'ilike',
-                                            '%' . $search . '%'
-                                        )
-                                        ->orWhere(
-                                            'first_name',
-                                            'ilike',
-                                            '%' . $search . '%'
-                                        )
-                                        ->orWhere(
-                                            'middle_name',
-                                            'ilike',
-                                            '%' . $search . '%'
-                                        )
-                                        ->orWhere(
-                                            'last_name',
-                                            'ilike',
-                                            '%' . $search . '%'
-                                        );
-                                }
-                            );
-                    });
+                                        $patientQuery
+                                            ->where(
+                                                'uhid',
+                                                'ilike',
+                                                '%' . $search . '%'
+                                            )
+                                            ->orWhere(
+                                                'mrd_number',
+                                                'ilike',
+                                                '%' . $search . '%'
+                                            )
+                                            ->orWhere(
+                                                'first_name',
+                                                'ilike',
+                                                '%' . $search . '%'
+                                            )
+                                            ->orWhere(
+                                                'middle_name',
+                                                'ilike',
+                                                '%' . $search . '%'
+                                            )
+                                            ->orWhere(
+                                                'last_name',
+                                                'ilike',
+                                                '%' . $search . '%'
+                                            );
+                                    }
+                                );
+                        }
+                    );
                 }
             )
             ->orderByDesc('admitted_at')
@@ -126,9 +132,13 @@ class IpBillingController extends Controller
                         'subtotal' => 0,
                         'discount' => 0,
                         'net_amount' => 0,
+                        'adjusted_bill_amount' => 0,
                         'advance_amount' => 0,
                         'paid_amount' => 0,
+                        'refund_amount' => 0,
                         'mhis_approved_amount' => 0,
+                        'staff_medical_benefit_amount' => 0,
+                        'charity_amount' => 0,
                         'balance_amount' => 0,
                     ];
 
@@ -171,6 +181,7 @@ class IpBillingController extends Controller
                  * Gross subtotal = quantity × unit price before discount.
                  * Net amount = final payable value stored on each charge.
                  */
+
                 $netAmount = round(
                     (float) $activeCharges->sum(
                         function ($charge) {
@@ -180,24 +191,28 @@ class IpBillingController extends Controller
                     2
                 );
 
-                           $mhisAdjustmentAmount = round(
-            (float) $account->mhisAdjustments
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    fn ($adjustment) =>
-                        (float) $adjustment->amount
-                ),
-            2
-        );
+
+                $mhisAdjustmentAmount = round(
+                    (float) $account->mhisAdjustments
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($adjustment) {
+                                return (float) $adjustment->amount;
+                            }
+                        ),
+                    2
+                );
 
 
-        $adjustedBillAmount = round(
-            $netAmount + $mhisAdjustmentAmount,
-            2
-        );
+                $adjustedBillAmount = round(
+                    $netAmount + $mhisAdjustmentAmount,
+                    2
+                );
+
+
                 $advanceAmount = round(
                     (float) $account->advances
                         ->where(
@@ -226,19 +241,22 @@ class IpBillingController extends Controller
                         ),
                     2
                 );
-                       $refundAmount = round(
-    (float) $account->refunds
-        ->where(
-            'status',
-            'active'
-        )
-        ->sum(
-            function ($refund) {
-                return (float) $refund->amount;
-            }
-        ),
-    2
-);
+
+
+                $refundAmount = round(
+                    (float) $account->refunds
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($refund) {
+                                return (float) $refund->amount;
+                            }
+                        ),
+                    2
+                );
+
 
                 $mhisApprovedAmount = round(
                     (float) $account->mhisClaims
@@ -259,12 +277,86 @@ class IpBillingController extends Controller
                 );
 
 
+                $staffMedicalBenefitAmount = round(
+                    (float) $account
+                        ->staffMedicalBenefitTransactions
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($transaction) {
+
+                                if (
+                                    $transaction->transaction_type
+                                    === 'utilization'
+                                ) {
+                                    return (float) $transaction->amount;
+                                }
+
+                                if (
+                                    $transaction->transaction_type
+                                    === 'reversal'
+                                ) {
+                                    return -1
+                                        * (float) $transaction->amount;
+                                }
+
+                                return 0;
+                            }
+                        ),
+                    2
+                );
+
+
+                $charityAmount = round(
+                    (float) $account->charityAdjustments
+                        ->where(
+                            'status',
+                            'applied'
+                        )
+                        ->sum(
+                            function ($adjustment) {
+                                return (float)
+                                    $adjustment->approved_amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                $patientLiability = round(
+                    max(
+                        $adjustedBillAmount
+                        - $mhisApprovedAmount
+                        - $staffMedicalBenefitAmount
+                        - $charityAmount,
+                        0
+                    ),
+                    2
+                );
+
+
+                $patientMoneyReceived = round(
+                    $advanceAmount + $paidAmount,
+                    2
+                );
+
+
+                $netPatientMoneyHeld = round(
+                    max(
+                        $patientMoneyReceived
+                        - $refundAmount,
+                        0
+                    ),
+                    2
+                );
+
+
                 $balanceAmount = round(
                     max(
-                        $netAmount
-                        - $advanceAmount
-                        - $paidAmount
-                        - $mhisApprovedAmount,
+                        $patientLiability
+                        - $netPatientMoneyHeld,
                         0
                     ),
                     2
@@ -272,13 +364,38 @@ class IpBillingController extends Controller
 
 
                 $admission->billing_summary = [
-                    'subtotal' => $subtotal,
-                    'discount' => $discount,
-                    'net_amount' => $netAmount,
-                    'advance_amount' => $advanceAmount,
-                    'paid_amount' => $paidAmount,
-                    'mhis_approved_amount' => $mhisApprovedAmount,
-                    'balance_amount' => $balanceAmount,
+                    'subtotal' =>
+                        $subtotal,
+
+                    'discount' =>
+                        $discount,
+
+                    'net_amount' =>
+                        $netAmount,
+
+                    'adjusted_bill_amount' =>
+                        $adjustedBillAmount,
+
+                    'advance_amount' =>
+                        $advanceAmount,
+
+                    'paid_amount' =>
+                        $paidAmount,
+
+                    'refund_amount' =>
+                        $refundAmount,
+
+                    'mhis_approved_amount' =>
+                        $mhisApprovedAmount,
+
+                    'staff_medical_benefit_amount' =>
+                        $staffMedicalBenefitAmount,
+
+                    'charity_amount' =>
+                        $charityAmount,
+
+                    'balance_amount' =>
+                        $balanceAmount,
                 ];
 
 
@@ -303,98 +420,102 @@ class IpBillingController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function show(Admission $admission)
-{
-    $admission->load([
-        'patient',
-        'department',
-        'consultant',
-        'bed.ward',
-        'currentBedAllocation.bed.ward',
-        'bedAllocations.bed.ward',
-    ]);
+    public function show(
+        Admission $admission
+    ) {
+        $admission->load([
+            'patient',
+            'department',
+            'consultant',
+            'bed.ward',
+            'currentBedAllocation.bed.ward',
+            'bedAllocations.bed.ward',
+        ]);
 
 
-    $account = $this->getOrCreateAccount(
-        $admission
-    );
+        $account = $this->getOrCreateAccount(
+            $admission
+        );
 
 
-    $this->recalculateAccount(
-        $account
-    );
+        $this->recalculateAccount(
+            $account
+        );
 
 
-    $account->refresh();
+        $account->refresh();
 
 
-    $account->load([
-    'charges.service',
-    'charges.createdBy',
+        $account->load([
+            'charges.service',
+            'charges.createdBy',
 
-    'advances.receivedBy',
+            'advances.receivedBy',
 
-    'payments.receivedBy',
-    'refunds.refundedBy',
+            'payments.receivedBy',
 
-    'mhisClaims.createdBy',
-    'mhisClaims.updatedBy',
-    'mhisClaims.receipts.receivedBy',
-    'mhisReceipts.receivedBy',
+            'refunds.refundedBy',
 
-    'mhisAdjustments.appliedBy',
+            'mhisClaims.createdBy',
+            'mhisClaims.updatedBy',
+            'mhisClaims.receipts.receivedBy',
 
+            'mhisReceipts.receivedBy',
 
-    'charityAdjustments.requestedBy',
-    'charityAdjustments.approvedBy',
-    'charityAdjustments.cancelledBy',
-]);
+            'mhisAdjustments.appliedBy',
 
+            'staffMedicalBenefitTransactions',
 
-    /*
-    |--------------------------------------------------------------------------
-    | Active IP Charge Master Services
-    |--------------------------------------------------------------------------
-    |
-    | These services are available for direct inpatient billing.
-    |
-    | Laboratory and radiology are excluded because they should continue
-    | through the IP Investigation workflow.
-    |
-    */
-
-    $chargeServices = Service::query()
-        ->with('department')
-        ->where(
-            'is_active',
-            true
-        )
-        ->whereIn(
-            'category',
-            [
-                'procedure',
-                'consultation',
-                'nursing',
-                'equipment',
-                'consumable',
-                'facility',
-                'other',
-            ]
-        )
-        ->orderBy('category')
-        ->orderBy('name')
-        ->get();
+            'charityAdjustments.requestedBy',
+            'charityAdjustments.approvedBy',
+            'charityAdjustments.cancelledBy',
+        ]);
 
 
-    return view(
-        'ip-billing.show',
-        compact(
-            'admission',
-            'account',
-            'chargeServices'
-        )
-    );
-}
+        /*
+        |--------------------------------------------------------------------------
+        | Active IP Charge Master Services
+        |--------------------------------------------------------------------------
+        |
+        | These services are available for direct inpatient billing.
+        |
+        | Laboratory and radiology are excluded because they should continue
+        | through the IP Investigation workflow.
+        |
+        */
+
+        $chargeServices = Service::query()
+            ->with('department')
+            ->where(
+                'is_active',
+                true
+            )
+            ->whereIn(
+                'category',
+                [
+                    'procedure',
+                    'consultation',
+                    'nursing',
+                    'equipment',
+                    'consumable',
+                    'facility',
+                    'other',
+                ]
+            )
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
+
+        return view(
+            'ip-billing.show',
+            compact(
+                'admission',
+                'account',
+                'chargeServices'
+            )
+        );
+    }
 
 
     /*
@@ -428,10 +549,6 @@ class IpBillingController extends Controller
         }
 
 
-        /*
-         * Laboratory and radiology investigations are selected
-         * directly from the active Service Master.
-         */
         $services = Service::query()
             ->where(
                 'is_active',
@@ -458,9 +575,7 @@ class IpBillingController extends Controller
             )
         );
     }
-
-
-    /*
+        /*
     |--------------------------------------------------------------------------
     | Store IP Laboratory / Radiology Investigations
     |--------------------------------------------------------------------------
@@ -527,6 +642,7 @@ class IpBillingController extends Controller
          * Service Master is authoritative for service details and price.
          * No submitted browser price is accepted.
          */
+
         $services = Service::query()
             ->whereIn(
                 'id',
@@ -570,6 +686,7 @@ class IpBillingController extends Controller
                  * Lock the account so finalization cannot race with
                  * diagnostic posting.
                  */
+
                 $lockedAccount =
                     IpBillingAccount::query()
                         ->whereKey(
@@ -595,6 +712,7 @@ class IpBillingController extends Controller
                  * payment. The order is authorized against the running
                  * inpatient account.
                  */
+
                 $order = ServiceOrder::create([
                     'order_no' =>
                         $this->generateOrderNumber(),
@@ -666,6 +784,7 @@ class IpBillingController extends Controller
                      * Keep ServiceOrderItem semantics identical to the
                      * existing OPD diagnostic workflow.
                      */
+
                     $item = ServiceOrderItem::create([
                         'service_order_id' =>
                             $order->id,
@@ -707,6 +826,7 @@ class IpBillingController extends Controller
                      * The whole transaction is rolled back if a duplicate
                      * diagnostic ledger posting is detected.
                      */
+
                     $alreadyPosted =
                         IpBillingCharge::query()
                             ->where(
@@ -735,6 +855,7 @@ class IpBillingController extends Controller
                      * Every IP diagnostic item is posted once into the
                      * central inpatient ledger.
                      */
+
                     IpBillingCharge::create([
                         'ip_billing_account_id' =>
                             $lockedAccount->id,
@@ -769,9 +890,6 @@ class IpBillingController extends Controller
                         'discount' =>
                             0,
 
-                        /*
-                         * amount stores the net line value.
-                         */
                         'amount' =>
                             $amount,
 
@@ -785,8 +903,8 @@ class IpBillingController extends Controller
                             'active',
 
                         'remarks' =>
-                            'IP investigation order: ' .
-                            $order->order_no,
+                            'IP investigation order: '
+                            . $order->order_no,
 
                         'created_by' =>
                             auth()->id(),
@@ -811,9 +929,9 @@ class IpBillingController extends Controller
             )
             ->with(
                 'success',
-                'Investigation order ' .
-                $order->order_no .
-                ' added successfully to the inpatient bill.'
+                'Investigation order '
+                . $order->order_no
+                . ' added successfully to the inpatient bill.'
             );
     }
 
@@ -823,7 +941,7 @@ class IpBillingController extends Controller
     | Generate Bed Charges
     |--------------------------------------------------------------------------
     |
-    | Charging rule used by this first version:
+    | Charging rule:
     |
     | - Maximum one automatic bed charge per admission per calendar date.
     | - If the patient occupied more than one bed on the same date, the bed
@@ -831,10 +949,6 @@ class IpBillingController extends Controller
     | - Each occupied calendar date is charged as one full bed day.
     | - The tariff applicable on that specific calendar date is used.
     | - Existing generated bed-day charges are never duplicated.
-    |
-    | This gives deterministic, duplicate-safe billing across bed transfers.
-    | Hospital-specific admission/discharge cut-off rules can be introduced
-    | later without changing the ledger structure.
     |
     */
 
@@ -880,10 +994,6 @@ class IpBillingController extends Controller
         |--------------------------------------------------------------------------
         | Billing Window
         |--------------------------------------------------------------------------
-        |
-        | For an active admission, generate up to today.
-        | For a closed/discharged admission, stop on that date.
-        |
         */
 
         $billingStart = $admission->admitted_at
@@ -969,20 +1079,9 @@ class IpBillingController extends Controller
                     ->endOfDay();
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | Duplicate Protection
-                |--------------------------------------------------------------------------
-                |
-                | BED-YYYYMMDD is unique in practice within one IP account.
-                | We intentionally check all statuses, not only active charges,
-                | so a cancelled bed-day is not silently regenerated.
-                |
-                */
-
                 $chargeCode =
-                    'BED-' .
-                    $chargeDate->format('Ymd');
+                    'BED-'
+                    . $chargeDate->format('Ymd');
 
 
                 $alreadyExists = IpBillingCharge::query()
@@ -1011,12 +1110,6 @@ class IpBillingController extends Controller
                 }
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | Bed Occupied for Greatest Duration on this Calendar Date
-                |--------------------------------------------------------------------------
-                */
-
                 $selectedAllocation = null;
                 $selectedSeconds = -1;
 
@@ -1038,9 +1131,6 @@ class IpBillingController extends Controller
                             )->copy();
 
 
-                    /*
-                     * No overlap with this calendar day.
-                     */
                     if (
                         $allocationStart->gt($dayEnd)
                         || $allocationEnd->lt($dayStart)
@@ -1102,12 +1192,6 @@ class IpBillingController extends Controller
                     $bed->ward;
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tariff Applicable on This Charge Date
-                |--------------------------------------------------------------------------
-                */
-
                 $tariff = BedTariff::query()
                     ->where(
                         'ward_id',
@@ -1126,16 +1210,18 @@ class IpBillingController extends Controller
                         '<=',
                         $chargeDate->toDateString()
                     )
-                    ->where(function ($query) use ($chargeDate) {
+                    ->where(
+                        function ($query) use ($chargeDate) {
 
-                        $query
-                            ->whereNull('effective_to')
-                            ->orWhereDate(
-                                'effective_to',
-                                '>=',
-                                $chargeDate->toDateString()
-                            );
-                    })
+                            $query
+                                ->whereNull('effective_to')
+                                ->orWhereDate(
+                                    'effective_to',
+                                    '>=',
+                                    $chargeDate->toDateString()
+                                );
+                        }
+                    )
                     ->orderByDesc('effective_from')
                     ->orderByDesc('id')
                     ->first();
@@ -1174,7 +1260,9 @@ class IpBillingController extends Controller
                         $admission->id,
 
                     'charge_date' =>
-                        $chargeDate->copy()->startOfDay(),
+                        $chargeDate
+                            ->copy()
+                            ->startOfDay(),
 
                     'charge_type' =>
                         'bed',
@@ -1189,19 +1277,19 @@ class IpBillingController extends Controller
                         $chargeCode,
 
                     'description' =>
-                        'Bed Charge - ' .
-                        $ward->name .
-                        ' / Bed ' .
-                        $bed->bed_number .
-                        ' (' .
-                        ucfirst(
+                        'Bed Charge - '
+                        . $ward->name
+                        . ' / Bed '
+                        . $bed->bed_number
+                        . ' ('
+                        . ucfirst(
                             str_replace(
                                 '_',
                                 ' ',
                                 $bed->bed_type
                             )
-                        ) .
-                        ')',
+                        )
+                        . ')',
 
                     'quantity' =>
                         1,
@@ -1225,8 +1313,8 @@ class IpBillingController extends Controller
                         'active',
 
                     'remarks' =>
-                        'Automatic daily bed charge. Tariff ID: ' .
-                        $tariff->id,
+                        'Automatic daily bed charge. Tariff ID: '
+                        . $tariff->id,
 
                     'created_by' =>
                         auth()->id(),
@@ -1234,7 +1322,6 @@ class IpBillingController extends Controller
 
 
                 $generatedCount++;
-
 
                 $date->addDay();
             }
@@ -1246,38 +1333,32 @@ class IpBillingController extends Controller
         );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Result Message
-        |--------------------------------------------------------------------------
-        */
-
         $message =
-            $generatedCount .
-            ' bed charge' .
-            ($generatedCount === 1 ? '' : 's') .
-            ' generated.';
+            $generatedCount
+            . ' bed charge'
+            . ($generatedCount === 1 ? '' : 's')
+            . ' generated.';
 
 
         if ($existingCount > 0) {
 
             $message .=
-                ' ' .
-                $existingCount .
-                ' existing bed-day' .
-                ($existingCount === 1 ? '' : 's') .
-                ' skipped.';
+                ' '
+                . $existingCount
+                . ' existing bed-day'
+                . ($existingCount === 1 ? '' : 's')
+                . ' skipped.';
         }
 
 
         if ($noAllocationCount > 0) {
 
             $message .=
-                ' ' .
-                $noAllocationCount .
-                ' date' .
-                ($noAllocationCount === 1 ? '' : 's') .
-                ' had no valid bed allocation.';
+                ' '
+                . $noAllocationCount
+                . ' date'
+                . ($noAllocationCount === 1 ? '' : 's')
+                . ' had no valid bed allocation.';
         }
 
 
@@ -1288,9 +1369,9 @@ class IpBillingController extends Controller
             )
                 ->unique(
                     fn ($item) =>
-                        $item['ward'] .
-                        '|' .
-                        $item['bed_type']
+                        $item['ward']
+                        . '|'
+                        . $item['bed_type']
                 )
                 ->values();
 
@@ -1299,9 +1380,9 @@ class IpBillingController extends Controller
                 ->take(5)
                 ->map(
                     fn ($item) =>
-                        $item['ward'] .
-                        ' / ' .
-                        ucfirst(
+                        $item['ward']
+                        . ' / '
+                        . ucfirst(
                             str_replace(
                                 '_',
                                 ' ',
@@ -1313,13 +1394,17 @@ class IpBillingController extends Controller
 
 
             $message .=
-                ' No applicable tariff was found for ' .
-                count($missingTariffs) .
-                ' bed-day' .
-                (count($missingTariffs) === 1 ? '' : 's') .
-                ': ' .
-                $missingDescription .
-                '.';
+                ' No applicable tariff was found for '
+                . count($missingTariffs)
+                . ' bed-day'
+                . (
+                    count($missingTariffs) === 1
+                        ? ''
+                        : 's'
+                )
+                . ': '
+                . $missingDescription
+                . '.';
         }
 
 
@@ -1358,18 +1443,17 @@ class IpBillingController extends Controller
                 'in:cash,upi,card',
             ],
 
+            'source_type' => [
+                'nullable',
+                'string',
+                'in:pharmacy_sale',
+            ],
 
-                  'source_type' => [
-    'nullable',
-    'string',
-    'in:pharmacy_sale',
-],
-
-'source_id' => [
-    'nullable',
-    'integer',
-    'required_with:source_type',
-],
+            'source_id' => [
+                'nullable',
+                'integer',
+                'required_with:source_type',
+            ],
 
             'transaction_reference' => [
                 'nullable',
@@ -1394,7 +1478,9 @@ class IpBillingController extends Controller
             && empty(
                 trim(
                     (string) (
-                        $validated['transaction_reference']
+                        $validated[
+                            'transaction_reference'
+                        ]
                         ?? ''
                     )
                 )
@@ -1411,91 +1497,85 @@ class IpBillingController extends Controller
             $admission
         );
 
+
         $sourceSale = null;
 
-if (
-    ($validated['source_type'] ?? null)
-    === 'pharmacy_sale'
-) {
-    $sourceSale = PharmacySale::query()
-        ->whereKey(
-            $validated['source_id']
-        )
-        ->where(
-            'admission_id',
-            $admission->id
-        )
-        ->where(
-            'patient_id',
-            $admission->patient_id
-        )
-        ->first();
 
-    if (! $sourceSale) {
-        throw ValidationException::withMessages([
-            'amount' =>
-                'The pharmacy sale does not belong to this admission.',
-        ]);
-    }
-
-                 $alreadyCollectedAgainstSale = IpBillingAdvance::query()
-    ->where(
-        'source_type',
-        'pharmacy_sale'
-    )
-    ->where(
-        'source_id',
-        $sourceSale->id
-    )
-    ->where(
-        'status',
-        'active'
-    )
-    ->sum('amount');
+        if (
+            ($validated['source_type'] ?? null)
+            === 'pharmacy_sale'
+        ) {
+            $sourceSale = PharmacySale::query()
+                ->whereKey(
+                    $validated['source_id']
+                )
+                ->where(
+                    'admission_id',
+                    $admission->id
+                )
+                ->where(
+                    'patient_id',
+                    $admission->patient_id
+                )
+                ->first();
 
 
-$remainingSaleAmount = round(
-    max(
-        (float) $sourceSale->total_amount
-        - (float) $alreadyCollectedAgainstSale,
-        0
-    ),
-    2
-);
-
-
-$requestedAmount = round(
-    (float) $validated['amount'],
-    2
-);
-
-$charityAmount = round(
-    (float) $account->charityAdjustments
-        ->where(
-            'status',
-            'applied'
-        )
-        ->sum(
-            function ($adjustment) {
-                return (float) $adjustment->approved_amount;
+            if (! $sourceSale) {
+                throw ValidationException::withMessages([
+                    'amount' =>
+                        'The pharmacy sale does not belong to this admission.',
+                ]);
             }
-        ),
-    2
-);
 
-if ($requestedAmount > $remainingSaleAmount) {
-    throw ValidationException::withMessages([
-        'amount' =>
-            'Payment cannot exceed the remaining pharmacy sale amount of ₹'
-            . number_format(
-                $remainingSaleAmount,
+
+            $alreadyCollectedAgainstSale =
+                IpBillingAdvance::query()
+                    ->where(
+                        'source_type',
+                        'pharmacy_sale'
+                    )
+                    ->where(
+                        'source_id',
+                        $sourceSale->id
+                    )
+                    ->where(
+                        'status',
+                        'active'
+                    )
+                    ->sum('amount');
+
+
+            $remainingSaleAmount = round(
+                max(
+                    (float) $sourceSale->total_amount
+                    - (float) $alreadyCollectedAgainstSale,
+                    0
+                ),
                 2
-            )
-            . '.',
-    ]);
-}
+            );
 
-}
+
+            $requestedAmount = round(
+                (float) $validated['amount'],
+                2
+            );
+
+
+            if (
+                $requestedAmount
+                > $remainingSaleAmount
+            ) {
+                throw ValidationException::withMessages([
+                    'amount' =>
+                        'Payment cannot exceed the remaining pharmacy sale amount of ₹'
+                        . number_format(
+                            $remainingSaleAmount,
+                            2
+                        )
+                        . '.',
+                ]);
+            }
+        }
 
 
         if ($account->status !== 'open') {
@@ -1506,1715 +1586,1904 @@ if ($requestedAmount > $remainingSaleAmount) {
         }
 
 
-        $advance = DB::transaction(function () use (
-    $validated,
-    $admission,
-    $account,
-    $sourceSale
-) {
+        $advance = DB::transaction(
+            function () use (
+                $validated,
+                $admission,
+                $account,
+                $sourceSale
+            ) {
 
-            $lockedAccount = IpBillingAccount::query()
-                ->whereKey($account->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+                $lockedAccount =
+                    IpBillingAccount::query()
+                        ->whereKey(
+                            $account->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
 
 
-            if ($lockedAccount->status !== 'open') {
-                throw ValidationException::withMessages([
+                if (
+                    $lockedAccount->status
+                    !== 'open'
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Advance can only be received while the IP billing account is open.',
+                    ]);
+                }
+
+
+                return IpBillingAdvance::create([
+                    'ip_billing_account_id' =>
+                        $lockedAccount->id,
+
+                    'admission_id' =>
+                        $admission->id,
+
+                    'patient_id' =>
+                        $admission->patient_id,
+
+                    'receipt_no' =>
+                        $this
+                            ->generateAdvanceReceiptNumber(),
+
+                    'payment_date' =>
+                        now(),
+
                     'amount' =>
-                        'Advance can only be received while the IP billing account is open.',
-                ]);
-            }
+                        round(
+                            (float)
+                            $validated['amount'],
+                            2
+                        ),
 
-
-            return IpBillingAdvance::create([
-                'ip_billing_account_id' =>
-                    $lockedAccount->id,
-
-                'admission_id' =>
-                    $admission->id,
-
-                'patient_id' =>
-                    $admission->patient_id,
-
-                'receipt_no' =>
-                    $this->generateAdvanceReceiptNumber(),
-
-                'payment_date' =>
-                    now(),
-
-                'amount' =>
-                    round(
-                        (float) $validated['amount'],
-                        2
-                    ),
-
-                'payment_mode' =>
-                    $validated['payment_mode'],
+                    'payment_mode' =>
+                        $validated['payment_mode'],
 
                     'source_type' =>
-    $validated['source_type']
-    ?? null,
+                        $validated['source_type']
+                        ?? null,
 
-'source_id' =>
-    $validated['source_id']
-    ?? null,
+                    'source_id' =>
+                        $validated['source_id']
+                        ?? null,
 
-                'transaction_reference' =>
-                    $validated['transaction_reference']
-                    ?? null,
+                    'transaction_reference' =>
+                        $validated[
+                            'transaction_reference'
+                        ]
+                        ?? null,
 
-                'remarks' =>
-    $sourceSale
-        ? (
-            'Pharmacy interim payment against '
-            . $sourceSale->sale_no
-            . (
-                ! empty($validated['remarks'])
-                    ? ' | ' . $validated['remarks']
-                    : ''
-            )
-        )
-        : (
-            $validated['remarks']
-            ?? null
-        ),
+                    'remarks' =>
+                        $sourceSale
+                            ? (
+                                'Pharmacy interim payment against '
+                                . $sourceSale->sale_no
+                                . (
+                                    ! empty(
+                                        $validated['remarks']
+                                    )
+                                        ? ' | '
+                                            . $validated['remarks']
+                                        : ''
+                                )
+                            )
+                            : (
+                                $validated['remarks']
+                                ?? null
+                            ),
 
-                'status' =>
-                    'active',
+                    'status' =>
+                        'active',
 
-                'received_by' =>
-                    auth()->id(),
-            ]);
-        });
-
-
-       $this->recalculateAccount(
-    $account
-);
-
-
-/*
-|--------------------------------------------------------------------------
-| Pharmacy Interim Payment Redirect
-|--------------------------------------------------------------------------
-*/
-
-if ($sourceSale) {
-    return redirect()
-        ->route(
-            'pharmacy.dispensing.show',
-            $sourceSale
-        )
-        ->with(
-            'success',
-            'Interim payment of ₹' .
-            number_format(
-                (float) $advance->amount,
-                2
-            ) .
-            ' received successfully against pharmacy sale ' .
-            $sourceSale->sale_no .
-            '. Receipt: ' .
-            $advance->receipt_no
+                    'received_by' =>
+                        auth()->id(),
+                ]);
+            }
         );
-}
 
 
-/*
-|--------------------------------------------------------------------------
-| Normal IP Advance Redirect
-|--------------------------------------------------------------------------
-*/
+        $this->recalculateAccount(
+            $account
+        );
 
-return redirect()
-    ->route(
-        'ip-billing.show',
-        $admission
-    )
-    ->with(
-        'success',
-        'Advance of ₹' .
-        number_format(
-            (float) $advance->amount,
-            2
-        ) .
-        ' received successfully. Receipt: ' .
-        $advance->receipt_no
-    );
-    }
-
-
-/*
-|--------------------------------------------------------------------------
-| Receive IP Balance Payment
-|--------------------------------------------------------------------------
-|
-| Collects payment against the outstanding patient balance
-| of a finalized IP bill.
-|
-*/
-
-public function receivePayment(
-    Request $request,
-    Admission $admission
-) {
-    $validated = $request->validate([
-        'amount' => [
-            'required',
-            'numeric',
-            'min:0.01',
-            'max:9999999.99',
-        ],
-
-        'payment_mode' => [
-            'required',
-            'in:cash,upi,card',
-        ],
-
-        'transaction_reference' => [
-            'nullable',
-            'string',
-            'max:255',
-        ],
-
-        'remarks' => [
-            'nullable',
-            'string',
-            'max:2000',
-        ],
-    ]);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | UPI / Card Reference
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        in_array(
-            $validated['payment_mode'],
-            ['upi', 'card'],
-            true
-        )
-        && empty(
-            trim(
-                (string) (
-                    $validated['transaction_reference']
-                    ?? ''
-                )
-            )
-        )
-    ) {
-        throw ValidationException::withMessages([
-            'transaction_reference' =>
-                'Transaction reference is required for UPI or card payments.',
-        ]);
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Billing Account
-    |--------------------------------------------------------------------------
-    */
-
-    $account = IpBillingAccount::query()
-        ->where(
-            'admission_id',
-            $admission->id
-        )
-        ->firstOrFail();
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Payment Transaction
-    |--------------------------------------------------------------------------
-    */
-
-    $payment = DB::transaction(function () use (
-        $validated,
-        $admission,
-        $account
-    ) {
 
         /*
         |--------------------------------------------------------------------------
-        | Lock Billing Account
+        | Pharmacy Interim Payment Redirect
         |--------------------------------------------------------------------------
         */
 
-        $lockedAccount = IpBillingAccount::query()
-            ->whereKey($account->id)
-            ->lockForUpdate()
+        if ($sourceSale) {
+            return redirect()
+                ->route(
+                    'pharmacy.dispensing.show',
+                    $sourceSale
+                )
+                ->with(
+                    'success',
+                    'Interim payment of ₹'
+                    . number_format(
+                        (float) $advance->amount,
+                        2
+                    )
+                    . ' received successfully against pharmacy sale '
+                    . $sourceSale->sale_no
+                    . '. Receipt: '
+                    . $advance->receipt_no
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normal IP Advance Redirect
+        |--------------------------------------------------------------------------
+        */
+
+        return redirect()
+            ->route(
+                'ip-billing.show',
+                $admission
+            )
+            ->with(
+                'success',
+                'Advance of ₹'
+                . number_format(
+                    (float) $advance->amount,
+                    2
+                )
+                . ' received successfully. Receipt: '
+                . $advance->receipt_no
+            );
+    }
+        /*
+    |--------------------------------------------------------------------------
+    | Receive IP Balance Payment
+    |--------------------------------------------------------------------------
+    |
+    | Collects payment against the outstanding patient balance
+    | of a finalized IP bill.
+    |
+    */
+
+    public function receivePayment(
+        Request $request,
+        Admission $admission
+    ) {
+        $validated = $request->validate([
+            'amount' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                'max:9999999.99',
+            ],
+
+            'payment_mode' => [
+                'required',
+                'in:cash,upi,card',
+            ],
+
+            'transaction_reference' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | UPI / Card Reference
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            in_array(
+                $validated['payment_mode'],
+                ['upi', 'card'],
+                true
+            )
+            && empty(
+                trim(
+                    (string) (
+                        $validated['transaction_reference']
+                        ?? ''
+                    )
+                )
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'transaction_reference' =>
+                    'Transaction reference is required for UPI or card payments.',
+            ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Billing Account
+        |--------------------------------------------------------------------------
+        */
+
+        $account = IpBillingAccount::query()
+            ->where(
+                'admission_id',
+                $admission->id
+            )
             ->firstOrFail();
 
 
         /*
         |--------------------------------------------------------------------------
-        | Only Finalized Bills
+        | Payment Transaction
         |--------------------------------------------------------------------------
         */
 
-        if ($lockedAccount->status !== 'finalized') {
-            throw ValidationException::withMessages([
-                'amount' =>
-                    'Payment can only be collected against a finalized IP bill.',
-            ]);
-        }
+        $payment = DB::transaction(
+            function () use (
+                $validated,
+                $admission,
+                $account
+            ) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Lock Billing Account
+                |--------------------------------------------------------------------------
+                */
+
+                $lockedAccount = IpBillingAccount::query()
+                    ->whereKey($account->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Recalculate Current Outstanding Balance
-        |--------------------------------------------------------------------------
-        |
-        | We deliberately calculate this inside the transaction
-        | so that stale balance values cannot result in overpayment.
-        |
-        */
+                /*
+                |--------------------------------------------------------------------------
+                | Only Finalized Bills
+                |--------------------------------------------------------------------------
+                */
 
-        $lockedAccount->load([
-    'charges',
-    'advances',
-    'payments',
-    'refunds',
-    'mhisClaims',
-    'mhisAdjustments',
-    'staffMedicalBenefitTransactions',
-    'charityAdjustments',
-]);
+                if (
+                    $lockedAccount->status
+                    !== 'finalized'
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Payment can only be collected against a finalized IP bill.',
+                    ]);
+                }
 
 
-        $activeCharges = $lockedAccount->charges
-            ->where(
-                'status',
-                'active'
+                /*
+                |--------------------------------------------------------------------------
+                | Load Current Settlement Data
+                |--------------------------------------------------------------------------
+                */
+
+                $lockedAccount->load([
+                    'charges',
+                    'advances',
+                    'payments',
+                    'refunds',
+                    'mhisClaims',
+                    'mhisAdjustments',
+                    'staffMedicalBenefitTransactions',
+                    'charityAdjustments',
+                ]);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Active Hospital Charges
+                |--------------------------------------------------------------------------
+                */
+
+                $netAmount = round(
+                    (float) $lockedAccount->charges
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($charge) {
+                                return (float) $charge->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | MHIS Package Adjustment
+                |--------------------------------------------------------------------------
+                */
+
+                $mhisAdjustmentAmount = round(
+                    (float) $lockedAccount
+                        ->mhisAdjustments
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($adjustment) {
+                                return (float)
+                                    $adjustment->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                $adjustedNetAmount = round(
+                    $netAmount
+                    + $mhisAdjustmentAmount,
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | MHIS Approved Amount
+                |--------------------------------------------------------------------------
+                */
+
+                $mhisApprovedAmount = round(
+                    (float) $lockedAccount
+                        ->mhisClaims
+                        ->whereIn(
+                            'status',
+                            [
+                                'approved',
+                                'submitted',
+                                'settled',
+                            ]
+                        )
+                        ->sum(
+                            function ($claim) {
+                                return (float)
+                                    $claim->approved_amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Staff Medical Benefit
+                |--------------------------------------------------------------------------
+                */
+
+                $staffMedicalBenefitAmount = round(
+                    (float) $lockedAccount
+                        ->staffMedicalBenefitTransactions
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($transaction) {
+
+                                if (
+                                    $transaction
+                                        ->transaction_type
+                                    === 'utilization'
+                                ) {
+                                    return (float)
+                                        $transaction->amount;
+                                }
+
+                                if (
+                                    $transaction
+                                        ->transaction_type
+                                    === 'reversal'
+                                ) {
+                                    return -1
+                                        * (float)
+                                            $transaction->amount;
+                                }
+
+                                return 0;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Charity Adjustment
+                |--------------------------------------------------------------------------
+                */
+
+                $charityAmount = round(
+                    (float) $lockedAccount
+                        ->charityAdjustments
+                        ->where(
+                            'status',
+                            'applied'
+                        )
+                        ->sum(
+                            function ($adjustment) {
+                                return (float)
+                                    $adjustment->approved_amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Patient Liability
+                |--------------------------------------------------------------------------
+                */
+
+                $patientLiability = round(
+                    max(
+                        $adjustedNetAmount
+                        - $mhisApprovedAmount
+                        - $staffMedicalBenefitAmount
+                        - $charityAmount,
+                        0
+                    ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Advances Already Received
+                |--------------------------------------------------------------------------
+                */
+
+                $advanceAmount = round(
+                    (float) $lockedAccount
+                        ->advances
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($advance) {
+                                return (float)
+                                    $advance->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Previous Balance Payments
+                |--------------------------------------------------------------------------
+                */
+
+                $paidAmount = round(
+                    (float) $lockedAccount
+                        ->payments
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($payment) {
+                                return (float)
+                                    $payment->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Refunds Already Paid
+                |--------------------------------------------------------------------------
+                */
+
+                $refundAmount = round(
+                    (float) $lockedAccount
+                        ->refunds
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($refund) {
+                                return (float)
+                                    $refund->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Net Patient Money Held
+                |--------------------------------------------------------------------------
+                */
+
+                $patientMoneyReceived = round(
+                    $advanceAmount
+                    + $paidAmount,
+                    2
+                );
+
+
+                $netPatientMoneyHeld = round(
+                    max(
+                        $patientMoneyReceived
+                        - $refundAmount,
+                        0
+                    ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Current Outstanding Balance
+                |--------------------------------------------------------------------------
+                */
+
+                $currentBalance = round(
+                    max(
+                        $patientLiability
+                        - $netPatientMoneyHeld,
+                        0
+                    ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Payment Amount
+                |--------------------------------------------------------------------------
+                */
+
+                $paymentAmount = round(
+                    (float) $validated['amount'],
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Prevent Overpayment
+                |--------------------------------------------------------------------------
+                */
+
+                if ($currentBalance <= 0) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'There is currently no outstanding patient balance to collect.',
+                    ]);
+                }
+
+
+                if (
+                    $paymentAmount
+                    > $currentBalance
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Payment cannot exceed the outstanding patient balance of ₹'
+                            . number_format(
+                                $currentBalance,
+                                2
+                            )
+                            . '.',
+                    ]);
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Generate Receipt Number
+                |--------------------------------------------------------------------------
+                */
+
+                $receiptNo =
+                    $this
+                        ->generatePaymentReceiptNumber();
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Create Patient Payment
+                |--------------------------------------------------------------------------
+                */
+
+                $payment = IpBillingPayment::create([
+                    'ip_billing_account_id' =>
+                        $lockedAccount->id,
+
+                    'admission_id' =>
+                        $admission->id,
+
+                    'patient_id' =>
+                        $admission->patient_id,
+
+                    'receipt_no' =>
+                        $receiptNo,
+
+                    'payment_date' =>
+                        now(),
+
+                    'amount' =>
+                        $paymentAmount,
+
+                    'payment_mode' =>
+                        $validated['payment_mode'],
+
+                    'transaction_reference' =>
+                        $validated[
+                            'transaction_reference'
+                        ]
+                        ?? null,
+
+                    'remarks' =>
+                        $validated['remarks']
+                        ?? null,
+
+                    'status' =>
+                        'active',
+
+                    'received_by' =>
+                        auth()->id(),
+                ]);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Recalculate Account
+                |--------------------------------------------------------------------------
+                */
+
+                $this->recalculateAccount(
+                    $lockedAccount
+                );
+
+
+                return $payment;
+            }
+        );
+
+
+        $account->refresh();
+
+
+        return redirect()
+            ->route(
+                'ip-billing.show',
+                $admission
+            )
+            ->with(
+                'success',
+                'Payment of ₹'
+                . number_format(
+                    (float) $payment->amount,
+                    2
+                )
+                . ' received successfully. Receipt: '
+                . $payment->receipt_no
             );
+    }
 
 
-        $netAmount = round(
-            (float) $activeCharges->sum(
-                function ($charge) {
-                    return (float) $charge->amount;
-                }
-            ),
-            2
-        );
+    /*
+    |--------------------------------------------------------------------------
+    | Record Patient Refund
+    |--------------------------------------------------------------------------
+    */
 
-        $mhisAdjustmentAmount = round(
-            (float) $account->mhisAdjustments
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    fn ($adjustment) =>
-                        (float) $adjustment->amount
-                ),
-            2
-        );
+    public function storeRefund(
+        Request $request,
+        Admission $admission
+    ) {
+        $validated = $request->validate([
+            'amount' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                'max:9999999.99',
+            ],
 
+            'payment_mode' => [
+                'required',
+                'in:cash,upi,card',
+            ],
 
-        $adjustedBillAmount = round(
-            $netAmount + $mhisAdjustmentAmount,
-            2
-        );
-        $advanceAmount = round(
-            (float) $lockedAccount->advances
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($advance) {
-                        return (float) $advance->amount;
-                    }
-                ),
-            2
-        );
+            'transaction_reference' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
 
+            'reason' => [
+                'required',
+                'string',
+                'max:3000',
+            ],
 
-        $paidAmount = round(
-            (float) $lockedAccount->payments
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($payment) {
-                        return (float) $payment->amount;
-                    }
-                ),
-            2
-        );
-
-
-        $mhisApprovedAmount = round(
-            (float) $lockedAccount->mhisClaims
-                ->whereIn(
-                    'status',
-                    [
-                        'approved',
-                        'submitted',
-                        'settled',
-                    ]
-                )
-                ->sum(
-                    function ($claim) {
-                        return (float) $claim->approved_amount;
-                    }
-                ),
-            2
-        );
-
-                    $mhisAdjustmentAmount = round(
-    (float) $lockedAccount->mhisAdjustments
-        ->where(
-            'status',
-            'active'
-        )
-        ->sum(
-            function ($adjustment) {
-                return (float) $adjustment->amount;
-            }
-        ),
-    2
-);
-
-
-$adjustedNetAmount = round(
-    $netAmount + $mhisAdjustmentAmount,
-    2
-);
-
-                             $staffMedicalBenefitAmount = round(
-    (float) $lockedAccount->staffMedicalBenefitTransactions
-        ->where(
-            'status',
-            'active'
-        )
-        ->sum(
-            function ($transaction) {
-                if ($transaction->transaction_type === 'utilization') {
-                    return (float) $transaction->amount;
-                }
-
-                if ($transaction->transaction_type === 'reversal') {
-                    return -1 * (float) $transaction->amount;
-                }
-
-                return 0;
-            }
-        ),
-    2
-);
-        $patientLiability = round(
-    max(
-        $adjustedNetAmount
-        - $mhisApprovedAmount
-        - $staffMedicalBenefitAmount
-        - $charityAmount,
-        0
-    ),
-    2
-);
-
-
-$patientMoneyReceived = round(
-    $advanceAmount + $paidAmount,
-    2
-);
-
-
-$netPatientMoneyHeld = round(
-    max(
-        $patientMoneyReceived - $refundAmount,
-        0
-    ),
-    2
-);
-
-
-$currentBalance = round(
-    max(
-        $patientLiability - $netPatientMoneyHeld,
-        0
-    ),
-    2
-);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Payment Amount
-        |--------------------------------------------------------------------------
-        */
-
-        $paymentAmount = round(
-            (float) $validated['amount'],
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Prevent Overpayment
-        |--------------------------------------------------------------------------
-        */
-
-        if ($paymentAmount > $currentBalance) {
-            throw ValidationException::withMessages([
-                'amount' =>
-                    'Payment cannot exceed the outstanding patient balance of ₹' .
-                    number_format(
-                        $currentBalance,
-                        2
-                    ) .
-                    '.',
-            ]);
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Generate Receipt Number
-        |--------------------------------------------------------------------------
-        */
-
-        $receiptNo =
-            $this->generatePaymentReceiptNumber();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Create Patient Payment
-        |--------------------------------------------------------------------------
-        */
-
-        $payment = IpBillingPayment::create([
-            'ip_billing_account_id' =>
-                $lockedAccount->id,
-
-            'admission_id' =>
-                $admission->id,
-
-            'patient_id' =>
-                $admission->patient_id,
-
-            'receipt_no' =>
-                $receiptNo,
-
-            'payment_date' =>
-                now(),
-
-            'amount' =>
-                $paymentAmount,
-
-            'payment_mode' =>
-                $validated['payment_mode'],
-
-            'transaction_reference' =>
-                $validated['transaction_reference']
-                ?? null,
-
-            'remarks' =>
-                $validated['remarks']
-                ?? null,
-
-            'status' =>
-                'active',
-
-            'received_by' =>
-                auth()->id(),
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:3000',
+            ],
         ]);
 
 
         /*
         |--------------------------------------------------------------------------
-        | Recalculate Account
+        | UPI / Card Reference
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            in_array(
+                $validated['payment_mode'],
+                ['upi', 'card'],
+                true
+            )
+            && empty(
+                trim(
+                    (string) (
+                        $validated['transaction_reference']
+                        ?? ''
+                    )
+                )
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'transaction_reference' =>
+                    'Transaction reference is required for UPI or card refunds.',
+            ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Billing Account
+        |--------------------------------------------------------------------------
+        */
+
+        $account = IpBillingAccount::query()
+            ->where(
+                'admission_id',
+                $admission->id
+            )
+            ->firstOrFail();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Refund Transaction
+        |--------------------------------------------------------------------------
+        */
+
+        $refund = DB::transaction(
+            function () use (
+                $validated,
+                $admission,
+                $account
+            ) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Lock IP Billing Account
+                |--------------------------------------------------------------------------
+                */
+
+                $lockedAccount =
+                    IpBillingAccount::query()
+                        ->whereKey(
+                            $account->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Only Finalized Bills
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                    $lockedAccount->status
+                    !== 'finalized'
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Refund can only be processed against a finalized IP bill.',
+                    ]);
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Load Current Settlement Data
+                |--------------------------------------------------------------------------
+                */
+
+                $lockedAccount->load([
+                    'charges',
+                    'advances',
+                    'payments',
+                    'refunds',
+                    'mhisClaims',
+                    'mhisAdjustments',
+                    'staffMedicalBenefitTransactions',
+                    'charityAdjustments',
+                ]);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Running Hospital Charges
+                |--------------------------------------------------------------------------
+                */
+
+                $netAmount = round(
+                    (float) $lockedAccount
+                        ->charges
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($charge) {
+                                return (float)
+                                    $charge->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | MHIS Package Adjustments
+                |--------------------------------------------------------------------------
+                */
+
+                $mhisAdjustmentAmount = round(
+                    (float) $lockedAccount
+                        ->mhisAdjustments
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($adjustment) {
+                                return (float)
+                                    $adjustment->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                $adjustedNetAmount = round(
+                    $netAmount
+                    + $mhisAdjustmentAmount,
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | MHIS Approved
+                |--------------------------------------------------------------------------
+                */
+
+                $mhisApprovedAmount = round(
+                    (float) $lockedAccount
+                        ->mhisClaims
+                        ->whereIn(
+                            'status',
+                            [
+                                'approved',
+                                'submitted',
+                                'settled',
+                            ]
+                        )
+                        ->sum(
+                            function ($claim) {
+                                return (float)
+                                    $claim->approved_amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Staff Medical Benefit
+                |--------------------------------------------------------------------------
+                */
+
+                $staffMedicalBenefitAmount = round(
+                    (float) $lockedAccount
+                        ->staffMedicalBenefitTransactions
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($transaction) {
+
+                                if (
+                                    $transaction
+                                        ->transaction_type
+                                    === 'utilization'
+                                ) {
+                                    return (float)
+                                        $transaction->amount;
+                                }
+
+                                if (
+                                    $transaction
+                                        ->transaction_type
+                                    === 'reversal'
+                                ) {
+                                    return -1
+                                        * (float)
+                                            $transaction->amount;
+                                }
+
+                                return 0;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Charity
+                |--------------------------------------------------------------------------
+                */
+
+                $charityAmount = round(
+                    (float) $lockedAccount
+                        ->charityAdjustments
+                        ->where(
+                            'status',
+                            'applied'
+                        )
+                        ->sum(
+                            function ($adjustment) {
+                                return (float)
+                                    $adjustment->approved_amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Patient Liability
+                |--------------------------------------------------------------------------
+                */
+
+                $patientLiability = round(
+                    max(
+                        $adjustedNetAmount
+                        - $mhisApprovedAmount
+                        - $staffMedicalBenefitAmount
+                        - $charityAmount,
+                        0
+                    ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Patient Money Received
+                |--------------------------------------------------------------------------
+                */
+
+                $advanceAmount = round(
+                    (float) $lockedAccount
+                        ->advances
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($advance) {
+                                return (float)
+                                    $advance->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                $paidAmount = round(
+                    (float) $lockedAccount
+                        ->payments
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($payment) {
+                                return (float)
+                                    $payment->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                $refundAmount = round(
+                    (float) $lockedAccount
+                        ->refunds
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum(
+                            function ($refund) {
+                                return (float)
+                                    $refund->amount;
+                            }
+                        ),
+                    2
+                );
+
+
+                $patientMoneyReceived = round(
+                    $advanceAmount
+                    + $paidAmount,
+                    2
+                );
+
+
+                $netPatientMoneyHeld = round(
+                    max(
+                        $patientMoneyReceived
+                        - $refundAmount,
+                        0
+                    ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Current Refund Due
+                |--------------------------------------------------------------------------
+                */
+
+                $refundDue = round(
+                    max(
+                        $netPatientMoneyHeld
+                        - $patientLiability,
+                        0
+                    ),
+                    2
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Validate Refund Amount
+                |--------------------------------------------------------------------------
+                */
+
+                $requestedRefund = round(
+                    (float) $validated['amount'],
+                    2
+                );
+
+
+                if ($refundDue <= 0) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'There is currently no refundable patient balance.',
+                    ]);
+                }
+
+
+                if (
+                    $requestedRefund
+                    > $refundDue
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Refund cannot exceed the current refundable amount of ₹'
+                            . number_format(
+                                $refundDue,
+                                2
+                            )
+                            . '.',
+                    ]);
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Create Refund
+                |--------------------------------------------------------------------------
+                */
+
+                return IpBillingRefund::create([
+                    'ip_billing_account_id' =>
+                        $lockedAccount->id,
+
+                    'admission_id' =>
+                        $admission->id,
+
+                    'patient_id' =>
+                        $admission->patient_id,
+
+                    'refund_no' =>
+                        $this->generateRefundNumber(),
+
+                    'refund_date' =>
+                        now(),
+
+                    'amount' =>
+                        $requestedRefund,
+
+                    'payment_mode' =>
+                        $validated['payment_mode'],
+
+                    'transaction_reference' =>
+                        $validated[
+                            'transaction_reference'
+                        ]
+                        ?? null,
+
+                    'reason' =>
+                        $validated['reason'],
+
+                    'remarks' =>
+                        $validated['remarks']
+                        ?? null,
+
+                    'status' =>
+                        'active',
+
+                    'refunded_by' =>
+                        auth()->id(),
+                ]);
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recalculate Billing Account
         |--------------------------------------------------------------------------
         */
 
         $this->recalculateAccount(
-            $lockedAccount
+            $account
         );
 
 
-        return $payment;
-    });
+        /*
+        |--------------------------------------------------------------------------
+        | Redirect
+        |--------------------------------------------------------------------------
+        */
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Redirect
-    |--------------------------------------------------------------------------
-    */
-
-    return redirect()
-        ->route(
-            'ip-billing.show',
-            $admission
-        )
-        ->with(
-            'success',
-            'Payment of ₹' .
-            number_format(
-                (float) $payment->amount,
-                2
-            ) .
-            ' received successfully. Receipt: ' .
-            $payment->receipt_no
-        );
-}
-
- /*
-|--------------------------------------------------------------------------
-| Record Patient Refund
-|--------------------------------------------------------------------------
-*/
-
-public function storeRefund(
-    Request $request,
-    Admission $admission
-) {
-    $validated = $request->validate([
-        'amount' => [
-            'required',
-            'numeric',
-            'min:0.01',
-            'max:9999999.99',
-        ],
-
-        'payment_mode' => [
-            'required',
-            'in:cash,upi,card',
-        ],
-
-        'transaction_reference' => [
-            'nullable',
-            'string',
-            'max:255',
-        ],
-
-        'reason' => [
-            'required',
-            'string',
-            'max:3000',
-        ],
-
-        'remarks' => [
-            'nullable',
-            'string',
-            'max:3000',
-        ],
-    ]);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | UPI / Card Reference
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-        in_array(
-            $validated['payment_mode'],
-            ['upi', 'card'],
-            true
-        )
-        && empty(
-            trim(
-                (string) (
-                    $validated['transaction_reference']
-                    ?? ''
-                )
+        return redirect()
+            ->route(
+                'ip-billing.show',
+                $admission
             )
-        )
-    ) {
-        throw ValidationException::withMessages([
-            'transaction_reference' =>
-                'Transaction reference is required for UPI or card refunds.',
-        ]);
+            ->with(
+                'success',
+                'Refund of ₹'
+                . number_format(
+                    (float) $refund->amount,
+                    2
+                )
+                . ' processed successfully. Refund No: '
+                . $refund->refund_no
+            );
     }
-
-
-    /*
+        /*
     |--------------------------------------------------------------------------
-    | Billing Account
+    | Apply Staff Medical Benefit
     |--------------------------------------------------------------------------
     */
 
-    $account = IpBillingAccount::query()
-        ->where(
-            'admission_id',
-            $admission->id
-        )
-        ->firstOrFail();
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Refund Transaction
-    |--------------------------------------------------------------------------
-    */
-
-    $refund = DB::transaction(function () use (
-        $validated,
-        $admission,
-        $account
+    public function applyStaffMedicalBenefit(
+        Admission $admission,
+        StaffMedicalBenefitService $staffMedicalBenefitService,
+        StaffMedicalBenefitUtilizationService $staffMedicalBenefitUtilizationService
     ) {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Lock Billing Account
-        |--------------------------------------------------------------------------
-        */
-
-        $lockedAccount = IpBillingAccount::query()
-            ->whereKey($account->id)
-            ->lockForUpdate()
-            ->firstOrFail();
+        $admission->load('patient');
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Only Finalized Bills
-        |--------------------------------------------------------------------------
-        */
-
-        if ($lockedAccount->status !== 'finalized') {
+        if (! $admission->patient) {
             throw ValidationException::withMessages([
-                'amount' =>
-                    'Refund can only be processed against a finalized IP bill.',
+                'staff_medical_benefit' =>
+                    'The admission is not linked to a patient.',
             ]);
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Load Current Settlement Data
-        |--------------------------------------------------------------------------
-        */
-
-        $lockedAccount->load([
-            'charges',
-            'advances',
-            'payments',
-            'refunds',
-            'mhisClaims',
-            'mhisAdjustments',
-            'staffMedicalBenefitTransactions',
-            'charityAdjustments',
-        ]);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Running Hospital Charges
-        |--------------------------------------------------------------------------
-        */
-
-        $netAmount = round(
-            (float) $lockedAccount->charges
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($charge) {
-                        return (float) $charge->amount;
-                    }
-                ),
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | MHIS Package Adjustments
-        |--------------------------------------------------------------------------
-        */
-
-        $mhisAdjustmentAmount = round(
-            (float) $lockedAccount->mhisAdjustments
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($adjustment) {
-                        return (float) $adjustment->amount;
-                    }
-                ),
-            2
-        );
-
-
-        $adjustedNetAmount = round(
-            $netAmount + $mhisAdjustmentAmount,
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | MHIS Approved
-        |--------------------------------------------------------------------------
-        */
-
-        $mhisApprovedAmount = round(
-            (float) $lockedAccount->mhisClaims
-                ->whereIn(
-                    'status',
-                    [
-                        'approved',
-                        'submitted',
-                        'settled',
-                    ]
-                )
-                ->sum(
-                    function ($claim) {
-                        return (float) $claim->approved_amount;
-                    }
-                ),
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Staff Medical Benefit
-        |--------------------------------------------------------------------------
-        */
-
-        $staffMedicalBenefitAmount = round(
-            (float) $lockedAccount
-                ->staffMedicalBenefitTransactions
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($transaction) {
-
-                        if (
-                            $transaction->transaction_type
-                            === 'utilization'
-                        ) {
-                            return (float) $transaction->amount;
-                        }
-
-                        if (
-                            $transaction->transaction_type
-                            === 'reversal'
-                        ) {
-                            return -1 * (float) $transaction->amount;
-                        }
-
-                        return 0;
-                    }
-                ),
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Charity
-        |--------------------------------------------------------------------------
-        */
-
-        $charityAmount = round(
-            (float) $lockedAccount->charityAdjustments
-                ->where(
-                    'status',
-                    'applied'
-                )
-                ->sum(
-                    function ($adjustment) {
-                        return (float) $adjustment->approved_amount;
-                    }
-                ),
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Patient Liability
-        |--------------------------------------------------------------------------
-        */
-
-        $patientLiability = round(
-            max(
-                $adjustedNetAmount
-                - $mhisApprovedAmount
-                - $staffMedicalBenefitAmount
-                - $charityAmount,
-                0
-            ),
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Patient Money Received
-        |--------------------------------------------------------------------------
-        */
-
-        $advanceAmount = round(
-            (float) $lockedAccount->advances
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($advance) {
-                        return (float) $advance->amount;
-                    }
-                ),
-            2
-        );
-
-
-        $paidAmount = round(
-            (float) $lockedAccount->payments
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($payment) {
-                        return (float) $payment->amount;
-                    }
-                ),
-            2
-        );
-
-
-        $refundAmount = round(
-            (float) $lockedAccount->refunds
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum(
-                    function ($refund) {
-                        return (float) $refund->amount;
-                    }
-                ),
-            2
-        );
-
-
-        $patientMoneyReceived = round(
-            $advanceAmount + $paidAmount,
-            2
-        );
-
-
-        $netPatientMoneyHeld = round(
-            max(
-                $patientMoneyReceived - $refundAmount,
-                0
-            ),
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Current Refund Due
-        |--------------------------------------------------------------------------
-        */
-
-        $refundDue = round(
-            max(
-                $netPatientMoneyHeld - $patientLiability,
-                0
-            ),
-            2
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Validate Refund Amount
-        |--------------------------------------------------------------------------
-        */
-
-        $requestedRefund = round(
-            (float) $validated['amount'],
-            2
-        );
-
-
-        if ($refundDue <= 0) {
-            throw ValidationException::withMessages([
-                'amount' =>
-                    'There is currently no refundable patient balance.',
-            ]);
-        }
-
-
-        if ($requestedRefund > $refundDue) {
-            throw ValidationException::withMessages([
-                'amount' =>
-                    'Refund cannot exceed the current refundable amount of ₹' .
-                    number_format(
-                        $refundDue,
-                        2
-                    ) .
-                    '.',
-            ]);
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Create Refund
-        |--------------------------------------------------------------------------
-        */
-
-        return IpBillingRefund::create([
-            'ip_billing_account_id' =>
-                $lockedAccount->id,
-
-            'admission_id' =>
-                $admission->id,
-
-            'patient_id' =>
-                $admission->patient_id,
-
-            'refund_no' =>
-                $this->generateRefundNumber(),
-
-            'refund_date' =>
-                now(),
-
-            'amount' =>
-                $requestedRefund,
-
-            'payment_mode' =>
-                $validated['payment_mode'],
-
-            'transaction_reference' =>
-                $validated['transaction_reference']
-                ?? null,
-
-            'reason' =>
-                $validated['reason'],
-
-            'remarks' =>
-                $validated['remarks']
-                ?? null,
-
-            'status' =>
-                'active',
-
-            'refunded_by' =>
-                auth()->id(),
-        ]);
-    });
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Recalculate Billing Account
-    |--------------------------------------------------------------------------
-    */
-
-    $this->recalculateAccount(
-        $account
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Redirect
-    |--------------------------------------------------------------------------
-    */
-
-    return redirect()
-        ->route(
-            'ip-billing.show',
+        $account = $this->getOrCreateAccount(
             $admission
-        )
-        ->with(
-            'success',
-            'Refund of ₹' .
-            number_format(
-                (float) $refund->amount,
-                2
-            ) .
-            ' processed successfully. Refund No: ' .
-            $refund->refund_no
-        );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Apply Staff Medical Benefit
-|--------------------------------------------------------------------------
-*/
-
-public function applyStaffMedicalBenefit(
-    Admission $admission,
-    StaffMedicalBenefitService $staffMedicalBenefitService,
-    StaffMedicalBenefitUtilizationService $staffMedicalBenefitUtilizationService
-) {
-    $admission->load('patient');
-
-    if (! $admission->patient) {
-        throw ValidationException::withMessages([
-            'staff_medical_benefit' =>
-                'The admission is not linked to a patient.',
-        ]);
-    }
-
-    $account = $this->getOrCreateAccount(
-        $admission
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Staff Medical Benefit can only be applied to a finalized bill
-    |--------------------------------------------------------------------------
-    */
-
-    if ($account->status !== 'finalized') {
-        throw ValidationException::withMessages([
-            'staff_medical_benefit' =>
-                'Staff Medical Benefit can only be applied after the IP bill has been finalized.',
-        ]);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Resolve Staff / Dependent Eligibility
-    |--------------------------------------------------------------------------
-    */
-
-    $benefit = $staffMedicalBenefitService
-        ->resolvePatientBenefit(
-            $admission->patient,
-            now()
         );
 
-    if (! $benefit || ! ($benefit['eligible'] ?? false)) {
-        throw ValidationException::withMessages([
-            'staff_medical_benefit' =>
-                'This patient is not eligible for Staff Medical Benefit.',
-        ]);
-    }
 
-    try {
+        /*
+        |--------------------------------------------------------------------------
+        | Staff Medical Benefit can only be applied to a finalized bill
+        |--------------------------------------------------------------------------
+        */
 
-        $transaction = DB::transaction(function () use (
-            $admission,
-            $account,
-            $benefit,
-            $staffMedicalBenefitUtilizationService
-        ) {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Lock IP Billing Account
-            |--------------------------------------------------------------------------
-            */
-
-            $lockedAccount = IpBillingAccount::query()
-                ->whereKey($account->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if ($lockedAccount->status !== 'finalized') {
-                throw new \RuntimeException(
-                    'Staff Medical Benefit can only be applied to a finalized IP bill.'
-                );
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Load Current Financial Position
-            |--------------------------------------------------------------------------
-            */
-
-            $lockedAccount->load([
-                'charges',
-                'advances',
-                'payments',
-                'mhisClaims',
-                'staffMedicalBenefitTransactions',
+        if ($account->status !== 'finalized') {
+            throw ValidationException::withMessages([
+                'staff_medical_benefit' =>
+                    'Staff Medical Benefit can only be applied after the IP bill has been finalized.',
             ]);
+        }
 
-            $netAmount = round(
-                (float) $lockedAccount->charges
-                    ->where('status', 'active')
-                    ->sum(
-                        fn ($charge) =>
-                            (float) $charge->amount
-                    ),
-                2
+
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve Staff / Dependent Eligibility
+        |--------------------------------------------------------------------------
+        */
+
+        $benefit = $staffMedicalBenefitService
+            ->resolvePatientBenefit(
+                $admission->patient,
+                now()
             );
 
-            $advanceAmount = round(
-                (float) $lockedAccount->advances
-                    ->where('status', 'active')
-                    ->sum(
-                        fn ($advance) =>
-                            (float) $advance->amount
-                    ),
-                2
-            );
 
-            $paidAmount = round(
-                (float) $lockedAccount->payments
-                    ->where('status', 'active')
-                    ->sum(
-                        fn ($payment) =>
-                            (float) $payment->amount
-                    ),
-                2
-            );
+        if (
+            ! $benefit
+            || ! ($benefit['eligible'] ?? false)
+        ) {
+            throw ValidationException::withMessages([
+                'staff_medical_benefit' =>
+                    'This patient is not eligible for Staff Medical Benefit.',
+            ]);
+        }
 
-            $mhisApprovedAmount = round(
-                (float) $lockedAccount->mhisClaims
-                    ->whereIn(
-                        'status',
-                        [
-                            'approved',
-                            'submitted',
-                            'settled',
-                        ]
-                    )
-                    ->sum(
-                        fn ($claim) =>
-                            (float) $claim->approved_amount
-                    ),
-                2
-            );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Warn / Block Accidental Benefit Use While MHIS Is Pending
-            |--------------------------------------------------------------------------
-            |
-            | A pending MHIS claim with no approved amount means the patient's
-            | final liability has not yet been established.
-            |
-            */
+        try {
 
-            $hasPendingMhisClaim =
-                $lockedAccount->mhisClaims
-                    ->where('status', 'pending')
-                    ->isNotEmpty();
+            $transaction = DB::transaction(
+                function () use (
+                    $admission,
+                    $account,
+                    $benefit,
+                    $staffMedicalBenefitUtilizationService
+                ) {
 
-            if (
-                $hasPendingMhisClaim &&
-                $mhisApprovedAmount <= 0
-            ) {
-                throw new \RuntimeException(
-                    'MHIS claim is still pending and no approved amount has been recorded. '
-                    . 'Update the MHIS approval before applying Staff Medical Benefit.'
-                );
-            }
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Lock IP Billing Account
+                    |--------------------------------------------------------------------------
+                    */
 
-            /*
-            |--------------------------------------------------------------------------
-            | Existing Staff Medical Benefit
-            |--------------------------------------------------------------------------
-            */
+                    $lockedAccount =
+                        IpBillingAccount::query()
+                            ->whereKey(
+                                $account->id
+                            )
+                            ->lockForUpdate()
+                            ->firstOrFail();
 
-            $existingStaffBenefit = round(
-                (float) $lockedAccount
-                    ->staffMedicalBenefitTransactions
-                    ->where('status', 'active')
-                    ->sum(
-                        function ($item) {
-                            if ($item->transaction_type === 'utilization') {
-                                return (float) $item->amount;
-                            }
 
-                            if ($item->transaction_type === 'reversal') {
-                                return -1 * (float) $item->amount;
-                            }
+                    if (
+                        $lockedAccount->status
+                        !== 'finalized'
+                    ) {
+                        throw new \RuntimeException(
+                            'Staff Medical Benefit can only be applied to a finalized IP bill.'
+                        );
+                    }
 
-                            return 0;
-                        }
-                    ),
-                2
-            );
 
-            if ($existingStaffBenefit > 0) {
-                throw new \RuntimeException(
-                    'Staff Medical Benefit has already been applied to this IP bill.'
-                );
-            }
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Load Current Financial Position
+                    |--------------------------------------------------------------------------
+                    */
 
-            /*
-            |--------------------------------------------------------------------------
-            | Calculate Residual Before Staff Medical Benefit
-            |--------------------------------------------------------------------------
-            */
+                    $lockedAccount->load([
+                        'charges',
+                        'advances',
+                        'payments',
+                        'mhisClaims',
+                        'staffMedicalBenefitTransactions',
+                    ]);
 
-            $residualBeforeBenefit = round(
-                max(
-                    $netAmount
-                    - $advanceAmount
-                    - $paidAmount
-                    - $mhisApprovedAmount,
-                    0
-                ),
-                2
-            );
 
-            if ($residualBeforeBenefit <= 0) {
-                throw new \RuntimeException(
-                    'There is no outstanding patient balance available for Staff Medical Benefit.'
-                );
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Apply Benefit
-            |--------------------------------------------------------------------------
-            |
-            | The utilization service independently locks the annual benefit
-            | account and caps utilization to the remaining entitlement.
-            |
-            */
-
-            $benefitTransaction =
-                $staffMedicalBenefitUtilizationService
-                    ->utilize(
-                        benefitAccount:
-                            $benefit['account'],
-
-                        patient:
-                            $admission->patient,
-
-                        beneficiaryType:
-                            $benefit['beneficiary_type'],
-
-                        requestedAmount:
-                            $residualBeforeBenefit,
-
-                        sourceType:
-                            'ip_billing_account',
-
-                        sourceId:
-                            $lockedAccount->id,
-
-                        sourceReference:
-                            $lockedAccount->final_bill_no
-                            ?: $lockedAccount->account_no,
-
-                        transactionDate:
-                            now(),
-
-                        dependent:
-                            $benefit['dependent'],
-
-                        grossBillAmount:
-                            $netAmount,
-
-                        mhisApprovedAmount:
-                            $mhisApprovedAmount,
-
-                        residualBeforeBenefit:
-                            $residualBeforeBenefit,
-
-                        remarks:
-                            'Applied against finalized IP bill.',
-
-                        userId:
-                            auth()->id()
+                    $netAmount = round(
+                        (float) $lockedAccount
+                            ->charges
+                            ->where(
+                                'status',
+                                'active'
+                            )
+                            ->sum(
+                                fn ($charge) =>
+                                    (float) $charge->amount
+                            ),
+                        2
                     );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Refresh IP Account Summary
-            |--------------------------------------------------------------------------
-            */
 
-            $this->recalculateAccount(
-                $lockedAccount
+                    $advanceAmount = round(
+                        (float) $lockedAccount
+                            ->advances
+                            ->where(
+                                'status',
+                                'active'
+                            )
+                            ->sum(
+                                fn ($advance) =>
+                                    (float) $advance->amount
+                            ),
+                        2
+                    );
+
+
+                    $paidAmount = round(
+                        (float) $lockedAccount
+                            ->payments
+                            ->where(
+                                'status',
+                                'active'
+                            )
+                            ->sum(
+                                fn ($payment) =>
+                                    (float) $payment->amount
+                            ),
+                        2
+                    );
+
+
+                    $mhisApprovedAmount = round(
+                        (float) $lockedAccount
+                            ->mhisClaims
+                            ->whereIn(
+                                'status',
+                                [
+                                    'approved',
+                                    'submitted',
+                                    'settled',
+                                ]
+                            )
+                            ->sum(
+                                fn ($claim) =>
+                                    (float) $claim->approved_amount
+                            ),
+                        2
+                    );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Warn / Block Benefit Use While MHIS Is Pending
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $hasPendingMhisClaim =
+                        $lockedAccount
+                            ->mhisClaims
+                            ->where(
+                                'status',
+                                'pending'
+                            )
+                            ->isNotEmpty();
+
+
+                    if (
+                        $hasPendingMhisClaim
+                        && $mhisApprovedAmount <= 0
+                    ) {
+                        throw new \RuntimeException(
+                            'MHIS claim is still pending and no approved amount has been recorded. '
+                            . 'Update the MHIS approval before applying Staff Medical Benefit.'
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Existing Staff Medical Benefit
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $existingStaffBenefit = round(
+                        (float) $lockedAccount
+                            ->staffMedicalBenefitTransactions
+                            ->where(
+                                'status',
+                                'active'
+                            )
+                            ->sum(
+                                function ($item) {
+
+                                    if (
+                                        $item->transaction_type
+                                        === 'utilization'
+                                    ) {
+                                        return (float)
+                                            $item->amount;
+                                    }
+
+                                    if (
+                                        $item->transaction_type
+                                        === 'reversal'
+                                    ) {
+                                        return -1
+                                            * (float)
+                                                $item->amount;
+                                    }
+
+                                    return 0;
+                                }
+                            ),
+                        2
+                    );
+
+
+                    if ($existingStaffBenefit > 0) {
+                        throw new \RuntimeException(
+                            'Staff Medical Benefit has already been applied to this IP bill.'
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Calculate Residual Before Staff Medical Benefit
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $residualBeforeBenefit = round(
+                        max(
+                            $netAmount
+                            - $advanceAmount
+                            - $paidAmount
+                            - $mhisApprovedAmount,
+                            0
+                        ),
+                        2
+                    );
+
+
+                    if ($residualBeforeBenefit <= 0) {
+                        throw new \RuntimeException(
+                            'There is no outstanding patient balance available for Staff Medical Benefit.'
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Apply Benefit
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $benefitTransaction =
+                        $staffMedicalBenefitUtilizationService
+                            ->utilize(
+                                benefitAccount:
+                                    $benefit['account'],
+
+                                patient:
+                                    $admission->patient,
+
+                                beneficiaryType:
+                                    $benefit[
+                                        'beneficiary_type'
+                                    ],
+
+                                requestedAmount:
+                                    $residualBeforeBenefit,
+
+                                sourceType:
+                                    'ip_billing_account',
+
+                                sourceId:
+                                    $lockedAccount->id,
+
+                                sourceReference:
+                                    $lockedAccount
+                                        ->final_bill_no
+                                    ?: $lockedAccount
+                                        ->account_no,
+
+                                transactionDate:
+                                    now(),
+
+                                dependent:
+                                    $benefit['dependent'],
+
+                                grossBillAmount:
+                                    $netAmount,
+
+                                mhisApprovedAmount:
+                                    $mhisApprovedAmount,
+
+                                residualBeforeBenefit:
+                                    $residualBeforeBenefit,
+
+                                remarks:
+                                    'Applied against finalized IP bill.',
+
+                                userId:
+                                    auth()->id()
+                            );
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Refresh IP Account Summary
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $this->recalculateAccount(
+                        $lockedAccount
+                    );
+
+
+                    return $benefitTransaction;
+                }
             );
 
-            return $benefitTransaction;
-        });
+        } catch (\RuntimeException $e) {
 
-    } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages([
+                'staff_medical_benefit' =>
+                    $e->getMessage(),
+            ]);
+        }
 
-        throw ValidationException::withMessages([
-            'staff_medical_benefit' =>
-                $e->getMessage(),
-        ]);
+
+        return redirect()
+            ->route(
+                'ip-billing.final-bill',
+                $admission
+            )
+            ->with(
+                'success',
+                'Staff Medical Benefit of ₹'
+                . number_format(
+                    (float) $transaction->amount,
+                    2
+                )
+                . ' applied successfully.'
+            );
     }
 
-    return redirect()
-        ->route(
-            'ip-billing.final-bill',
-            $admission
-        )
-        ->with(
-            'success',
-            'Staff Medical Benefit of ₹' .
-            number_format(
-                (float) $transaction->amount,
-                2
-            ) .
-            ' applied successfully.'
-        );
-}
+
     /*
     |--------------------------------------------------------------------------
     | Add Manual IP Charge
     |--------------------------------------------------------------------------
     */
 
-   public function storeCharge(
-    Request $request,
-    Admission $admission
-) {
-    $validated = $request->validate([
+    public function storeCharge(
+        Request $request,
+        Admission $admission
+    ) {
+        $validated = $request->validate([
+            'service_id' => [
+                'required',
+                'integer',
+                'exists:services,id',
+            ],
 
-        'service_id' => [
-            'required',
-            'integer',
-            'exists:services,id',
-        ],
+            'quantity' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                'max:99999.99',
+            ],
 
-        'quantity' => [
-            'required',
-            'numeric',
-            'min:0.01',
-            'max:99999.99',
-        ],
+            'discount' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                'max:9999999.99',
+            ],
 
-        'discount' => [
-            'nullable',
-            'numeric',
-            'min:0',
-            'max:9999999.99',
-        ],
-
-        'remarks' => [
-            'nullable',
-            'string',
-            'max:2000',
-        ],
-
-    ]);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Load Authoritative Service Master Record
-    |--------------------------------------------------------------------------
-    |
-    | Description, code and price are deliberately NOT accepted from the
-    | browser. PostgreSQL Service Master is authoritative.
-    |
-    */
-
-    $service = Service::query()
-        ->whereKey(
-            $validated['service_id']
-        )
-        ->where(
-            'is_active',
-            true
-        )
-        ->whereIn(
-            'category',
-            [
-                'procedure',
-                'consultation',
-                'nursing',
-                'equipment',
-                'consumable',
-                'facility',
-                'other',
-            ]
-        )
-        ->first();
-
-
-    if (! $service) {
-
-        throw ValidationException::withMessages([
-            'service_id' =>
-                'The selected charge is unavailable, inactive or invalid.',
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ]);
 
-    }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load Authoritative Service Master Record
+        |--------------------------------------------------------------------------
+        |
+        | Description, code and price are deliberately NOT accepted from the
+        | browser. PostgreSQL Service Master is authoritative.
+        |
+        */
+
+        $service = Service::query()
+            ->whereKey(
+                $validated['service_id']
+            )
+            ->where(
+                'is_active',
+                true
+            )
+            ->whereIn(
+                'category',
+                [
+                    'procedure',
+                    'consultation',
+                    'nursing',
+                    'equipment',
+                    'consumable',
+                    'facility',
+                    'other',
+                ]
+            )
+            ->first();
 
 
-    $quantity = round(
-        (float) $validated['quantity'],
-        2
-    );
+        if (! $service) {
+            throw ValidationException::withMessages([
+                'service_id' =>
+                    'The selected charge is unavailable, inactive or invalid.',
+            ]);
+        }
 
 
-    $unitPrice = round(
-        (float) $service->price,
-        2
-    );
+        $quantity = round(
+            (float) $validated['quantity'],
+            2
+        );
 
 
-    $discount = round(
-        (float) (
-            $validated['discount']
-            ?? 0
-        ),
-        2
-    );
+        $unitPrice = round(
+            (float) $service->price,
+            2
+        );
 
 
-    $grossAmount = round(
-        $quantity * $unitPrice,
-        2
-    );
+        $discount = round(
+            (float) (
+                $validated['discount']
+                ?? 0
+            ),
+            2
+        );
 
 
-    if ($discount > $grossAmount) {
-
-        throw ValidationException::withMessages([
-            'discount' =>
-                'Discount cannot be greater than the gross charge amount.',
-        ]);
-
-    }
+        $grossAmount = round(
+            $quantity * $unitPrice,
+            2
+        );
 
 
-    $amount = round(
-        $grossAmount - $discount,
-        2
-    );
+        if ($discount > $grossAmount) {
+            throw ValidationException::withMessages([
+                'discount' =>
+                    'Discount cannot be greater than the gross charge amount.',
+            ]);
+        }
 
 
-    $account = $this->getOrCreateAccount(
-        $admission
-    );
+        $account = $this->getOrCreateAccount(
+            $admission
+        );
 
 
-    if ($account->status !== 'open') {
-
-        throw ValidationException::withMessages([
-            'service_id' =>
-                'Charges can only be added while the IP billing account is open.',
-        ]);
-
-    }
+        if ($account->status !== 'open') {
+            throw ValidationException::withMessages([
+                'service_id' =>
+                    'Charges can only be added while the IP billing account is open.',
+            ]);
+        }
 
 
-    $charge = DB::transaction(
-        function () use (
-            $validated,
-            $admission,
-            $account,
-            $service,
-            $quantity,
-            $unitPrice,
-            $discount,
-            $amount
-        ) {
+        $charge = DB::transaction(
+            function () use (
+                $validated,
+                $admission,
+                $account,
+                $service,
+                $quantity,
+                $discount
+            ) {
 
-            /*
-             * Lock account to prevent a charge being posted while
-             * finalization is occurring simultaneously.
-             */
-
-            $lockedAccount =
-                IpBillingAccount::query()
-                    ->whereKey(
-                        $account->id
-                    )
-                    ->lockForUpdate()
-                    ->firstOrFail();
+                $lockedAccount =
+                    IpBillingAccount::query()
+                        ->whereKey(
+                            $account->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
 
 
-            if ($lockedAccount->status !== 'open') {
+                if (
+                    $lockedAccount->status
+                    !== 'open'
+                ) {
+                    throw ValidationException::withMessages([
+                        'service_id' =>
+                            'The IP billing account has already been finalized.',
+                    ]);
+                }
 
-                throw ValidationException::withMessages([
-                    'service_id' =>
-                        'The IP billing account has already been finalized.',
-                ]);
 
-            }
+                /*
+                |--------------------------------------------------------------------------
+                | Lock Service Master
+                |--------------------------------------------------------------------------
+                */
 
-
-            /*
-             * Re-load and lock the Service Master record so the price used
-             * for billing remains authoritative inside this transaction.
-             */
-
-            $lockedService =
-                Service::query()
+                $lockedService = Service::query()
                     ->whereKey(
                         $service->id
+                    )
+                    ->where(
+                        'is_active',
+                        true
                     )
                     ->lockForUpdate()
                     ->first();
 
 
-            if (
-                ! $lockedService
-                || ! $lockedService->is_active
-                || ! in_array(
-                    $lockedService->category,
-                    [
-                        'procedure',
-                        'consultation',
-                        'nursing',
-                        'equipment',
-                        'consumable',
-                        'facility',
-                        'other',
-                    ],
-                    true
-                )
-            ) {
-
-                throw ValidationException::withMessages([
-                    'service_id' =>
-                        'The selected charge is no longer available.',
-                ]);
-
-            }
+                if (! $lockedService) {
+                    throw ValidationException::withMessages([
+                        'service_id' =>
+                            'The selected charge is no longer available.',
+                    ]);
+                }
 
 
-            /*
-             * Recalculate from the locked database price.
-             */
+                /*
+                |--------------------------------------------------------------------------
+                | Recalculate From Locked Database Price
+                |--------------------------------------------------------------------------
+                */
 
-            $authoritativeUnitPrice =
-                round(
+                $authoritativeUnitPrice = round(
                     (float) $lockedService->price,
                     2
                 );
 
 
-            $authoritativeGross =
-                round(
+                $authoritativeGross = round(
                     $quantity
                     * $authoritativeUnitPrice,
                     2
                 );
 
 
-            if (
-                $discount
-                > $authoritativeGross
-            ) {
-
-                throw ValidationException::withMessages([
-                    'discount' =>
-                        'Discount cannot be greater than the gross charge amount.',
-                ]);
-
-            }
+                if (
+                    $discount
+                    > $authoritativeGross
+                ) {
+                    throw ValidationException::withMessages([
+                        'discount' =>
+                            'Discount cannot be greater than the gross charge amount.',
+                    ]);
+                }
 
 
-            $authoritativeAmount =
-                round(
+                $authoritativeAmount = round(
                     $authoritativeGross
                     - $discount,
                     2
                 );
 
 
-            return IpBillingCharge::create([
+                return IpBillingCharge::create([
+                    'ip_billing_account_id' =>
+                        $lockedAccount->id,
 
-                'ip_billing_account_id' =>
-                    $lockedAccount->id,
+                    'admission_id' =>
+                        $admission->id,
 
-                'admission_id' =>
-                    $admission->id,
+                    'charge_date' =>
+                        now(),
 
-                'charge_date' =>
-                    now(),
+                    'charge_type' =>
+                        $lockedService->category,
 
-                'charge_type' =>
-                    $lockedService->category,
+                    'service_id' =>
+                        $lockedService->id,
 
-                'service_id' =>
-                    $lockedService->id,
+                    'service_order_item_id' =>
+                        null,
 
-                'service_order_item_id' =>
-                    null,
+                    'code' =>
+                        $lockedService->code,
 
-                'code' =>
-                    $lockedService->code,
+                    'description' =>
+                        $lockedService->name,
 
-                'description' =>
-                    $lockedService->name,
+                    'quantity' =>
+                        $quantity,
 
-                'quantity' =>
-                    $quantity,
+                    'unit_price' =>
+                        $authoritativeUnitPrice,
 
-                'unit_price' =>
-                    $authoritativeUnitPrice,
+                    'discount' =>
+                        $discount,
 
-                'discount' =>
-                    $discount,
+                    'amount' =>
+                        $authoritativeAmount,
 
-                'amount' =>
-                    $authoritativeAmount,
+                    'source_type' =>
+                        'service_master',
 
-                'source_type' =>
-                    'service_master',
+                    'source_id' =>
+                        $lockedService->id,
 
-                'source_id' =>
-                    $lockedService->id,
+                    'status' =>
+                        'active',
 
-                'status' =>
-                    'active',
+                    'remarks' =>
+                        $validated['remarks']
+                        ?? null,
 
-                'remarks' =>
-                    $validated['remarks']
-                    ?? null,
-
-                'created_by' =>
-                    auth()->id(),
-
-            ]);
-
-        }
-    );
-
-
-    $this->recalculateAccount(
-        $account
-    );
-
-
-    return redirect()
-        ->route(
-            'ip-billing.show',
-            $admission
-        )
-        ->with(
-            'success',
-            'Charge added successfully: '
-            . $charge->description
-            . ' — ₹'
-            . number_format(
-                (float) $charge->amount,
-                2
-            )
+                    'created_by' =>
+                        auth()->id(),
+                ]);
+            }
         );
-}
 
 
+        $this->recalculateAccount(
+            $account
+        );
 
-    /*
+
+        return redirect()
+            ->route(
+                'ip-billing.show',
+                $admission
+            )
+            ->with(
+                'success',
+                'Charge added successfully: '
+                . $charge->description
+                . ' — ₹'
+                . number_format(
+                    (float) $charge->amount,
+                    2
+                )
+            );
+    }
+        /*
     |--------------------------------------------------------------------------
     | Create / Update MHIS Claim
     |--------------------------------------------------------------------------
@@ -3321,7 +3590,6 @@ public function applyStaffMedicalBenefit(
          * not require the IP billing account itself to remain open here.
          */
 
-
         $claimAmount = round(
             (float) $validated['claim_amount'],
             2
@@ -3340,7 +3608,11 @@ public function applyStaffMedicalBenefit(
         if (
             in_array(
                 $validated['status'],
-                ['approved', 'submitted', 'settled'],
+                [
+                    'approved',
+                    'submitted',
+                    'settled',
+                ],
                 true
             )
             && $approvedAmount <= 0
@@ -3352,178 +3624,186 @@ public function applyStaffMedicalBenefit(
         }
 
 
-        DB::transaction(function () use (
-            $validated,
-            $admission,
-            $account,
-            $claimAmount,
-            $approvedAmount
-        ) {
-
-            $lockedAccount = IpBillingAccount::query()
-                ->whereKey($account->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-
-            $existingClaim = IpBillingMhisClaim::query()
-                ->where(
-                    'ip_billing_account_id',
-                    $lockedAccount->id
-                )
-                ->lockForUpdate()
-                ->first();
-
-
-            $existingReceived = $existingClaim
-                ? round(
-                    (float) IpBillingMhisReceipt::query()
-                        ->where(
-                            'ip_billing_mhis_claim_id',
-                            $existingClaim->id
-                        )
-                        ->where(
-                            'status',
-                            'active'
-                        )
-                        ->sum('amount'),
-                    2
-                )
-                : 0.00;
-
-
-            if (
-                $approvedAmount > 0
-                && $existingReceived > $approvedAmount
+        DB::transaction(
+            function () use (
+                $validated,
+                $admission,
+                $account,
+                $claimAmount,
+                $approvedAmount
             ) {
-                throw ValidationException::withMessages([
-                    'approved_amount' =>
-                        'Approved amount cannot be reduced below the MHIS amount already received (₹' .
-                        number_format(
-                            $existingReceived,
+
+                $lockedAccount =
+                    IpBillingAccount::query()
+                        ->whereKey(
+                            $account->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+
+                $existingClaim =
+                    IpBillingMhisClaim::query()
+                        ->where(
+                            'ip_billing_account_id',
+                            $lockedAccount->id
+                        )
+                        ->lockForUpdate()
+                        ->first();
+
+
+                $existingReceived =
+                    $existingClaim
+                        ? round(
+                            (float) IpBillingMhisReceipt::query()
+                                ->where(
+                                    'ip_billing_mhis_claim_id',
+                                    $existingClaim->id
+                                )
+                                ->where(
+                                    'status',
+                                    'active'
+                                )
+                                ->sum('amount'),
                             2
-                        ) .
-                        ').',
-                ]);
-            }
+                        )
+                        : 0.00;
 
 
-            $effectiveStatus =
-                $validated['status'];
+                if (
+                    $approvedAmount > 0
+                    && $existingReceived > $approvedAmount
+                ) {
+                    throw ValidationException::withMessages([
+                        'approved_amount' =>
+                            'Approved amount cannot be reduced below the MHIS amount already received (₹'
+                            . number_format(
+                                $existingReceived,
+                                2
+                            )
+                            . ').',
+                    ]);
+                }
 
 
-            $effectiveSettlementDate =
-                null;
-
-
-            if (
-                $approvedAmount > 0
-                && $existingReceived >= $approvedAmount
-            ) {
                 $effectiveStatus =
-                    'settled';
+                    $validated['status'];
+
 
                 $effectiveSettlementDate =
-                    IpBillingMhisReceipt::query()
-                        ->where(
-                            'ip_billing_mhis_claim_id',
-                            $existingClaim?->id
-                        )
-                        ->where(
-                            'status',
-                            'active'
-                        )
-                        ->max('receipt_date');
-            } elseif (
-                $effectiveStatus === 'settled'
-            ) {
-                /*
-                 * A claim cannot be manually marked fully settled while
-                 * outstanding receivable still exists.
-                 */
-                $effectiveStatus =
-                    'submitted';
-            }
+                    null;
 
 
-            $data = [
-                'admission_id' =>
-                    $admission->id,
+                if (
+                    $approvedAmount > 0
+                    && $existingReceived >= $approvedAmount
+                ) {
+                    $effectiveStatus =
+                        'settled';
 
-                'patient_id' =>
-                    $admission->patient_id,
+                    $effectiveSettlementDate =
+                        IpBillingMhisReceipt::query()
+                            ->where(
+                                'ip_billing_mhis_claim_id',
+                                $existingClaim?->id
+                            )
+                            ->where(
+                                'status',
+                                'active'
+                            )
+                            ->max('receipt_date');
 
-                'claim_no' =>
-                    $validated['claim_no']
-                    ?? null,
-
-                'authorization_no' =>
-                    $validated['authorization_no']
-                    ?? null,
-
-                'package_code' =>
-                    $validated['package_code']
-                    ?? null,
-
-                'package_name' =>
-                    $validated['package_name']
-                    ?? null,
-
-                'claim_amount' =>
-                    $claimAmount,
-
-                'approved_amount' =>
-                    $approvedAmount,
-
-                /*
-                 * Compatibility summary only. Actual receipts are the
-                 * source of truth.
-                 */
-                'settlement_amount' =>
-                    $existingReceived,
-
-                'status' =>
-                    $effectiveStatus,
-
-                'approval_date' =>
-                    $validated['approval_date']
-                    ?? null,
-
-                'settlement_date' =>
-                    $effectiveSettlementDate,
-
-                'remarks' =>
-                    $validated['remarks']
-                    ?? null,
-
-                'updated_by' =>
-                    auth()->id(),
-            ];
+                } elseif (
+                    $effectiveStatus === 'settled'
+                ) {
+                    /*
+                     * A claim cannot be manually marked fully settled while
+                     * outstanding receivable still exists.
+                     */
+                    $effectiveStatus =
+                        'submitted';
+                }
 
 
-            if ($existingClaim) {
+                $data = [
+                    'admission_id' =>
+                        $admission->id,
 
-                $existingClaim->update(
-                    $data
+                    'patient_id' =>
+                        $admission->patient_id,
+
+                    'claim_no' =>
+                        $validated['claim_no']
+                        ?? null,
+
+                    'authorization_no' =>
+                        $validated['authorization_no']
+                        ?? null,
+
+                    'package_code' =>
+                        $validated['package_code']
+                        ?? null,
+
+                    'package_name' =>
+                        $validated['package_name']
+                        ?? null,
+
+                    'claim_amount' =>
+                        $claimAmount,
+
+                    'approved_amount' =>
+                        $approvedAmount,
+
+                    /*
+                     * Compatibility summary only.
+                     * Actual receipts are the source of truth.
+                     */
+                    'settlement_amount' =>
+                        $existingReceived,
+
+                    'status' =>
+                        $effectiveStatus,
+
+                    'approval_date' =>
+                        $validated['approval_date']
+                        ?? null,
+
+                    'settlement_date' =>
+                        $effectiveSettlementDate,
+
+                    'remarks' =>
+                        $validated['remarks']
+                        ?? null,
+
+                    'updated_by' =>
+                        auth()->id(),
+                ];
+
+
+                if ($existingClaim) {
+
+                    $existingClaim->update(
+                        $data
+                    );
+
+                    return;
+                }
+
+
+                IpBillingMhisClaim::create(
+                    array_merge(
+                        $data,
+                        [
+                            'ip_billing_account_id' =>
+                                $lockedAccount->id,
+
+                            'created_by' =>
+                                auth()->id(),
+                        ]
+                    )
                 );
-
-                return;
             }
-
-
-            IpBillingMhisClaim::create(
-                array_merge(
-                    $data,
-                    [
-                        'ip_billing_account_id' =>
-                            $lockedAccount->id,
-
-                        'created_by' =>
-                            auth()->id(),
-                    ]
-                )
-            );
-        });
+        );
 
 
         $this->recalculateAccount(
@@ -3543,197 +3823,209 @@ public function applyStaffMedicalBenefit(
     }
 
 
-/*
-|--------------------------------------------------------------------------
-| Record MHIS Package Adjustment
-|--------------------------------------------------------------------------
-*/
+    /*
+    |--------------------------------------------------------------------------
+    | Record MHIS Package Adjustment
+    |--------------------------------------------------------------------------
+    */
 
-public function storeMhisAdjustment(
-    Request $request,
-    Admission $admission
-) {
-    $validated = $request->validate([
-        'amount' => [
-            'required',
-            'numeric',
-            'min:0.01',
-            'max:99999999.99',
-        ],
-
-        'reason' => [
-            'required',
-            'string',
-            'max:3000',
-        ],
-
-        'remarks' => [
-            'nullable',
-            'string',
-            'max:3000',
-        ],
-    ]);
-
-
-    $account = $this->getOrCreateAccount(
-        $admission
-    );
-
-
-    DB::transaction(function () use (
-        $validated,
-        $admission,
-        $account
+    public function storeMhisAdjustment(
+        Request $request,
+        Admission $admission
     ) {
+        $validated = $request->validate([
+            'amount' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                'max:99999999.99',
+            ],
 
-        $lockedAccount = IpBillingAccount::query()
-            ->whereKey($account->id)
-            ->lockForUpdate()
-            ->firstOrFail();
+            'reason' => [
+                'required',
+                'string',
+                'max:3000',
+            ],
 
-
-        $approvedAmount = round(
-            (float) IpBillingMhisClaim::query()
-                ->where(
-                    'ip_billing_account_id',
-                    $lockedAccount->id
-                )
-                ->whereIn(
-                    'status',
-                    [
-                        'approved',
-                        'submitted',
-                        'settled',
-                    ]
-                )
-                ->sum('approved_amount'),
-            2
-        );
-
-
-        if ($approvedAmount <= 0) {
-            throw ValidationException::withMessages([
-                'amount' =>
-                    'An approved MHIS amount is required before applying a package adjustment.',
-            ]);
-        }
-
-
-        $netCharges = round(
-            (float) IpBillingCharge::query()
-                ->where(
-                    'ip_billing_account_id',
-                    $lockedAccount->id
-                )
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum('amount'),
-            2
-        );
-
-
-        $existingAdjustments = round(
-            (float) IpBillingMhisAdjustment::query()
-                ->where(
-                    'ip_billing_account_id',
-                    $lockedAccount->id
-                )
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->sum('amount'),
-            2
-        );
-
-
-        $maximumAdjustment = round(
-            max(
-                $approvedAmount
-                - $netCharges
-                - $existingAdjustments,
-                0
-            ),
-            2
-        );
-
-
-        if ($maximumAdjustment <= 0) {
-            throw ValidationException::withMessages([
-                'amount' =>
-                    'No MHIS package adjustment is currently required.',
-            ]);
-        }
-
-
-        $adjustmentAmount = round(
-            (float) $validated['amount'],
-            2
-        );
-
-
-        if ($adjustmentAmount > $maximumAdjustment) {
-            throw ValidationException::withMessages([
-                'amount' =>
-                    'Adjustment cannot exceed the current MHIS package shortfall of ₹' .
-                    number_format(
-                        $maximumAdjustment,
-                        2
-                    ) .
-                    '.',
-            ]);
-        }
-
-
-        IpBillingMhisAdjustment::create([
-            'ip_billing_account_id' =>
-                $lockedAccount->id,
-
-            'admission_id' =>
-                $admission->id,
-
-            'patient_id' =>
-                $admission->patient_id,
-
-            'amount' =>
-                $adjustmentAmount,
-
-            'adjustment_date' =>
-                now(),
-
-            'reason' =>
-                $validated['reason'],
-
-            'remarks' =>
-                $validated['remarks']
-                ?? null,
-
-            'status' =>
-                'active',
-
-            'applied_by' =>
-                auth()->id(),
+            'remarks' => [
+                'nullable',
+                'string',
+                'max:3000',
+            ],
         ]);
-    });
 
 
-    $this->recalculateAccount(
-        $account
-    );
-
-
-    return redirect()
-        ->route(
-            'ip-billing.show',
+        $account = $this->getOrCreateAccount(
             $admission
-        )
-        ->with(
-            'success',
-            'MHIS package adjustment applied successfully.'
         );
-}
+
+
+        DB::transaction(
+            function () use (
+                $validated,
+                $admission,
+                $account
+            ) {
+
+                $lockedAccount =
+                    IpBillingAccount::query()
+                        ->whereKey(
+                            $account->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+
+                $approvedAmount = round(
+                    (float) IpBillingMhisClaim::query()
+                        ->where(
+                            'ip_billing_account_id',
+                            $lockedAccount->id
+                        )
+                        ->whereIn(
+                            'status',
+                            [
+                                'approved',
+                                'submitted',
+                                'settled',
+                            ]
+                        )
+                        ->sum(
+                            'approved_amount'
+                        ),
+                    2
+                );
+
+
+                if ($approvedAmount <= 0) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'An approved MHIS amount is required before applying a package adjustment.',
+                    ]);
+                }
+
+
+                $netCharges = round(
+                    (float) IpBillingCharge::query()
+                        ->where(
+                            'ip_billing_account_id',
+                            $lockedAccount->id
+                        )
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum('amount'),
+                    2
+                );
+
+
+                $existingAdjustments = round(
+                    (float) IpBillingMhisAdjustment::query()
+                        ->where(
+                            'ip_billing_account_id',
+                            $lockedAccount->id
+                        )
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum('amount'),
+                    2
+                );
+
+
+                $maximumAdjustment = round(
+                    max(
+                        $approvedAmount
+                        - $netCharges
+                        - $existingAdjustments,
+                        0
+                    ),
+                    2
+                );
+
+
+                if ($maximumAdjustment <= 0) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'No MHIS package adjustment is currently required.',
+                    ]);
+                }
+
+
+                $adjustmentAmount = round(
+                    (float) $validated['amount'],
+                    2
+                );
+
+
+                if (
+                    $adjustmentAmount
+                    > $maximumAdjustment
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Adjustment cannot exceed the current MHIS package shortfall of ₹'
+                            . number_format(
+                                $maximumAdjustment,
+                                2
+                            )
+                            . '.',
+                    ]);
+                }
+
+
+                IpBillingMhisAdjustment::create([
+                    'ip_billing_account_id' =>
+                        $lockedAccount->id,
+
+                    'admission_id' =>
+                        $admission->id,
+
+                    'patient_id' =>
+                        $admission->patient_id,
+
+                    'amount' =>
+                        $adjustmentAmount,
+
+                    'adjustment_date' =>
+                        now(),
+
+                    'reason' =>
+                        $validated['reason'],
+
+                    'remarks' =>
+                        $validated['remarks']
+                        ?? null,
+
+                    'status' =>
+                        'active',
+
+                    'applied_by' =>
+                        auth()->id(),
+                ]);
+            }
+        );
+
+
+        $this->recalculateAccount(
+            $account
+        );
+
+
+        return redirect()
+            ->route(
+                'ip-billing.show',
+                $admission
+            )
+            ->with(
+                'success',
+                'MHIS package adjustment applied successfully.'
+            );
+    }
+
+
     /*
     |--------------------------------------------------------------------------
     | Record MHIS Receipt / Partial Payment
@@ -3797,203 +4089,219 @@ public function storeMhisAdjustment(
         );
 
 
-        $receipt = DB::transaction(function () use (
-            $validated,
-            $admission,
-            $account
-        ) {
-
-            $lockedAccount = IpBillingAccount::query()
-                ->whereKey($account->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-
-            $claim = IpBillingMhisClaim::query()
-                ->where(
-                    'ip_billing_account_id',
-                    $lockedAccount->id
-                )
-                ->lockForUpdate()
-                ->first();
-
-
-            if (! $claim) {
-                throw ValidationException::withMessages([
-                    'amount' =>
-                        'Create the MHIS claim before recording an MHIS payment.',
-                ]);
-            }
-
-
-            if (
-                in_array(
-                    $claim->status,
-                    ['pending', 'rejected'],
-                    true
-                )
+        $receipt = DB::transaction(
+            function () use (
+                $validated,
+                $admission,
+                $account
             ) {
-                throw ValidationException::withMessages([
-                    'amount' =>
-                        'MHIS payment can only be recorded after the claim has been approved or submitted.',
-                ]);
-            }
+
+                $lockedAccount =
+                    IpBillingAccount::query()
+                        ->whereKey(
+                            $account->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
 
 
-            $approvedAmount = round(
-                (float) $claim->approved_amount,
-                2
-            );
+                $claim =
+                    IpBillingMhisClaim::query()
+                        ->where(
+                            'ip_billing_account_id',
+                            $lockedAccount->id
+                        )
+                        ->lockForUpdate()
+                        ->first();
 
 
-            if ($approvedAmount <= 0) {
-                throw ValidationException::withMessages([
-                    'amount' =>
-                        'The MHIS approved amount must be greater than zero before recording payment.',
-                ]);
-            }
+                if (! $claim) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Create the MHIS claim before recording an MHIS payment.',
+                    ]);
+                }
 
 
-            $alreadyReceived = round(
-                (float) IpBillingMhisReceipt::query()
-                    ->where(
-                        'ip_billing_mhis_claim_id',
-                        $claim->id
+                if (
+                    in_array(
+                        $claim->status,
+                        [
+                            'pending',
+                            'rejected',
+                        ],
+                        true
                     )
-                    ->where(
-                        'status',
-                        'active'
-                    )
-                    ->sum('amount'),
-                2
-            );
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'MHIS payment can only be recorded after the claim has been approved or submitted.',
+                    ]);
+                }
 
 
-            $receiptAmount = round(
-                (float) $validated['amount'],
-                2
-            );
+                $approvedAmount = round(
+                    (float) $claim->approved_amount,
+                    2
+                );
 
 
-            $outstandingBeforeReceipt = round(
-                max(
-                    $approvedAmount - $alreadyReceived,
-                    0
-                ),
-                2
-            );
+                if ($approvedAmount <= 0) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'The MHIS approved amount must be greater than zero before recording payment.',
+                    ]);
+                }
 
 
-            if ($outstandingBeforeReceipt <= 0) {
-                throw ValidationException::withMessages([
-                    'amount' =>
-                        'This MHIS claim is already fully settled.',
+                $alreadyReceived = round(
+                    (float) IpBillingMhisReceipt::query()
+                        ->where(
+                            'ip_billing_mhis_claim_id',
+                            $claim->id
+                        )
+                        ->where(
+                            'status',
+                            'active'
+                        )
+                        ->sum('amount'),
+                    2
+                );
+
+
+                $receiptAmount = round(
+                    (float) $validated['amount'],
+                    2
+                );
+
+
+                $outstandingBeforeReceipt = round(
+                    max(
+                        $approvedAmount
+                        - $alreadyReceived,
+                        0
+                    ),
+                    2
+                );
+
+
+                if ($outstandingBeforeReceipt <= 0) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'This MHIS claim is already fully settled.',
+                    ]);
+                }
+
+
+                if (
+                    $receiptAmount
+                    > $outstandingBeforeReceipt
+                ) {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Receipt amount cannot exceed the outstanding MHIS receivable of ₹'
+                            . number_format(
+                                $outstandingBeforeReceipt,
+                                2
+                            )
+                            . '.',
+                    ]);
+                }
+
+
+                $receipt =
+                    IpBillingMhisReceipt::create([
+                        'ip_billing_mhis_claim_id' =>
+                            $claim->id,
+
+                        'ip_billing_account_id' =>
+                            $lockedAccount->id,
+
+                        'admission_id' =>
+                            $admission->id,
+
+                        'patient_id' =>
+                            $admission->patient_id,
+
+                        'receipt_date' =>
+                            $validated['receipt_date'],
+
+                        'amount' =>
+                            $receiptAmount,
+
+                        'payment_reference' =>
+                            $validated['payment_reference']
+                            ?? null,
+
+                        'transaction_reference' =>
+                            $validated[
+                                'transaction_reference'
+                            ]
+                            ?? null,
+
+                        'bank_reference' =>
+                            $validated['bank_reference']
+                            ?? null,
+
+                        'remarks' =>
+                            $validated['remarks']
+                            ?? null,
+
+                        'status' =>
+                            'active',
+
+                        'received_by' =>
+                            auth()->id(),
+                    ]);
+
+
+                $totalReceived = round(
+                    $alreadyReceived
+                    + $receiptAmount,
+                    2
+                );
+
+
+                $fullySettled =
+                    $totalReceived
+                    >= $approvedAmount;
+
+
+                $claim->update([
+                    /*
+                     * Compatibility summary only.
+                     * Receipt rows remain the accounting source of truth.
+                     */
+                    'settlement_amount' =>
+                        $totalReceived,
+
+                    'settlement_date' =>
+                        $fullySettled
+                            ? $validated['receipt_date']
+                            : null,
+
+                    'status' =>
+                        $fullySettled
+                            ? 'settled'
+                            : (
+                                $claim->status
+                                === 'approved'
+                                    ? 'approved'
+                                    : 'submitted'
+                            ),
+
+                    'updated_by' =>
+                        auth()->id(),
                 ]);
+
+
+                return $receipt;
             }
-
-
-            if (
-                $receiptAmount
-                > $outstandingBeforeReceipt
-            ) {
-                throw ValidationException::withMessages([
-                    'amount' =>
-                        'Receipt amount cannot exceed the outstanding MHIS receivable of ₹' .
-                        number_format(
-                            $outstandingBeforeReceipt,
-                            2
-                        ) .
-                        '.',
-                ]);
-            }
-
-
-            $receipt = IpBillingMhisReceipt::create([
-                'ip_billing_mhis_claim_id' =>
-                    $claim->id,
-
-                'ip_billing_account_id' =>
-                    $lockedAccount->id,
-
-                'admission_id' =>
-                    $admission->id,
-
-                'patient_id' =>
-                    $admission->patient_id,
-
-                'receipt_date' =>
-                    $validated['receipt_date'],
-
-                'amount' =>
-                    $receiptAmount,
-
-                'payment_reference' =>
-                    $validated['payment_reference']
-                    ?? null,
-
-                'transaction_reference' =>
-                    $validated['transaction_reference']
-                    ?? null,
-
-                'bank_reference' =>
-                    $validated['bank_reference']
-                    ?? null,
-
-                'remarks' =>
-                    $validated['remarks']
-                    ?? null,
-
-                'status' =>
-                    'active',
-
-                'received_by' =>
-                    auth()->id(),
-            ]);
-
-
-            $totalReceived = round(
-                $alreadyReceived
-                + $receiptAmount,
-                2
-            );
-
-
-            $fullySettled =
-                $totalReceived >= $approvedAmount;
-
-
-            $claim->update([
-                /*
-                 * Compatibility summary only. Receipt rows remain the
-                 * accounting source of truth.
-                 */
-                'settlement_amount' =>
-                    $totalReceived,
-
-                'settlement_date' =>
-                    $fullySettled
-                        ? $validated['receipt_date']
-                        : null,
-
-                'status' =>
-                    $fullySettled
-                        ? 'settled'
-                        : (
-                            $claim->status === 'approved'
-                                ? 'approved'
-                                : 'submitted'
-                        ),
-
-                'updated_by' =>
-                    auth()->id(),
-            ]);
-
-
-            return $receipt;
-        });
+        );
 
 
         $account->refresh();
+
 
         $account->load([
             'mhisClaims.receipts',
@@ -4048,22 +4356,19 @@ public function storeMhisAdjustment(
             )
             ->with(
                 'success',
-                'MHIS payment of ₹' .
-                number_format(
+                'MHIS payment of ₹'
+                . number_format(
                     (float) $receipt->amount,
                     2
-                ) .
-                ' recorded successfully. Outstanding MHIS receivable: ₹' .
-                number_format(
+                )
+                . ' recorded successfully. Outstanding MHIS receivable: ₹'
+                . number_format(
                     $outstanding,
                     2
-                ) .
-                '.'
+                )
+                . '.'
             );
     }
-
-
-
 
 
     /*
@@ -4109,47 +4414,63 @@ public function storeMhisAdjustment(
         );
 
 
-        DB::transaction(function () use (
-            $account
-        ) {
+        DB::transaction(
+            function () use (
+                $account
+            ) {
 
-            $lockedAccount = IpBillingAccount::query()
-                ->whereKey($account->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+                $lockedAccount =
+                    IpBillingAccount::query()
+                        ->whereKey(
+                            $account->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
 
 
-            if ($lockedAccount->status === 'finalized') {
-                return;
+                if (
+                    $lockedAccount->status
+                    === 'finalized'
+                ) {
+                    return;
+                }
+
+
+                if (
+                    $lockedAccount->status
+                    !== 'open'
+                ) {
+                    throw ValidationException::withMessages([
+                        'finalize' =>
+                            'Only an open IP billing account can be finalized.',
+                    ]);
+                }
+
+
+                if (
+                    ! $lockedAccount->final_bill_no
+                ) {
+                    $lockedAccount->final_bill_no =
+                        $this
+                            ->generateFinalBillNumber();
+                }
+
+
+                $lockedAccount->status =
+                    'finalized';
+
+
+                $lockedAccount->finalized_at =
+                    now();
+
+
+                $lockedAccount->finalized_by =
+                    auth()->id();
+
+
+                $lockedAccount->save();
             }
-
-
-            if ($lockedAccount->status !== 'open') {
-                throw ValidationException::withMessages([
-                    'finalize' =>
-                        'Only an open IP billing account can be finalized.',
-                ]);
-            }
-
-
-            if (! $lockedAccount->final_bill_no) {
-
-                $lockedAccount->final_bill_no =
-                    $this->generateFinalBillNumber();
-            }
-
-
-            $lockedAccount->status =
-                'finalized';
-
-            $lockedAccount->finalized_at =
-                now();
-
-            $lockedAccount->finalized_by =
-                auth()->id();
-
-            $lockedAccount->save();
-        });
+        );
 
 
         $account->refresh();
@@ -4162,14 +4483,11 @@ public function storeMhisAdjustment(
             )
             ->with(
                 'success',
-                'IP bill finalized successfully. Final Bill No: ' .
-                $account->final_bill_no
+                'IP bill finalized successfully. Final Bill No: '
+                . $account->final_bill_no
             );
     }
-
-
-
-    /*
+        /*
     |--------------------------------------------------------------------------
     | View / Print Final IP Bill
     |--------------------------------------------------------------------------
@@ -4209,36 +4527,65 @@ public function storeMhisAdjustment(
 
 
         $account->load([
-    'patient',
-    'finalizedBy',
-    'charges.service',
-    'charges.createdBy',
-    'advances.receivedBy',
-    'payments.receivedBy',
-    'refunds.refundedBy',
-    'mhisClaims.createdBy',
-    'mhisClaims.updatedBy',
-    'mhisClaims.receipts.receivedBy',
-    'mhisReceipts.receivedBy',
-    'mhisAdjustments.appliedBy',
-    'staffMedicalBenefitTransactions',
-    'charityAdjustments',
-]);
+            'patient',
+            'finalizedBy',
 
-              $staffMedicalBenefit =
-    $staffMedicalBenefitService
-        ->resolvePatientBenefit(
-            $admission->patient,
-            now()
-        );
+            'charges.service',
+            'charges.createdBy',
+
+            'advances.receivedBy',
+
+            'payments.receivedBy',
+
+            'refunds.refundedBy',
+
+            'mhisClaims.createdBy',
+            'mhisClaims.updatedBy',
+            'mhisClaims.receipts.receivedBy',
+
+            'mhisReceipts.receivedBy',
+
+            'mhisAdjustments.appliedBy',
+
+            'staffMedicalBenefitTransactions',
+
+            'charityAdjustments',
+        ]);
 
 
-        $activeCharges = $account->charges
-            ->where(
-                'status',
-                'active'
-            );
+        /*
+        |--------------------------------------------------------------------------
+        | Staff Medical Benefit Eligibility
+        |--------------------------------------------------------------------------
+        */
 
+        $staffMedicalBenefit =
+            $staffMedicalBenefitService
+                ->resolvePatientBenefit(
+                    $admission->patient,
+                    now()
+                );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active Charges
+        |--------------------------------------------------------------------------
+        */
+
+        $activeCharges =
+            $account->charges
+                ->where(
+                    'status',
+                    'active'
+                );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Gross Hospital Charges
+        |--------------------------------------------------------------------------
+        */
 
         $grossAmount = round(
             (float) $activeCharges->sum(
@@ -4254,6 +4601,12 @@ public function storeMhisAdjustment(
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Charge-level Discounts
+        |--------------------------------------------------------------------------
+        */
+
         $discountAmount = round(
             (float) $activeCharges->sum(
                 function ($charge) {
@@ -4264,6 +4617,12 @@ public function storeMhisAdjustment(
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Net Hospital Charges
+        |--------------------------------------------------------------------------
+        */
+
         $netAmount = round(
             (float) $activeCharges->sum(
                 function ($charge) {
@@ -4273,8 +4632,16 @@ public function storeMhisAdjustment(
             2
         );
 
-$mhisAdjustmentAmount = round(
-            (float) $account->mhisAdjustments
+
+        /*
+        |--------------------------------------------------------------------------
+        | MHIS Package Adjustment
+        |--------------------------------------------------------------------------
+        */
+
+        $mhisAdjustmentAmount = round(
+            (float) $account
+                ->mhisAdjustments
                 ->where(
                     'status',
                     'active'
@@ -4287,12 +4654,28 @@ $mhisAdjustmentAmount = round(
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Adjusted Hospital Bill
+        |--------------------------------------------------------------------------
+        */
+
         $adjustedBillAmount = round(
-            $netAmount + $mhisAdjustmentAmount,
+            $netAmount
+            + $mhisAdjustmentAmount,
             2
         );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active Patient Advances
+        |--------------------------------------------------------------------------
+        */
+
         $advanceAmount = round(
-            (float) $account->advances
+            (float) $account
+                ->advances
                 ->where(
                     'status',
                     'active'
@@ -4305,21 +4688,36 @@ $mhisAdjustmentAmount = round(
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Active Patient Payments
+        |--------------------------------------------------------------------------
+        */
+
         $paidAmount = round(
-    (float) $account->payments
-        ->where(
-            'status',
-            'active'
-        )
-        ->sum(
-            fn ($payment) =>
-                (float) $payment->amount
-        ),
-    2
-);
+            (float) $account
+                ->payments
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    fn ($payment) =>
+                        (float) $payment->amount
+                ),
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active Patient Refunds
+        |--------------------------------------------------------------------------
+        */
 
         $refundAmount = round(
-            (float) $account->refunds
+            (float) $account
+                ->refunds
                 ->where(
                     'status',
                     'active'
@@ -4331,13 +4729,27 @@ $mhisAdjustmentAmount = round(
             2
         );
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | MHIS Claim
+        |--------------------------------------------------------------------------
+        */
+
         $mhisClaim =
             $account->mhisClaims
                 ->first();
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | MHIS Approved Amount
+        |--------------------------------------------------------------------------
+        */
+
         $mhisApprovedAmount = round(
-            (float) $account->mhisClaims
+            (float) $account
+                ->mhisClaims
                 ->whereIn(
                     'status',
                     [
@@ -4354,8 +4766,15 @@ $mhisAdjustmentAmount = round(
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Actual MHIS Amount Received
+        |--------------------------------------------------------------------------
+        */
+
         $mhisReceivedAmount = round(
-            (float) $account->mhisReceipts
+            (float) $account
+                ->mhisReceipts
                 ->where(
                     'status',
                     'active'
@@ -4368,6 +4787,12 @@ $mhisAdjustmentAmount = round(
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Outstanding MHIS Receivable
+        |--------------------------------------------------------------------------
+        */
+
         $mhisOutstandingAmount = round(
             max(
                 $mhisApprovedAmount
@@ -4377,40 +4802,76 @@ $mhisAdjustmentAmount = round(
             2
         );
 
-                   $staffMedicalBenefitAmount = round(
-    (float) $account->staffMedicalBenefitTransactions
-        ->where(
-            'status',
-            'active'
-        )
-        ->sum(
-            function ($transaction) {
-                if ($transaction->transaction_type === 'utilization') {
-                    return (float) $transaction->amount;
-                }
 
-                if ($transaction->transaction_type === 'reversal') {
-                    return -1 * (float) $transaction->amount;
-                }
+        /*
+        |--------------------------------------------------------------------------
+        | Staff Medical Benefit Applied
+        |--------------------------------------------------------------------------
+        */
 
-                return 0;
-            }
-        ),
-    2
-);
-                $charityAmount = round(
-            (float) $account->charityAdjustments
+        $staffMedicalBenefitAmount = round(
+            (float) $account
+                ->staffMedicalBenefitTransactions
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($transaction) {
+
+                        if (
+                            $transaction->transaction_type
+                            === 'utilization'
+                        ) {
+                            return (float)
+                                $transaction->amount;
+                        }
+
+
+                        if (
+                            $transaction->transaction_type
+                            === 'reversal'
+                        ) {
+                            return -1
+                                * (float)
+                                    $transaction->amount;
+                        }
+
+
+                        return 0;
+                    }
+                ),
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Applied Charity / Write-off
+        |--------------------------------------------------------------------------
+        */
+
+        $charityAmount = round(
+            (float) $account
+                ->charityAdjustments
                 ->where(
                     'status',
                     'applied'
                 )
                 ->sum(
                     fn ($adjustment) =>
-                        (float) $adjustment->approved_amount
+                        (float)
+                            $adjustment->approved_amount
                 ),
             2
         );
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Patient Liability After Third-party Benefits
+        |--------------------------------------------------------------------------
+        */
 
         $patientLiability = round(
             max(
@@ -4424,77 +4885,115 @@ $mhisAdjustmentAmount = round(
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Patient Money Received
+        |--------------------------------------------------------------------------
+        */
+
         $patientMoneyReceived = round(
-            $advanceAmount + $paidAmount,
+            $advanceAmount
+            + $paidAmount,
             2
         );
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Net Patient Money Held
+        |--------------------------------------------------------------------------
+        */
 
         $netPatientMoneyHeld = round(
             max(
-                $patientMoneyReceived - $refundAmount,
+                $patientMoneyReceived
+                - $refundAmount,
                 0
             ),
             2
         );
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Outstanding Patient Balance
+        |--------------------------------------------------------------------------
+        */
 
         $patientBalance = round(
             max(
-                $patientLiability - $netPatientMoneyHeld,
+                $patientLiability
+                - $netPatientMoneyHeld,
                 0
             ),
             2
         );
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Refund Due
+        |--------------------------------------------------------------------------
+        */
 
         $refundDue = round(
             max(
-                $netPatientMoneyHeld - $patientLiability,
+                $netPatientMoneyHeld
+                - $patientLiability,
                 0
             ),
             2
         );
 
 
-        $chargeGroups = $activeCharges
-            ->groupBy(
-                function ($charge) {
+        /*
+        |--------------------------------------------------------------------------
+        | Group Charges for Final Bill
+        |--------------------------------------------------------------------------
+        */
 
-                    return match (
-                        $charge->charge_type
-                    ) {
-                        'bed' =>
-                            'Bed / Ward Charges',
+        $chargeGroups =
+            $activeCharges
+                ->groupBy(
+                    function ($charge) {
 
-                        'laboratory', 'lab' =>
-                            'Laboratory',
+                        return match (
+                            $charge->charge_type
+                        ) {
+                            'bed' =>
+                                'Bed / Ward Charges',
 
-                        'radiology', 'imaging' =>
-                            'Radiology / Imaging',
+                            'laboratory',
+                            'lab' =>
+                                'Laboratory',
 
-                        'pharmacy', 'medicine' =>
-                            'Pharmacy / Medicines',
+                            'radiology',
+                            'imaging' =>
+                                'Radiology / Imaging',
 
-                        'dialysis' =>
-                            'Dialysis',
+                            'pharmacy',
+                            'medicine' =>
+                                'Pharmacy / Medicines',
 
-                        'procedure' =>
-                            'Procedures',
+                            'dialysis' =>
+                                'Dialysis',
 
-                        'consultation' =>
-                            'Consultation / Professional Fees',
+                            'procedure' =>
+                                'Procedures',
 
-                        default =>
-                            'Other Charges',
-                    };
-                }
-            );
+                            'consultation' =>
+                                'Consultation / Professional Fees',
+
+                            default =>
+                                'Other Charges',
+                        };
+                    }
+                );
 
 
         return view(
             'ip-billing.final-bill',
-                       compact(
+            compact(
                 'admission',
                 'account',
                 'activeCharges',
@@ -4524,8 +5023,6 @@ $mhisAdjustmentAmount = round(
     }
 
 
-
-
     /*
     |--------------------------------------------------------------------------
     | View / Print IP Advance Receipt
@@ -4537,12 +5034,15 @@ $mhisAdjustmentAmount = round(
     ) {
         $ipBillingAdvance->load([
             'patient',
+
             'admission.patient',
             'admission.department',
             'admission.consultant',
             'admission.bed.ward',
             'admission.currentBedAllocation.bed.ward',
+
             'billingAccount',
+
             'receivedBy',
         ]);
 
@@ -4560,7 +5060,11 @@ $mhisAdjustmentAmount = round(
             ?? $admission?->patient;
 
 
-        if (! $admission || ! $account || ! $patient) {
+        if (
+            ! $admission
+            || ! $account
+            || ! $patient
+        ) {
             abort(
                 404,
                 'The inpatient advance receipt is incomplete or unavailable.'
@@ -4580,8 +5084,6 @@ $mhisAdjustmentAmount = round(
     }
 
 
-
-
     /*
     |--------------------------------------------------------------------------
     | Get or Create Running IP Billing Account
@@ -4593,15 +5095,18 @@ $mhisAdjustmentAmount = round(
     ): IpBillingAccount {
 
         return DB::transaction(
-            function () use ($admission) {
+            function () use (
+                $admission
+            ) {
 
-                $account = IpBillingAccount::query()
-                    ->where(
-                        'admission_id',
-                        $admission->id
-                    )
-                    ->lockForUpdate()
-                    ->first();
+                $account =
+                    IpBillingAccount::query()
+                        ->where(
+                            'admission_id',
+                            $admission->id
+                        )
+                        ->lockForUpdate()
+                        ->first();
 
 
                 if ($account) {
@@ -4617,7 +5122,8 @@ $mhisAdjustmentAmount = round(
                         $admission->patient_id,
 
                     'account_no' =>
-                        $this->generateAccountNumber(),
+                        $this
+                            ->generateAccountNumber(),
 
                     'opened_at' =>
                         now(),
@@ -4649,411 +5155,379 @@ $mhisAdjustmentAmount = round(
             }
         );
     }
-
-
-    /*
+        /*
     |--------------------------------------------------------------------------
     | Recalculate Billing Account Totals
     |--------------------------------------------------------------------------
     */
 
-               private function recalculateAccount(
-    IpBillingAccount $account
-): void {
-
-    $account->load([
-    'charges',
-    'advances',
-    'payments',
-    'refunds',
-    'mhisClaims',
-    'mhisReceipts',
-    'mhisAdjustments',
-    'staffMedicalBenefitTransactions',
-    'charityAdjustments',
-]);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Active Charges
-    |--------------------------------------------------------------------------
-    */
-
-    $activeCharges =
-        $account->charges
-            ->where(
-                'status',
-                'active'
-            );
+    private function recalculateAccount(
+        IpBillingAccount $account
+    ): void {
+        $account->load([
+            'charges',
+            'advances',
+            'payments',
+            'refunds',
+            'mhisClaims',
+            'mhisReceipts',
+            'mhisAdjustments',
+            'staffMedicalBenefitTransactions',
+            'charityAdjustments',
+        ]);
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Gross Subtotal
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Active Charges
+        |--------------------------------------------------------------------------
+        */
 
-    $subtotal = round(
-        (float) $activeCharges->sum(
-            function ($charge) {
-
-                return round(
-                    (float) $charge->quantity
-                    * (float) $charge->unit_price,
-                    2
+        $activeCharges =
+            $account->charges
+                ->where(
+                    'status',
+                    'active'
                 );
-            }
-        ),
-        2
-    );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Charge-level Discounts
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Gross Subtotal
+        |--------------------------------------------------------------------------
+        */
 
-    $discountAmount = round(
-        (float) $activeCharges->sum(
-            function ($charge) {
-
-                return (float)
-                    $charge->discount;
-            }
-        ),
-        2
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Net Hospital Charges
-    |--------------------------------------------------------------------------
-    */
-
-    $netAmount = round(
-        (float) $activeCharges->sum(
-            function ($charge) {
-
-                return (float)
-                    $charge->amount;
-            }
-        ),
-        2
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Active Advances / Deposits
-    |--------------------------------------------------------------------------
-    */
-
-    $advanceAmount = round(
-        (float) $account->advances
-            ->where(
-                'status',
-                'active'
-            )
-            ->sum(
-                function ($advance) {
-
-                    return (float)
-                        $advance->amount;
+        $subtotal = round(
+            (float) $activeCharges->sum(
+                function ($charge) {
+                    return round(
+                        (float) $charge->quantity
+                        * (float) $charge->unit_price,
+                        2
+                    );
                 }
             ),
-        2
-    );
+            2
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Other Active Payments
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Charge-level Discounts
+        |--------------------------------------------------------------------------
+        */
 
-    $paidAmount = round(
-        (float) $account->payments
-            ->where(
-                'status',
-                'active'
-            )
-            ->sum(
-                function ($payment) {
-
-                    return (float)
-                        $payment->amount;
+        $discountAmount = round(
+            (float) $activeCharges->sum(
+                function ($charge) {
+                    return (float) $charge->discount;
                 }
             ),
-        2
-    );
+            2
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | MHIS Approved Benefit
-    |--------------------------------------------------------------------------
-    |
-    | MHIS is treated as approved third-party benefit coverage.
-    | It reduces the patient's liability without reducing the original
-    | hospital charges.
-    |
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Net Hospital Charges
+        |--------------------------------------------------------------------------
+        */
 
-    $mhisApprovedAmount = round(
-        (float) $account->mhisClaims
-            ->whereIn(
-                'status',
-                [
-                    'approved',
-                    'submitted',
-                    'settled',
-                ]
-            )
-            ->sum(
-                function ($claim) {
-
-                    return (float)
-                        $claim->approved_amount;
+        $netAmount = round(
+            (float) $activeCharges->sum(
+                function ($charge) {
+                    return (float) $charge->amount;
                 }
             ),
-        2
-    );
-
-    /*
-|--------------------------------------------------------------------------
-| Active MHIS Package Adjustments
-|--------------------------------------------------------------------------
-|
-| Used when the approved MHIS package amount must be fully reflected
-| in the final bill even when ordinary hospital charges are lower.
-|
-*/
-
-$mhisAdjustmentAmount = round(
-    (float) $account->mhisAdjustments
-        ->where('status', 'active')
-        ->sum(
-            function ($adjustment) {
-                return (float) $adjustment->amount;
-            }
-        ),
-    2
-);
+            2
+        );
 
 
-/*
-|--------------------------------------------------------------------------
-| Adjusted Hospital Bill
-|--------------------------------------------------------------------------
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Active Advances / Deposits
+        |--------------------------------------------------------------------------
+        */
 
-$adjustedNetAmount = round(
-    $netAmount + $mhisAdjustmentAmount,
-    2
-);
+        $advanceAmount = round(
+            (float) $account->advances
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($advance) {
+                        return (float) $advance->amount;
+                    }
+                ),
+            2
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Staff Medical Benefit
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Other Active Payments
+        |--------------------------------------------------------------------------
+        */
 
-    $staffMedicalBenefitAmount = round(
-        (float)
-        $account
-            ->staffMedicalBenefitTransactions
-            ->where(
-                'status',
-                'active'
-            )
-            ->sum(
-                function ($transaction) {
+        $paidAmount = round(
+            (float) $account->payments
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($payment) {
+                        return (float) $payment->amount;
+                    }
+                ),
+            2
+        );
 
-                    if (
-                        $transaction
-                            ->transaction_type
-                        === 'utilization'
-                    ) {
+
+        /*
+        |--------------------------------------------------------------------------
+        | MHIS Approved Benefit
+        |--------------------------------------------------------------------------
+        */
+
+        $mhisApprovedAmount = round(
+            (float) $account->mhisClaims
+                ->whereIn(
+                    'status',
+                    [
+                        'approved',
+                        'submitted',
+                        'settled',
+                    ]
+                )
+                ->sum(
+                    function ($claim) {
+                        return (float) $claim->approved_amount;
+                    }
+                ),
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active MHIS Package Adjustments
+        |--------------------------------------------------------------------------
+        */
+
+        $mhisAdjustmentAmount = round(
+            (float) $account->mhisAdjustments
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($adjustment) {
+                        return (float) $adjustment->amount;
+                    }
+                ),
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Adjusted Hospital Bill
+        |--------------------------------------------------------------------------
+        */
+
+        $adjustedNetAmount = round(
+            $netAmount
+            + $mhisAdjustmentAmount,
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Staff Medical Benefit
+        |--------------------------------------------------------------------------
+        */
+
+        $staffMedicalBenefitAmount = round(
+            (float) $account
+                ->staffMedicalBenefitTransactions
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($transaction) {
+
+                        if (
+                            $transaction->transaction_type
+                            === 'utilization'
+                        ) {
+                            return (float) $transaction->amount;
+                        }
+
+
+                        if (
+                            $transaction->transaction_type
+                            === 'reversal'
+                        ) {
+                            return -1
+                                * (float) $transaction->amount;
+                        }
+
+
+                        return 0;
+                    }
+                ),
+            2
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Applied Charity / Write-off
+        |--------------------------------------------------------------------------
+        */
+
+        $charityAmount = round(
+            (float) $account
+                ->charityAdjustments
+                ->where(
+                    'status',
+                    'applied'
+                )
+                ->sum(
+                    function ($adjustment) {
                         return (float)
-                            $transaction->amount;
+                            $adjustment->approved_amount;
                     }
+                ),
+            2
+        );
 
 
-                    if (
-                        $transaction
-                            ->transaction_type
-                        === 'reversal'
-                    ) {
-                        return -1
-                            * (float)
-                                $transaction->amount;
+        /*
+        |--------------------------------------------------------------------------
+        | Active Patient Refunds
+        |--------------------------------------------------------------------------
+        */
+
+        $refundAmount = round(
+            (float) $account->refunds
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->sum(
+                    function ($refund) {
+                        return (float) $refund->amount;
                     }
+                ),
+            2
+        );
 
 
-                    return 0;
-                }
+        /*
+        |--------------------------------------------------------------------------
+        | Patient Liability After Third-party Benefits
+        |--------------------------------------------------------------------------
+        */
+
+        $patientLiability = round(
+            max(
+                $adjustedNetAmount
+                - $mhisApprovedAmount
+                - $staffMedicalBenefitAmount
+                - $charityAmount,
+                0
             ),
-        2
-    );
+            2
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Applied Charity / Write-off
-    |--------------------------------------------------------------------------
-    |
-    | Only adjustments that have actually been applied affect the balance.
-    |
-    | Pending, approved-but-not-applied, rejected and cancelled requests
-    | do not reduce the patient's liability.
-    |
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Net Patient Money Held
+        |--------------------------------------------------------------------------
+        */
 
-    $charityAmount = round(
-        (float)
-        $account
-            ->charityAdjustments
-            ->where(
-                'status',
-                'applied'
-            )
-            ->sum(
-                function ($adjustment) {
+        $patientMoneyReceived = round(
+            $advanceAmount
+            + $paidAmount,
+            2
+        );
 
-                    return (float)
-                        $adjustment
-                            ->approved_amount;
-                }
+
+        $netPatientMoneyHeld = round(
+            max(
+                $patientMoneyReceived
+                - $refundAmount,
+                0
             ),
-        2
-    );
-
-/*
-|--------------------------------------------------------------------------
-| Active Patient Refunds
-|--------------------------------------------------------------------------
-*/
-
-$refundAmount = round(
-    (float) $account->refunds
-        ->where('status', 'active')
-        ->sum(
-            function ($refund) {
-                return (float) $refund->amount;
-            }
-        ),
-    2
-);
+            2
+        );
 
 
-/*
-|--------------------------------------------------------------------------
-| Patient Liability After Third-party Benefits
-|--------------------------------------------------------------------------
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Refund Due
+        |--------------------------------------------------------------------------
+        */
 
-$patientLiability = round(
-    max(
-        $adjustedNetAmount
-        - $mhisApprovedAmount
-        - $staffMedicalBenefitAmount
-        - $charityAmount,
-        0
-    ),
-    2
-);
+        $refundDue = round(
+            max(
+                $netPatientMoneyHeld
+                - $patientLiability,
+                0
+            ),
+            2
+        );
 
 
-/*
-|--------------------------------------------------------------------------
-| Net Patient Money Held
-|--------------------------------------------------------------------------
-|
-| Advances and balance payments are money received from the patient.
-| Refunds already processed reduce the amount still held.
-|
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Outstanding Patient Balance
+        |--------------------------------------------------------------------------
+        */
 
-$patientMoneyReceived = round(
-    $advanceAmount + $paidAmount,
-    2
-);
-
-$netPatientMoneyHeld = round(
-    max(
-        $patientMoneyReceived - $refundAmount,
-        0
-    ),
-    2
-);
+        $balanceAmount = round(
+            max(
+                $patientLiability
+                - $netPatientMoneyHeld,
+                0
+            ),
+            2
+        );
 
 
-/*
-|--------------------------------------------------------------------------
-| Refund Due
-|--------------------------------------------------------------------------
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Persist Account Totals
+        |--------------------------------------------------------------------------
+        */
 
-$refundDue = round(
-    max(
-        $netPatientMoneyHeld - $patientLiability,
-        0
-    ),
-    2
-);
-    /*
-    |--------------------------------------------------------------------------
-    | Outstanding Patient Balance
-    |--------------------------------------------------------------------------
-    |
-    | Net Hospital Charges
-    | - Advances
-    | - Other Payments
-    | - MHIS Approved Benefit
-    | - Staff Medical Benefit
-    | - Charity / Write-off
-    | = Outstanding Balance
-    |
-    */
+        $account->update([
+            'subtotal' =>
+                $subtotal,
 
-    $balanceAmount = round(
-    max(
-        $patientLiability - $netPatientMoneyHeld,
-        0
-    ),
-    2
-);
+            'discount_amount' =>
+                $discountAmount,
 
+            'net_amount' =>
+                $netAmount,
 
-    /*
-    |--------------------------------------------------------------------------
-    | Persist Account Totals
-    |--------------------------------------------------------------------------
-    */
+            'advance_amount' =>
+                $advanceAmount,
 
-    $account->update([
-        'subtotal' =>
-            $subtotal,
+            'paid_amount' =>
+                $paidAmount,
 
-        'discount_amount' =>
-            $discountAmount,
+            'balance_amount' =>
+                $balanceAmount,
+        ]);
+    }
 
-        'net_amount' =>
-            $netAmount,
-
-        'advance_amount' =>
-            $advanceAmount,
-
-        'paid_amount' =>
-            $paidAmount,
-
-        'balance_amount' =>
-            $balanceAmount,
-    ]);
-}
 
     /*
     |--------------------------------------------------------------------------
@@ -5064,9 +5538,9 @@ $refundDue = round(
     private function generateOrderNumber(): string
     {
         $prefix =
-            'ORD-' .
-            now()->format('Ymd') .
-            '-';
+            'ORD-'
+            . now()->format('Ymd')
+            . '-';
 
 
         $lastOrder = ServiceOrder::query()
@@ -5095,16 +5569,14 @@ $refundDue = round(
         }
 
 
-        return $prefix .
-            str_pad(
+        return $prefix
+            . str_pad(
                 $nextNumber,
                 6,
                 '0',
                 STR_PAD_LEFT
             );
     }
-
-
 
 
     /*
@@ -5116,9 +5588,9 @@ $refundDue = round(
     private function generateManualChargeCode(): string
     {
         $prefix =
-            'MCH-' .
-            now()->format('Ymd') .
-            '-';
+            'MCH-'
+            . now()->format('Ymd')
+            . '-';
 
 
         $lastCharge = IpBillingCharge::query()
@@ -5141,21 +5613,20 @@ $refundDue = round(
                 -6
             );
 
+
             $nextNumber =
                 $lastSequence + 1;
         }
 
 
-        return $prefix .
-            str_pad(
+        return $prefix
+            . str_pad(
                 $nextNumber,
                 6,
                 '0',
                 STR_PAD_LEFT
             );
     }
-
-
 
 
     /*
@@ -5167,9 +5638,9 @@ $refundDue = round(
     private function generateAdvanceReceiptNumber(): string
     {
         $prefix =
-            'IPR-' .
-            now()->format('Ymd') .
-            '-';
+            'IPR-'
+            . now()->format('Ymd')
+            . '-';
 
 
         $lastAdvance = IpBillingAdvance::query()
@@ -5192,13 +5663,14 @@ $refundDue = round(
                 -6
             );
 
+
             $nextNumber =
                 $lastSequence + 1;
         }
 
 
-        return $prefix .
-            str_pad(
+        return $prefix
+            . str_pad(
                 $nextNumber,
                 6,
                 '0',
@@ -5207,117 +5679,23 @@ $refundDue = round(
     }
 
 
-/*
-|--------------------------------------------------------------------------
-| Generate IP Balance Payment Receipt Number
-|--------------------------------------------------------------------------
-*/
-
-private function generatePaymentReceiptNumber(): string
-{
-    $prefix =
-        'IPP-' .
-        now()->format('Ymd') .
-        '-';
-
-
-    $lastPayment = IpBillingPayment::query()
-        ->where(
-            'receipt_no',
-            'like',
-            $prefix . '%'
-        )
-        ->orderByDesc('id')
-        ->first();
-
-
-    $nextNumber = 1;
-
-
-    if ($lastPayment) {
-
-        $lastSequence = (int) substr(
-            $lastPayment->receipt_no,
-            -6
-        );
-
-        $nextNumber =
-            $lastSequence + 1;
-    }
-
-
-    return $prefix .
-        str_pad(
-            $nextNumber,
-            6,
-            '0',
-            STR_PAD_LEFT
-        );
-}
-/*
-|--------------------------------------------------------------------------
-| Generate IP Refund Number
-|--------------------------------------------------------------------------
-*/
-
-private function generateRefundNumber(): string
-{
-    $prefix =
-        'IPRF-' .
-        now()->format('Ymd') .
-        '-';
-
-
-    $lastRefund = IpBillingRefund::query()
-        ->where(
-            'refund_no',
-            'like',
-            $prefix . '%'
-        )
-        ->orderByDesc('id')
-        ->first();
-
-
-    $nextNumber = 1;
-
-
-    if ($lastRefund) {
-
-        $lastSequence = (int) substr(
-            $lastRefund->refund_no,
-            -6
-        );
-
-        $nextNumber =
-            $lastSequence + 1;
-    }
-
-
-    return $prefix .
-        str_pad(
-            $nextNumber,
-            6,
-            '0',
-            STR_PAD_LEFT
-        );
-}
     /*
     |--------------------------------------------------------------------------
-    | Generate Final IP Bill Number
+    | Generate IP Balance Payment Receipt Number
     |--------------------------------------------------------------------------
     */
 
-    private function generateFinalBillNumber(): string
+    private function generatePaymentReceiptNumber(): string
     {
         $prefix =
-            'IPF-' .
-            now()->format('Ymd') .
-            '-';
+            'IPP-'
+            . now()->format('Ymd')
+            . '-';
 
 
-        $lastAccount = IpBillingAccount::query()
+        $lastPayment = IpBillingPayment::query()
             ->where(
-                'final_bill_no',
+                'receipt_no',
                 'like',
                 $prefix . '%'
             )
@@ -5328,10 +5706,10 @@ private function generateRefundNumber(): string
         $nextNumber = 1;
 
 
-        if ($lastAccount) {
+        if ($lastPayment) {
 
             $lastSequence = (int) substr(
-                $lastAccount->final_bill_no,
+                $lastPayment->receipt_no,
                 -6
             );
 
@@ -5341,8 +5719,8 @@ private function generateRefundNumber(): string
         }
 
 
-        return $prefix .
-            str_pad(
+        return $prefix
+            . str_pad(
                 $nextNumber,
                 6,
                 '0',
@@ -5350,6 +5728,130 @@ private function generateRefundNumber(): string
             );
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generate IP Refund Number
+    |--------------------------------------------------------------------------
+    */
+
+    private function generateRefundNumber(): string
+    {
+        $prefix =
+            'IPRF-'
+            . now()->format('Ymd')
+            . '-';
+
+
+        $lastRefund = IpBillingRefund::query()
+            ->where(
+                'refund_no',
+                'like',
+                $prefix . '%'
+            )
+            ->orderByDesc('id')
+            ->first();
+
+
+        $nextNumber = 1;
+
+
+        if ($lastRefund) {
+
+            $lastSequence = (int) substr(
+                $lastRefund->refund_no,
+                -6
+            );
+
+
+            $nextNumber =
+                $lastSequence + 1;
+        }
+
+
+        return $prefix
+            . str_pad(
+                $nextNumber,
+                6,
+                '0',
+                STR_PAD_LEFT
+            );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generate Final IP Bill Number
+    |--------------------------------------------------------------------------
+    |
+    | Uses a PostgreSQL transaction advisory lock so that simultaneous
+    | finalizations cannot generate the same final bill number.
+    |
+    | The next sequence is calculated from the actual highest numeric
+    | suffix already stored for the current date. It does not depend on
+    | account ID ordering.
+    |
+    */
+
+    private function generateFinalBillNumber(): string
+    {
+        $prefix =
+            'IPF-'
+            . now()->format('Ymd')
+            . '-';
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Serialize final bill number generation
+        |--------------------------------------------------------------------------
+        */
+
+        DB::select(
+            'SELECT pg_advisory_xact_lock(hashtext(?))',
+            [
+                $prefix,
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find Highest Existing Sequence
+        |--------------------------------------------------------------------------
+        */
+
+        $highestSequence = IpBillingAccount::query()
+            ->where(
+                'final_bill_no',
+                'like',
+                $prefix . '%'
+            )
+            ->pluck('final_bill_no')
+            ->map(
+                function ($billNo) {
+                    return (int) substr(
+                        $billNo,
+                        -6
+                    );
+                }
+            )
+            ->max();
+
+
+        $nextNumber =
+            ((int) ($highestSequence ?? 0))
+            + 1;
+
+
+        return $prefix
+            . str_pad(
+                $nextNumber,
+                6,
+                '0',
+                STR_PAD_LEFT
+            );
+    }
 
 
     /*
@@ -5361,9 +5863,9 @@ private function generateRefundNumber(): string
     private function generateAccountNumber(): string
     {
         $prefix =
-            'IPB-' .
-            now()->format('Ymd') .
-            '-';
+            'IPB-'
+            . now()->format('Ymd')
+            . '-';
 
 
         $lastAccount = IpBillingAccount::query()
@@ -5386,13 +5888,14 @@ private function generateRefundNumber(): string
                 -6
             );
 
+
             $nextNumber =
                 $lastSequence + 1;
         }
 
 
-        return $prefix .
-            str_pad(
+        return $prefix
+            . str_pad(
                 $nextNumber,
                 6,
                 '0',
