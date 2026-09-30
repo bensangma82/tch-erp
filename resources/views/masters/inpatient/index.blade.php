@@ -829,6 +829,10 @@
                                     Occupancy
                                 </th>
 
+
+<th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
+    Operational Status
+</th>
                                 <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
                                     Master Status
                                 </th>
@@ -872,12 +876,29 @@
                                         @else
 
                                             <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                                                Available
+                                                Vacant
                                             </span>
 
                                         @endif
 
                                     </td>
+
+                               <td class="px-6 py-4 text-center">
+    @php
+        $statusClasses = match ($bed->status) {
+            'available' => 'bg-green-100 text-green-700',
+            'cleaning' => 'bg-yellow-100 text-yellow-700',
+            'reserved' => 'bg-purple-100 text-purple-700',
+            'maintenance' => 'bg-orange-100 text-orange-700',
+            'occupied' => 'bg-red-100 text-red-700',
+            default => 'bg-gray-100 text-gray-600',
+        };
+    @endphp
+
+    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $statusClasses }}">
+        {{ ucwords(str_replace('_', ' ', $bed->status)) }}
+    </span>
+</td>
 
                                     <td class="px-6 py-4 text-center">
 
@@ -909,7 +930,7 @@
                                 </tr>
 
                                 <tr id="bed-edit-{{ $bed->id }}" class="hidden bg-slate-50">
-                                    <td colspan="7" class="px-6 py-5">
+                                    <td colspan="8" class="px-6 py-5">
                                         <form method="POST" action="{{ route('inpatient-master.beds.update', $bed) }}">
                                             @csrf
                                             @method('PUT')
@@ -973,6 +994,44 @@
                                                     </select>
                                                 </div>
 
+                                                <div>
+                                               <label class="mb-1 block text-xs font-semibold text-gray-600">
+                                                       Bed Operational Status
+                                              </label>
+
+    <select
+        name="status"
+        required
+        class="w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+        @disabled($bed->activeAllocation)
+    >
+        @foreach ([
+            'available' => 'Available',
+            'cleaning' => 'Cleaning',
+            'reserved' => 'Reserved',
+            'maintenance' => 'Maintenance',
+        ] as $value => $label)
+            <option
+                value="{{ $value }}"
+                @selected($bed->status === $value)
+            >
+                {{ $label }}
+            </option>
+        @endforeach
+    </select>
+
+    @if ($bed->activeAllocation)
+        <input
+            type="hidden"
+            name="status"
+            value="occupied"
+        >
+
+        <p class="mt-1 text-xs font-medium text-red-600">
+            Occupied bed status is controlled automatically.
+        </p>
+    @endif
+</div>
                                                 <div>
                                                     <label class="mb-1 block text-xs font-semibold text-gray-600">Status</label>
                                                     <select name="is_active" required class="w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">

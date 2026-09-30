@@ -387,6 +387,12 @@ class InpatientMasterController extends Controller
                 'string',
                 'max:50',
             ],
+
+            'status' => [
+            'required',
+            'in:available,cleaning,reserved,maintenance,occupied',
+            ],
+
             'is_active' => [
                 'required',
                 'boolean',
@@ -444,6 +450,25 @@ class InpatientMasterController extends Controller
                 ]);
             }
         }
+
+              /*
+|--------------------------------------------------------------------------
+| Protect operational bed status
+|--------------------------------------------------------------------------
+*/
+
+if ($bed->activeAllocation) {
+    $validated['status'] = 'occupied';
+} else {
+    if ($validated['status'] === 'occupied') {
+        return back()
+            ->withInput()
+            ->withErrors([
+                'status' => 'A vacant bed cannot be manually marked as occupied.',
+            ]);
+    }
+}
+
 
         $bed->update($validated);
 

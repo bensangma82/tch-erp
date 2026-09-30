@@ -220,7 +220,7 @@ class AdmissionClosureController extends Controller
 
                     $currentBed->update([
                         'status' =>
-                            'available',
+                            'cleaning',
                     ]);
                 }
 
