@@ -67,6 +67,13 @@ class EmergencyVisit extends Model
         )->latestOfMany('recorded_at');
     }
 
+    public function clinicalNote(): HasOne
+   {
+    return $this->hasOne(
+        EmergencyClinicalNote::class
+    );
+   }
+
     public function admission(): BelongsTo
     {
         return $this->belongsTo(
@@ -74,4 +81,11 @@ class EmergencyVisit extends Model
             'admission_id'
         );
     }
+    public function invoices(): HasMany
+{
+    return $this->hasMany(
+        Invoice::class,
+        'emergency_visit_id'
+    );
+}
 }

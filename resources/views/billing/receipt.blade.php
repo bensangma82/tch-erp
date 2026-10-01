@@ -231,12 +231,29 @@
 
         <div class="print-actions">
 
-            <a
-                href="{{ route('billing.index') }}"
-                class="back-button"
-            >
-                ← Back to Billing
-            </a>
+            @php
+    $invoiceType = strtolower(
+        (string) $payment->invoice?->invoice_type
+    );
+
+    $emergencyVisit =
+        $payment->invoice?->emergencyVisit;
+@endphp
+
+<a
+    href="{{
+        $invoiceType === 'emergency' && $emergencyVisit
+            ? route('emergency.show', $emergencyVisit)
+            : route('billing.index')
+    }}"
+    class="back-button"
+>
+    {{
+        $invoiceType === 'emergency'
+            ? '← Back to Emergency'
+            : '← Back to Billing'
+    }}
+</a>
 
             <button
                 type="button"
@@ -256,8 +273,12 @@
             </div>
 
             <div class="receipt-title">
-                Investigation Payment Receipt
-            </div>
+    {{
+        $invoiceType === 'emergency'
+            ? 'Emergency Consultation Receipt'
+            : 'Investigation Payment Receipt'
+    }}
+</div>
 
         </div>
 
@@ -362,24 +383,31 @@
             </span>
 
             <span class="value">
-                {{ $payment->encounter?->department?->name ?? '—' }}
-            </span>
+    {{
+        $invoiceType === 'emergency'
+            ? 'Emergency'
+            : ($payment->encounter?->department?->name ?? '—')
+    }}
+</span>
 
         </div>
 
 
-        <div class="row">
+        @if ($invoiceType !== 'emergency')
 
-            <span class="label">
-                Doctor
-            </span>
+    <div class="row">
 
-            <span class="value">
-                {{ $payment->encounter?->doctor?->full_name ?? '—' }}
-            </span>
+        <span class="label">
+            Doctor
+        </span>
 
-        </div>
+        <span class="value">
+            {{ $payment->encounter?->doctor?->full_name ?? '—' }}
+        </span>
 
+    </div>
+
+@endif
 
         <div class="divider"></div>
 

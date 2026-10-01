@@ -10,6 +10,7 @@ class Invoice extends Model
         'invoice_no',
         'patient_id',
         'encounter_id',
+        'emergency_visit_id',
         'invoice_date',
         'invoice_type',
         'subtotal',
@@ -35,10 +36,20 @@ class Invoice extends Model
         return $this->belongsTo(Patient::class);
     }
 
-    public function encounter()
-    {
-        return $this->belongsTo(Encounter::class);
-    }
+   public function encounter()
+{
+    return $this->belongsTo(
+        Encounter::class
+    );
+}
+
+public function emergencyVisit()
+{
+    return $this->belongsTo(
+        EmergencyVisit::class,
+        'emergency_visit_id'
+    );
+}
 
     public function payments()
     {

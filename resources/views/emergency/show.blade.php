@@ -113,6 +113,19 @@
                 true
             );
 
+        $emergencyInvoice =
+            $emergencyVisit->invoices
+             ->first(
+            fn ($invoice) =>
+                strtolower((string) $invoice->invoice_type)
+                === 'emergency'
+        );
+
+        $latestEmergencyPayment =
+        $emergencyInvoice?->payments
+        ?->sortByDesc('payment_date')
+        ->first();
+
     @endphp
 
 
@@ -167,73 +180,134 @@
 
                     <div class="flex flex-wrap gap-2">
 
+    {{-- TRIAGE --}}
 
-                        @if (
-                            ! $isClosed
-                            &&
-                            auth()->user()?->hasPermission('emergency.triage')
-                        )
+    @if (
+        ! $isClosed
+        &&
+        auth()->user()?->hasPermission('emergency.triage')
+    )
 
-                            <a
-                                href="{{ route('emergency.triage.create', $emergencyVisit) }}"
-                                class="inline-flex items-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-100"
-                            >
-                                {{ $latestTriage ? 'Update Triage' : 'Record Triage' }}
-                            </a>
+        <a
+            href="{{ route('emergency.triage.create', $emergencyVisit) }}"
+            class="inline-flex items-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+        >
+            {{ $latestTriage ? 'Update Triage' : 'Record Triage' }}
+        </a>
 
-                        @endif
-
-
-                        @if (
-                            ! $admission
-                            &&
-                            $emergencyVisit->status !== 'admitted'
-                            &&
-                            ! in_array(
-                                $emergencyVisit->status,
-                                [
-                                    'discharged',
-                                    'referred',
-                                    'death',
-                                    'cancelled',
-                                ],
-                                true
-                            )
-                            &&
-                            auth()->user()?->hasPermission('emergency.admit')
-                        )
-
-                            <a
-                                href="{{ route('emergency.admission.create', $emergencyVisit) }}"
-                                class="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-                            >
-                                Admit Patient
-                            </a>
-
-                        @endif
+    @endif
 
 
-                        @if ($admission)
+    {{-- EMERGENCY CONSULTATION PAYMENT --}}
 
-                            <a
-                                href="{{ route('ipd.show', $admission) }}"
-                                class="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-                            >
-                                Open IPD Admission
-                            </a>
+    @if (! $emergencyInvoice)
 
-                            <a
-                                href="{{ route('ip-billing.show', $admission) }}?action=advance"
-                                class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-                            >
-                                Receive Advance
-                            </a>
+        <a
+            href="{{ route('emergency.consultation-payment', $emergencyVisit) }}"
+            class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+        >
+            Collect Emergency Consultation Fee
+        </a>
 
-                        @endif
+    @elseif ((float) $emergencyInvoice->balance_amount > 0)
 
-                    </div>
+        <a
+            href="{{ route('billing.invoice.payment', $emergencyInvoice) }}"
+            class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+        >
+            Collect Balance ₹{{ number_format(
+                (float) $emergencyInvoice->balance_amount,
+                2
+            ) }}
+        </a>
 
-                </div>
+        <span
+            class="inline-flex items-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800"
+        >
+            Paid ₹{{ number_format(
+                (float) $emergencyInvoice->paid_amount,
+                2
+            ) }}
+        </span>
+
+    @else
+
+       @if ($latestEmergencyPayment)
+
+    <a
+        href="{{ route('billing.receipt', $latestEmergencyPayment) }}"
+        target="_blank"
+        class="inline-flex items-center rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+    >
+        Emergency Fee Paid · View Receipt
+    </a>
+
+@else
+
+    <span
+        class="inline-flex items-center rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800"
+    >
+        Emergency Fee Paid
+    </span>
+
+@endif
+
+    @endif
+
+
+    {{-- ADMISSION --}}
+
+    @if (
+        ! $admission
+        &&
+        $emergencyVisit->status !== 'admitted'
+        &&
+        ! in_array(
+            $emergencyVisit->status,
+            [
+                'discharged',
+                'referred',
+                'death',
+                'cancelled',
+            ],
+            true
+        )
+        &&
+        auth()->user()?->hasPermission('emergency.admit')
+    )
+
+        <a
+            href="{{ route('emergency.admission.create', $emergencyVisit) }}"
+            class="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+        >
+            Admit Patient
+        </a>
+
+    @endif
+
+
+    {{-- EXISTING IPD ADMISSION --}}
+
+    @if ($admission)
+
+        <a
+            href="{{ route('ipd.show', $admission) }}"
+            class="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+        >
+            Open IPD Admission
+        </a>
+
+        <a
+            href="{{ route('ip-billing.show', $admission) }}?action=advance"
+            class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+        >
+            Receive Advance
+        </a>
+
+    @endif
+
+</div>
+</div>
 
             </div>
 
@@ -632,6 +706,88 @@
                 @endif
 
             </div>
+
+
+                      {{-- ========================================================= --}}
+{{-- EMERGENCY VISIT SHEET --}}
+{{-- ========================================================= --}}
+
+<div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+    <div class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+
+        <div>
+
+            <h3 class="font-semibold text-slate-900">
+                Emergency Visit Sheet
+            </h3>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Clinical assessment, treatment and disposition for this Emergency attendance
+            </p>
+
+
+            @if ($emergencyVisit->clinicalNote)
+
+                <div class="mt-3 text-sm text-slate-600">
+
+                    Last documented:
+
+                    <span class="font-semibold text-slate-800">
+                        {{ $emergencyVisit->clinicalNote->documented_at?->format('d M Y, h:i A') ?? '—' }}
+                    </span>
+
+                    @if ($emergencyVisit->clinicalNote->provisional_diagnosis)
+
+                        <span class="mx-2 text-slate-300">•</span>
+
+                        Diagnosis:
+
+                        <span class="font-semibold text-slate-800">
+                            {{ \Illuminate\Support\Str::limit(
+                                $emergencyVisit->clinicalNote->provisional_diagnosis,
+                                80
+                            ) }}
+                        </span>
+
+                    @endif
+
+                </div>
+
+            @endif
+
+        </div>
+
+
+        <div class="flex flex-wrap gap-2">
+
+            <a
+                href="{{ route('emergency.clinical-note.create', $emergencyVisit) }}"
+                class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+            >
+                {{ $emergencyVisit->clinicalNote
+                    ? 'Update Visit Sheet'
+                    : 'Create Visit Sheet' }}
+            </a>
+
+            @if ($emergencyVisit->clinicalNote)
+
+    <a
+        href="{{ route('emergency.clinical-note.print', $emergencyVisit) }}"
+        target="_blank"
+        class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+    >
+        Print Visit Sheet
+    </a>
+
+@endif
+
+        </div>
+
+    </div>
+
+</div>
+
 
 
             {{-- ========================================================= --}}

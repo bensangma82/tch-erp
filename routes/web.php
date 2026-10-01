@@ -42,6 +42,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DischargeSummaryController;
 use App\Http\Controllers\BedTransferController;
 use App\Http\Controllers\AdmissionController;
+use App\Http\Controllers\EmergencyClinicalNoteController;
 use App\Http\Controllers\LaboratoryTestParameterController;
 use App\Http\Controllers\DiagnosticWorklistController;
 use App\Http\Controllers\AdmissionClosureController;
@@ -1041,7 +1042,7 @@ Route::get(
     |--------------------------------------------------------------------------
     */
 
-                                        Route::middleware(
+    Route::middleware(
     'permission:emergency.view'
 )->group(function () {
 
@@ -1057,6 +1058,13 @@ Route::get(
         )
             ->whereNumber('emergencyVisit')
             ->name('emergency.show');
+
+        Route::get(
+    '/emergency/{emergencyVisit}/consultation-payment',
+    [EmergencyVisitController::class, 'consultationPayment']
+)
+    ->whereNumber('emergencyVisit')
+    ->name('emergency.consultation-payment');
 
     });
 
@@ -1090,7 +1098,38 @@ Route::get(
             ->name('emergency.triage.store');
 
     });
+    /*
+|--------------------------------------------------------------------------
+| Emergency - Clinical Visit Sheet
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware(
+    'permission:emergency.view'
+)->group(function () {
+
+    Route::get(
+        '/emergency/{emergencyVisit}/clinical-note',
+        [EmergencyClinicalNoteController::class, 'create']
+    )
+        ->whereNumber('emergencyVisit')
+        ->name('emergency.clinical-note.create');
+
+    Route::post(
+        '/emergency/{emergencyVisit}/clinical-note',
+        [EmergencyClinicalNoteController::class, 'store']
+    )
+        ->whereNumber('emergencyVisit')
+        ->name('emergency.clinical-note.store');
+
+        Route::get(
+    '/emergency/{emergencyVisit}/clinical-note/print',
+    [EmergencyClinicalNoteController::class, 'print']
+)
+    ->whereNumber('emergencyVisit')
+    ->name('emergency.clinical-note.print');
+
+});
 
 
 

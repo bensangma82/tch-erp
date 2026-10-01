@@ -4,23 +4,48 @@
         <div class="flex items-center justify-between">
             <div>
                 <h2 class="text-xl font-semibold text-slate-900">
-                   {{ strtolower((string) $invoice->invoice_type) === 'opd'
-    ? 'OPD Payment'
-    : 'Outstanding Investigation Payment' }}
+                  @php
+    $invoiceType = strtolower((string) $invoice->invoice_type);
+@endphp
+
+{{
+    match ($invoiceType) {
+        'opd' => 'OPD Payment',
+        'emergency' => 'Emergency Consultation Payment',
+        default => 'Outstanding Investigation Payment',
+    }
+}}
                 </h2>
 
                 <p class="mt-1 text-sm text-slate-500">
-                    {{ strtolower((string) $invoice->invoice_type) === 'opd'
-    ? 'Collect payment for this OPD registration.'
-    : 'Collect the remaining balance against an existing investigation invoice.' }}
+                  {{
+    match ($invoiceType) {
+        'opd' =>
+            'Collect payment for this OPD registration.',
+
+        'emergency' =>
+            'Collect the Emergency consultation fee for this attendance.',
+
+        default =>
+            'Collect the remaining balance against an existing investigation invoice.',
+    }
+}}
             </div>
 
             <a
-                href="{{ route('billing.index') }}"
-                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-                Back to Billing
-            </a>
+    href="{{
+        $invoiceType === 'emergency' && $invoice->emergencyVisit
+            ? route('emergency.show', $invoice->emergencyVisit)
+            : route('billing.index')
+    }}"
+    class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+>
+    {{
+        $invoiceType === 'emergency'
+            ? 'Back to Emergency'
+            : 'Back to Billing'
+    }}
+</a>
         </div>
     </x-slot>
 

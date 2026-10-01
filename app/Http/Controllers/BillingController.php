@@ -750,6 +750,7 @@ return redirect()
         'patient',
         'encounter.department',
         'encounter.doctor',
+        'emergencyVisit',
         'items',
         'payments',
     ]);
@@ -760,7 +761,7 @@ return redirect()
 
     if (! in_array(
         $invoiceType,
-        ['investigation', 'opd'],
+        ['investigation', 'opd','emergency'],
         true
     )) {
         abort(404);
@@ -937,7 +938,7 @@ public function processInvoicePayment(
 
                 if (! in_array(
                     $invoiceType,
-                    ['investigation', 'opd'],
+                    ['investigation', 'opd','emergency'],
                     true
                 )) {
                     throw new \RuntimeException(
@@ -1287,6 +1288,7 @@ public function processInvoicePayment(
         $payment->load([
             'patient',
             'invoice.items',
+            'invoice.emergencyVisit',
             'encounter.department',
             'encounter.doctor',
             'receivedBy',

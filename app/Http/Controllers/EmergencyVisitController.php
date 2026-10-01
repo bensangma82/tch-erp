@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\EmergencyVisit;
 use App\Models\Patient;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\Service;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -243,6 +246,8 @@ class EmergencyVisitController extends Controller
             'createdBy',
             'triageRecords.recordedBy',
             'latestTriage',
+            'clinicalNote',
+            'invoices.payments',
             'admission.department',
             'admission.consultant',
             'admission.bed.ward',
@@ -254,4 +259,204 @@ class EmergencyVisitController extends Controller
             compact('emergencyVisit')
         );
     }
+    /**
+ * Create or open Emergency consultation invoice.
+ */
+public function consultationPayment(
+    EmergencyVisit $emergencyVisit
+): RedirectResponse {
+
+    $emergencyVisit->load([
+        'patient',
+        'invoices',
+    ]);
+
+    $existingInvoice = $emergencyVisit
+        ->invoices()
+        ->whereRaw('LOWER(invoice_type) = ?', ['emergency'])
+        ->latest('id')
+        ->first();
+
+    if ($existingInvoice) {
+        return redirect()
+            ->route(
+                'billing.invoice.payment',
+                $existingInvoice
+            );
+    }
+
+
+    $service = Service::query()
+        ->where('code', 'EMG-CONS')
+        ->where('is_active', true)
+        ->firstOrFail();
+
+
+    $amount = round(
+        (float) $service->price,
+        2
+    );
+
+
+    $invoice = DB::transaction(
+        function () use (
+            $emergencyVisit,
+            $service,
+            $amount
+        ) {
+
+            DB::statement(
+                "SELECT pg_advisory_xact_lock(hashtext('emergency_consultation_invoice_' || ?))",
+                [$emergencyVisit->id]
+            );
+
+            $existingInvoice = Invoice::query()
+                ->where(
+                    'emergency_visit_id',
+                    $emergencyVisit->id
+                )
+                ->whereRaw(
+                    'LOWER(invoice_type) = ?',
+                    ['emergency']
+                )
+                ->first();
+
+            if ($existingInvoice) {
+                return $existingInvoice;
+            }
+
+
+            $invoice = Invoice::create([
+                'invoice_no' =>
+                    $this->generateInvoiceNumber(),
+
+                'patient_id' =>
+                    $emergencyVisit->patient_id,
+
+                'encounter_id' =>
+                    null,
+
+                'emergency_visit_id' =>
+                    $emergencyVisit->id,
+
+                'invoice_date' =>
+                    today(),
+
+                'invoice_type' =>
+                    'emergency',
+
+                'subtotal' =>
+                    $amount,
+
+                'discount' =>
+                    0,
+
+                'total_amount' =>
+                    $amount,
+
+                'paid_amount' =>
+                    0,
+
+                'balance_amount' =>
+                    $amount,
+
+                'status' =>
+                    $amount > 0
+                        ? 'unpaid'
+                        : 'paid',
+
+                'created_by' =>
+                    auth()->id(),
+            ]);
+
+
+            InvoiceItem::create([
+                'invoice_id' =>
+                    $invoice->id,
+
+                'service_order_item_id' =>
+                    null,
+
+                'service_id' =>
+                    $service->id,
+
+                'code' =>
+                    $service->code,
+
+                'description' =>
+                    $service->name,
+
+                'quantity' =>
+                    1,
+
+                'unit_price' =>
+                    $amount,
+
+                'discount' =>
+                    0,
+
+                'amount' =>
+                    $amount,
+            ]);
+
+
+            return $invoice;
+        }
+    );
+
+
+    if ($amount <= 0) {
+        return redirect()
+            ->route(
+                'emergency.show',
+                $emergencyVisit
+            )
+            ->with(
+                'success',
+                'Emergency consultation invoice created. No payment required.'
+            );
+    }
+
+
+    return redirect()
+        ->route(
+            'billing.invoice.payment',
+            $invoice
+        )
+        ->with(
+            'success',
+            'Emergency consultation invoice created. Please collect payment.'
+        );
+}
+private function generateInvoiceNumber(): string
+{
+    $date = now()->format('Ymd');
+
+    $last = Invoice::query()
+        ->where(
+            'invoice_no',
+            'like',
+            "INV-{$date}-%"
+        )
+        ->orderByDesc('id')
+        ->first();
+
+    $nextNumber = 1;
+
+    if ($last) {
+        $parts = explode(
+            '-',
+            $last->invoice_no
+        );
+
+        $nextNumber =
+            ((int) end($parts)) + 1;
+    }
+
+    return sprintf(
+        'INV-%s-%06d',
+        $date,
+        $nextNumber
+    );
+}
 }
