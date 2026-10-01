@@ -389,19 +389,32 @@
 
                     @if (($canReception || $canNursing || $canDoctor || $canIpd) && $canIpdView)
 
-                        <a
-                            href="{{ route('ipd.index') }}"
-                            class="block rounded-md px-3 py-1.5 text-[12.5px] transition
-                                {{
-                                    request()->routeIs('ipd.*')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
-                                }}"
-                        >
-                            IPD / Ward
-                        </a>
+    <a
+        href="{{ route('ipd.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+            {{
+                request()->routeIs('ipd.index', 'ipd.show')
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+            }}"
+    >
+        IPD / Ward
+    </a>
 
-                    @endif
+
+    <a
+        href="{{ route('ipd.bed-management.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] transition
+            {{
+                request()->routeIs('ipd.bed-management.*')
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-white'
+            }}"
+    >
+        Bed Management
+    </a>
+
+@endif
 
                 </div>
 

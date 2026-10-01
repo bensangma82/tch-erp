@@ -422,7 +422,7 @@ class BedTransferController extends Controller
 
                 $oldBed->update([
                     'status' =>
-                        'available',
+                        'cleaning',
                 ]);
 
 

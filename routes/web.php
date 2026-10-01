@@ -36,6 +36,7 @@ use App\Http\Controllers\Administration\AdministrativeRequestController;
 use App\Http\Controllers\InpatientMasterController;
 use App\Http\Controllers\CharityAdjustmentController;
 use App\Http\Controllers\BedTariffController;
+use App\Http\Controllers\BedManagementController;
 use App\Http\Controllers\IpBillingController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\DashboardController;
@@ -1211,6 +1212,31 @@ Route::middleware(
             ->name('ipd.show');
 
     });
+
+    /*
+|--------------------------------------------------------------------------
+| IPD - Bed Management
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'permission:ipd.view'
+)->group(function () {
+
+    Route::get(
+        '/ipd/bed-management',
+        [BedManagementController::class, 'index']
+    )->name('ipd.bed-management.index');
+
+
+    Route::put(
+        '/ipd/bed-management/{bed}/status',
+        [BedManagementController::class, 'updateStatus']
+    )
+        ->whereNumber('bed')
+        ->name('ipd.bed-management.status');
+
+});
         /*
         |--------------------------------------------------------------------------
         | IPD - Bed Transfer
