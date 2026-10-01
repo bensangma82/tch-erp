@@ -7,8 +7,7 @@
                 </h2>
 
                 <p class="mt-1 text-sm text-gray-500">
-                    Create a hospital employee record. ERP login access is managed separately under User Management.
-                </p>
+                    Create a hospital employee record. Employee records may be linked to an existing ERP user account for authenticated clinical workflows.
             </div>
 
             <a
@@ -73,6 +72,38 @@
                                 Format: TCH-0001, TCH-0002, TCH-0003...
                             </p>
                         </div>
+
+                        <div>
+    <label
+        for="user_id"
+        class="mb-1 block text-sm font-medium text-gray-700"
+    >
+        Linked ERP User
+    </label>
+
+    <select
+        name="user_id"
+        id="user_id"
+        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+    >
+        <option value="">No linked ERP user</option>
+
+        @foreach ($users as $user)
+            <option
+                value="{{ $user->id }}"
+                @selected((string) old('user_id') === (string) $user->id)
+            >
+                {{ $user->name }}
+                — {{ $user->email }}
+                ({{ ucfirst(str_replace('_', ' ', $user->role)) }})
+            </option>
+        @endforeach
+    </select>
+
+    <p class="mt-1 text-xs text-gray-500">
+        Link this employee to their ERP login account. One ERP user can be linked to only one employee.
+    </p>
+</div>
 
                         <div>
                             <label

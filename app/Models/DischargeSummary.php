@@ -25,10 +25,14 @@ class DischargeSummary extends Model
         'warning_signs',
         'prepared_by',
         'updated_by',
+        'status',
+        'finalised_by',
+        'finalised_at',
     ];
 
     protected $casts = [
         'review_date' => 'date',
+        'finalised_at' => 'datetime',
     ];
 
     public function admission(): BelongsTo
@@ -53,4 +57,11 @@ class DischargeSummary extends Model
             'updated_by'
         );
     }
+    public function finalisedBy(): BelongsTo
+   {
+    return $this->belongsTo(
+        User::class,
+        'finalised_by'
+    );
+   }
 }

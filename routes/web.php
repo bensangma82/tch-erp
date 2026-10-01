@@ -1350,6 +1350,13 @@ Route::middleware(
             ->whereNumber('admission')
             ->name('ipd.discharge-summary.update');
 
+            Route::post(
+    '/ipd/{admission}/discharge-summary/finalise',
+    [DischargeSummaryController::class, 'finalise']
+)
+    ->whereNumber('admission')
+    ->name('ipd.discharge-summary.finalise');
+
     });
 
 

@@ -32,6 +32,24 @@ class DischargeSummaryController extends Controller
             $admission->dischargeSummary;
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | Finalised summaries cannot be edited
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $summary
+            &&
+            $summary->status === 'finalised'
+        ) {
+            abort(
+                409,
+                'This discharge summary has already been finalised and can no longer be edited.'
+            );
+        }
+
+
         return view(
             'ipd.discharge-summary.edit',
             compact(
@@ -49,6 +67,45 @@ class DischargeSummaryController extends Controller
         Request $request,
         Admission $admission
     ): RedirectResponse {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find existing summary first
+        |--------------------------------------------------------------------------
+        */
+
+        $existingSummary =
+            DischargeSummary::query()
+                ->where(
+                    'admission_id',
+                    $admission->id
+                )
+                ->first();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Finalised summaries cannot be modified
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $existingSummary
+            &&
+            $existingSummary->status === 'finalised'
+        ) {
+            abort(
+                409,
+                'This discharge summary has already been finalised and cannot be modified.'
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validate clinical content
+        |--------------------------------------------------------------------------
+        */
 
         $validated = $request->validate([
             'final_diagnosis' => [
@@ -118,39 +175,45 @@ class DischargeSummaryController extends Controller
         ]);
 
 
-        $summary =
-            DischargeSummary::query()
-                ->where(
-                    'admission_id',
-                    $admission->id
-                )
-                ->first();
+        /*
+        |--------------------------------------------------------------------------
+        | Update existing summary
+        |--------------------------------------------------------------------------
+        */
 
+        if ($existingSummary) {
 
-        if ($summary) {
-
-            $summary->update([
+            $existingSummary->update([
                 ...$validated,
 
                 'updated_by' =>
                     auth()->id(),
             ]);
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create new draft summary
+        |--------------------------------------------------------------------------
+        */
+
         } else {
 
-            $summary =
-                DischargeSummary::create([
-                    ...$validated,
+            DischargeSummary::create([
+                ...$validated,
 
-                    'admission_id' =>
-                        $admission->id,
+                'admission_id' =>
+                    $admission->id,
 
-                    'prepared_by' =>
-                        auth()->id(),
+                'prepared_by' =>
+                    auth()->id(),
 
-                    'updated_by' =>
-                        auth()->id(),
-                ]);
+                'updated_by' =>
+                    auth()->id(),
+
+                'status' =>
+                    'draft',
+            ]);
         }
 
 
@@ -167,7 +230,7 @@ class DischargeSummaryController extends Controller
 
 
     /**
-     * Show the completed discharge summary.
+     * Show the discharge summary.
      */
     public function show(
         Admission $admission
@@ -182,6 +245,7 @@ class DischargeSummaryController extends Controller
             'emergencyVisit',
             'dischargeSummary.preparedBy',
             'dischargeSummary.updatedBy',
+            'dischargeSummary.finalisedBy',
         ]);
 
 
@@ -203,5 +267,118 @@ class DischargeSummaryController extends Controller
                 'summary'
             )
         );
+    }
+
+
+    /**
+     * Finalise discharge summary.
+     *
+     * Only the consultant assigned to this admission
+     * may finalise the summary.
+     */
+    public function finalise(
+        Admission $admission
+    ): RedirectResponse {
+
+        $admission->load([
+            'consultant',
+            'dischargeSummary',
+        ]);
+
+
+        $summary =
+            $admission->dischargeSummary;
+
+
+        abort_if(
+            ! $summary,
+            404,
+            'Discharge summary has not yet been created.'
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Already finalised
+        |--------------------------------------------------------------------------
+        */
+
+        if ($summary->status === 'finalised') {
+
+            return redirect()
+                ->route(
+                    'ipd.discharge-summary.show',
+                    $admission
+                )
+                ->with(
+                    'success',
+                    'Discharge summary is already finalised.'
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Assigned consultant must have linked ERP user
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            ! $admission->consultant
+            ||
+            ! $admission->consultant->user_id
+        ) {
+            abort(
+                409,
+                'The assigned consultant does not have a linked ERP user account.'
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Only assigned consultant may finalise
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            (int) $admission->consultant->user_id
+            !==
+            (int) auth()->id()
+        ) {
+            abort(
+                403,
+                'Only the consultant assigned to this admission may finalise the discharge summary.'
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Finalise
+        |--------------------------------------------------------------------------
+        */
+
+        $summary->update([
+            'status' =>
+                'finalised',
+
+            'finalised_by' =>
+                auth()->id(),
+
+            'finalised_at' =>
+                now(),
+        ]);
+
+
+        return redirect()
+            ->route(
+                'ipd.discharge-summary.show',
+                $admission
+            )
+            ->with(
+                'success',
+                'Discharge summary finalised successfully. Printing is now enabled.'
+            );
     }
 }

@@ -49,6 +49,27 @@
             font-size: 14px;
             line-height: 1.35;
         }
+        @if ($summary->status !== 'finalised')
+
+    @media print {
+
+        .sheet {
+            display: none !important;
+        }
+
+        body::before {
+            content: "Printing disabled. This discharge summary has not been finalised by the assigned consultant.";
+            display: block;
+            padding: 40px;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: #991b1b;
+            text-align: center;
+        }
+    }
+
+@endif
 
 
         /*
@@ -736,7 +757,7 @@
         .signature-line {
             width: 175px;
 
-            margin-bottom: 4px;
+            margin-bottom: 18px;
 
             border-top: 1px solid #596579;
         }
@@ -993,36 +1014,163 @@
 {{-- SCREEN TOOLBAR --}}
 {{-- ================================================================ --}}
 
+
+{{-- ================================================================ --}}
+{{-- SCREEN TOOLBAR --}}
+{{-- ================================================================ --}}
+
 <div class="toolbar no-print">
 
     <a
-        href="{{ route('ipd.show', $admission) }}"
-        class="toolbar-button"
-    >
-        Back to IPD
-    </a>
+    href="{{ route('ipd.show', $admission) }}"
+    class="toolbar-button"
+    style="
+        padding:12px 20px;
+        font-size:15px;
+        font-weight:700;
+        border:2px solid #334155;
+        background:#ffffff;
+        color:#1e293b;
+        border-radius:8px;
+    "
+>
+    Back to IPD
+</a>
 
 
-    <a
-        href="{{ route('ipd.discharge-summary.edit', $admission) }}"
-        class="toolbar-button"
-    >
-        Edit Summary
-    </a>
+    @if ($summary->status !== 'finalised')
+
+        <a
+    href="{{ route('ipd.discharge-summary.edit', $admission) }}"
+    class="toolbar-button"
+    style="
+        padding:12px 20px;
+        font-size:15px;
+        font-weight:700;
+        border:2px solid #2563eb;
+        background:#2563eb;
+        color:#ffffff;
+        border-radius:8px;
+    "
+>
+    Edit Summary
+</a>
+
+        @php
+            $canFinalise =
+                $admission->consultant
+                &&
+                $admission->consultant->user_id
+                &&
+                (int) $admission->consultant->user_id === (int) auth()->id();
+        @endphp
 
 
-    <button
-        type="button"
-        class="toolbar-button toolbar-button-primary"
-        onclick="window.print()"
-    >
-        Print Summary
-    </button>
+        @if ($canFinalise)
+
+            <form
+                method="POST"
+                action="{{ route('ipd.discharge-summary.finalise', $admission) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Finalise this discharge summary? After finalisation it cannot be edited and printing will be enabled.');"
+            >
+                @csrf
+
+                <button
+                    type="submit"
+                    class="toolbar-button toolbar-button-primary"
+                >
+                    Finalise Summary
+                </button>
+            </form>
+
+        @else
+
+           <span
+    class="toolbar-button"
+    style="
+        padding:12px 22px;
+        font-size:15px;
+        font-weight:800;
+        border:2px solid #f59e0b;
+        background:#fffbeb;
+        color:#92400e;
+        border-radius:8px;
+        cursor:not-allowed;
+    "
+>
+    Awaiting Consultant Finalisation
+</span>
+
+        @endif
+
+
+    @else
+
+        <span class="toolbar-button" style="cursor:default;">
+            Finalised
+        </span>
+
+        <button
+            type="button"
+            class="toolbar-button toolbar-button-primary"
+            onclick="window.print()"
+        >
+            Print Summary
+        </button>
+
+    @endif
 
 </div>
 
+<div class="no-print" style="margin-bottom:12px;">
 
+    @if ($summary->status === 'finalised')
 
+        <div style="
+            padding:10px 12px;
+            border:1px solid #bbf7d0;
+            background:#f0fdf4;
+            color:#166534;
+            border-radius:6px;
+            font-size:13px;
+        ">
+            Finalised
+            @if ($summary->finalisedBy)
+                by {{ $summary->finalisedBy->name }}
+            @endif
+
+            @if ($summary->finalised_at)
+                on {{ $summary->finalised_at->format('d M Y, h:i A') }}
+            @endif
+        </div>
+
+    @else
+
+        <div style="
+    padding:16px 20px;
+    border:2px solid #f59e0b;
+    background:#fffbeb;
+    color:#92400e;
+    border-radius:8px;
+    font-size:18px;
+    font-weight:700;
+    text-align:center;
+    line-height:1.5;
+">
+    DRAFT DISCHARGE SUMMARY
+    <div style="
+        margin-top:4px;
+        font-size:15px;
+        font-weight:600;
+    ">
+        Printing is disabled until finalised by the assigned consultant.
+    </div>
+</div>
+
+    @endif
+
+</div>
 {{-- ================================================================ --}}
 {{-- DOCUMENT --}}
 {{-- ================================================================ --}}
@@ -1567,7 +1715,43 @@
         {{-- ======================================================== --}}
         {{-- FOOTER --}}
         {{-- ======================================================== --}}
-                <x-print-audit />
+                <div class="print-audit" style="font-size: 11px; line-height: 1.4; margin-top: 16px;">
+
+    @if ($summary->status === 'finalised')
+
+        <div>
+            Printed by:
+            <strong>
+                {{ auth()->user()?->name ?? 'System' }}
+            </strong>
+        </div>
+
+        <div>
+            Printed on:
+            <strong>
+                {{ now()->format('d M Y, h:i A') }}
+            </strong>
+        </div>
+
+    @else
+
+        <div>
+            Prepared by:
+            <strong>
+                {{ $summary->preparedBy?->name ?? '—' }}
+            </strong>
+        </div>
+
+        <div>
+            Status:
+            <strong>
+                Draft — awaiting consultant finalisation
+            </strong>
+        </div>
+
+    @endif
+
+</div>
         <div class="document-footer">
 
             Tura Christian Hospital

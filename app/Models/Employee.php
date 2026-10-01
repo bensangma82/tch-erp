@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+
 class Employee extends Model
 {
     use SoftDeletes;
@@ -26,6 +27,7 @@ class Employee extends Model
         'speciality',
         'phone',
         'email',
+        'user_id',
         'date_of_joining',
         'is_doctor',
         'is_active',
@@ -49,6 +51,13 @@ class Employee extends Model
             Department::class
         );
     }
+
+    public function user(): BelongsTo
+   {
+    return $this->belongsTo(
+        User::class
+    );
+   }
 
     /*
     |--------------------------------------------------------------------------
