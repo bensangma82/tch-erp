@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\EmployeeDocumentController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Finance\FinanceMasterController;
 use App\Http\Controllers\Finance\FinanceVoucherController;
+use App\Http\Controllers\Finance\TallyIntegrationController;
 use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\EmployeeContractController;
@@ -855,6 +856,31 @@ Route::put(
 )
     ->whereNumber('financeHead')
     ->name('finance.master.heads.update');
+
+    /*
+|--------------------------------------------------------------------------
+| Tally Integration
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/admin/finance/tally',
+    [TallyIntegrationController::class, 'index']
+)->name('finance.tally.index');
+
+Route::put(
+    '/admin/finance/tally/heads/{financeHead}',
+    [TallyIntegrationController::class, 'saveHead']
+)
+    ->whereNumber('financeHead')
+    ->name('finance.tally.heads.update');
+
+Route::put(
+    '/admin/finance/tally/accounts/{financeAccount}',
+    [TallyIntegrationController::class, 'saveAccount']
+)
+    ->whereNumber('financeAccount')
+    ->name('finance.tally.accounts.update');
 
 
     /*

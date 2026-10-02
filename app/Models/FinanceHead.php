@@ -80,4 +80,15 @@ protected $casts = [
             'created_by'
         );
     }
+
+/**
+ * Tally ledger mapping for this Finance Head.
+ */
+public function tallyMapping()
+   {
+    return $this->hasOne(
+        TallyLedgerMapping::class,
+        'finance_head_id'
+    );
+}
 }

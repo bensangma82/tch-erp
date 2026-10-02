@@ -64,4 +64,14 @@ class FinanceAccount extends Model
             'destination_account_id'
         );
     }
+    /**
+ * Tally ledger mapping for this Finance Account.
+ */
+public function tallyMapping()
+{
+    return $this->hasOne(
+        TallyLedgerMapping::class,
+        'finance_account_id'
+    );
+}
 }
