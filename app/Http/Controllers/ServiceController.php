@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Department;
+use App\Models\FinanceHead;
 use App\Models\Service;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ServiceController extends Controller
 {
@@ -12,97 +14,92 @@ class ServiceController extends Controller
      * Display service master.
      */
     public function index(Request $request)
-{
-    $query = Service::with('department');
+    {
+        $query = Service::with('department');
 
-    $scope = trim(
-        (string) $request->query('scope', '')
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Charge Master Scope
-    |--------------------------------------------------------------------------
-    |
-    | Charge Master shows only services that can be added directly to an
-    | inpatient running bill.
-    |
-    | Laboratory and Radiology remain under the diagnostic workflow.
-    |
-    */
-
-    if ($scope === 'charges') {
-
-        $query->whereIn(
-            'category',
-            [
-                'procedure',
-                'consultation',
-                'nursing',
-                'equipment',
-                'consumable',
-                'facility',
-                'other',
-            ]
-        );
-    }
-
-
-    if ($request->filled('search')) {
-
-        $search = trim(
-            $request->search
+        $scope = trim(
+            (string) $request->query('scope', '')
         );
 
-        $query->where(
-            function ($q) use ($search) {
+        /*
+        |--------------------------------------------------------------------------
+        | Charge Master Scope
+        |--------------------------------------------------------------------------
+        |
+        | Charge Master shows only services that can be added directly to an
+        | inpatient running bill.
+        |
+        | Laboratory and Radiology remain under the diagnostic workflow.
+        |
+        */
 
-                $q->where(
-                    'code',
-                    'ilike',
-                    "%{$search}%"
-                )
-                    ->orWhere(
-                        'name',
+        if ($scope === 'charges') {
+
+            $query->whereIn(
+                'category',
+                [
+                    'procedure',
+                    'consultation',
+                    'nursing',
+                    'equipment',
+                    'consumable',
+                    'facility',
+                    'other',
+                ]
+            );
+        }
+
+        if ($request->filled('search')) {
+
+            $search = trim(
+                $request->search
+            );
+
+            $query->where(
+                function ($q) use ($search) {
+
+                    $q->where(
+                        'code',
                         'ilike',
                         "%{$search}%"
                     )
-                    ->orWhere(
-                        'category',
-                        'ilike',
-                        "%{$search}%"
-                    );
+                        ->orWhere(
+                            'name',
+                            'ilike',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'category',
+                            'ilike',
+                            "%{$search}%"
+                        );
 
-            }
+                }
+            );
+        }
+
+        if ($request->filled('category')) {
+
+            $query->where(
+                'category',
+                $request->category
+            );
+        }
+
+        $services = $query
+            ->orderBy('category')
+            ->orderBy('name')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view(
+            'services.index',
+            compact(
+                'services',
+                'scope'
+            )
         );
     }
-
-
-    if ($request->filled('category')) {
-
-        $query->where(
-            'category',
-            $request->category
-        );
-    }
-
-
-    $services = $query
-        ->orderBy('category')
-        ->orderBy('name')
-        ->paginate(25)
-        ->withQueryString();
-
-
-    return view(
-        'services.index',
-        compact(
-            'services',
-            'scope'
-        )
-    );
-}
 
     /**
      * Show create form.
@@ -114,12 +111,21 @@ class ServiceController extends Controller
             ->orderBy('name')
             ->get();
 
+        $financeHeads = FinanceHead::query()
+            ->where('head_type', 'income')
+            ->where('is_active', true)
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
         return view(
             'services.create',
-            compact('departments')
+            compact(
+                'departments',
+                'financeHeads'
+            )
         );
     }
-
 
     /**
      * Store service.
@@ -149,6 +155,16 @@ class ServiceController extends Controller
             'department_id' => [
                 'nullable',
                 'exists:departments,id',
+            ],
+
+            'finance_head_id' => [
+                'nullable',
+                Rule::exists('finance_heads', 'id')
+                    ->where(
+                        fn ($query) => $query
+                            ->where('head_type', 'income')
+                            ->where('is_active', true)
+                    ),
             ],
 
             'price' => [
@@ -186,7 +202,6 @@ class ServiceController extends Controller
             ],
         ]);
 
-
         $validated['code'] =
             strtoupper(
                 trim($validated['code'])
@@ -204,11 +219,9 @@ class ServiceController extends Controller
         $validated['is_active'] =
             $request->boolean('is_active');
 
-
         Service::create(
             $validated
         );
-
 
         return redirect()
             ->route('services.index')
@@ -217,7 +230,6 @@ class ServiceController extends Controller
                 'Service created successfully.'
             );
     }
-
 
     /**
      * Show edit form.
@@ -229,15 +241,22 @@ class ServiceController extends Controller
             ->orderBy('name')
             ->get();
 
+        $financeHeads = FinanceHead::query()
+            ->where('head_type', 'income')
+            ->where('is_active', true)
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
         return view(
             'services.edit',
             compact(
                 'service',
-                'departments'
+                'departments',
+                'financeHeads'
             )
         );
     }
-
 
     /**
      * Update service.
@@ -252,7 +271,7 @@ class ServiceController extends Controller
                 'required',
                 'string',
                 'max:50',
-                'unique:services,code,' . $service->id,
+                'unique:services,code,'.$service->id,
             ],
 
             'name' => [
@@ -269,6 +288,16 @@ class ServiceController extends Controller
             'department_id' => [
                 'nullable',
                 'exists:departments,id',
+            ],
+
+            'finance_head_id' => [
+                'nullable',
+                Rule::exists('finance_heads', 'id')
+                    ->where(
+                        fn ($query) => $query
+                            ->where('head_type', 'income')
+                            ->where('is_active', true)
+                    ),
             ],
 
             'price' => [
@@ -291,7 +320,6 @@ class ServiceController extends Controller
             ],
         ]);
 
-
         $validated['code'] =
             strtoupper(
                 trim($validated['code'])
@@ -309,11 +337,9 @@ class ServiceController extends Controller
         $validated['is_active'] =
             $request->boolean('is_active');
 
-
         $service->update(
             $validated
         );
-
 
         return redirect()
             ->route('services.index')

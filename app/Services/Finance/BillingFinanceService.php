@@ -47,12 +47,12 @@ class BillingFinanceService
     public function allocateRevenue(Payment $payment): Collection
     {
         $payment->loadMissing([
-            'invoice.items.service',
+            'invoice.items.service.financeHead',
         ]);
 
         $invoice = $payment->invoice;
 
-        if (!$invoice) {
+        if (! $invoice) {
             return collect();
         }
 
@@ -122,19 +122,33 @@ class BillingFinanceService
         foreach ($invoice->items as $item) {
             $service = $item->service;
 
-            if (!$service) {
+            if (! $service) {
                 continue;
             }
 
-            $headCode = $this->financeHeadCodeForServiceCategory(
-                $service->category
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | Resolve Finance Head
+            |--------------------------------------------------------------------------
+            |
+            | Prefer the Finance Head explicitly assigned to the Service.
+            | If none is assigned, retain the existing category-based mapping.
+            |
+            */
+
+            if ($service->financeHead) {
+                $headCode = $service->financeHead->code;
+            } else {
+                $headCode = $this->financeHeadCodeForServiceCategory(
+                    $service->category
+                );
+            }
 
             if ($headCode === null) {
                 continue;
             }
 
-            if (!isset($grouped[$headCode])) {
+            if (! isset($grouped[$headCode])) {
                 $grouped[$headCode] = 0.0;
             }
 
@@ -261,7 +275,7 @@ class BillingFinanceService
             ->where('is_active', true)
             ->first();
 
-        if (!$head) {
+        if (! $head) {
             throw new RuntimeException(
                 "Active Finance income head {$code} was not found."
             );

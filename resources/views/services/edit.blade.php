@@ -290,7 +290,50 @@
 
                             </div>
 
+                            {{-- FINANCE HEAD --}}
+                            <div>
 
+                                <label
+                                    for="finance_head_id"
+                                    class="mb-1 block text-sm font-medium text-gray-700"
+                                >
+                                    Finance Head
+                                </label>
+
+                                <select
+                                    id="finance_head_id"
+                                    name="finance_head_id"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                                >
+
+                                    <option value="">
+                                        Use Default Category Mapping
+                                    </option>
+
+                                    @foreach ($financeHeads as $financeHead)
+
+                                        <option
+                                            value="{{ $financeHead->id }}"
+                                            @selected(
+                                                old(
+                                                    'finance_head_id',
+                                                    $service->finance_head_id
+                                                ) == $financeHead->id
+                                            )
+                                        >
+                                            {{ $financeHead->code }} — {{ $financeHead->name }}
+                                        </option>
+
+                                    @endforeach
+
+                                </select>
+
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Optional. Select the income head used for Finance and Tally reporting.
+                                    Leave blank to use the service category's default mapping.
+                                </p>
+
+                            </div>
                             {{-- PRICE --}}
                             <div>
 

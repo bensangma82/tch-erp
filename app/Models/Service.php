@@ -13,6 +13,7 @@ class Service extends Model
         'name',
         'category',
         'department_id',
+        'finance_head_id',
         'price',
         'is_active',
         'requires_sample',
@@ -21,14 +22,12 @@ class Service extends Model
         'description',
     ];
 
-
     protected $casts = [
         'price' => 'decimal:2',
         'is_active' => 'boolean',
         'requires_sample' => 'boolean',
         'requires_report' => 'boolean',
     ];
-
 
     public function department(): BelongsTo
     {
@@ -37,6 +36,13 @@ class Service extends Model
         );
     }
 
+    public function financeHead(): BelongsTo
+    {
+        return $this->belongsTo(
+            FinanceHead::class,
+            'finance_head_id'
+        );
+    }
 
     public function orderItems(): HasMany
     {
@@ -45,14 +51,12 @@ class Service extends Model
         );
     }
 
-
     public function invoiceItems(): HasMany
     {
         return $this->hasMany(
             InvoiceItem::class
         );
     }
-
 
     public function laboratoryTestParameters(): HasMany
     {
