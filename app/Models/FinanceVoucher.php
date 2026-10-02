@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class FinanceVoucher extends Model
 {
@@ -123,5 +124,10 @@ class FinanceVoucher extends Model
             User::class,
             'cancelled_by'
         );
+    }
+
+    public function tallyExport(): HasOne
+    {
+        return $this->hasOne(TallyExport::class);
     }
 }
