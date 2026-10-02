@@ -106,8 +106,21 @@
                                     && $item->diagnosticSample->status === 'collected';
                             })->count();
 
-                            $inProcess = $orderItems->where('status', 'in_process')->count();
-                            $completed = $orderItems->where('status', 'completed')->count();
+                           $draft = $orderItems->filter(function ($item) {
+    return $item->status === 'in_process'
+        && $item->diagnosticResult
+        && $item->diagnosticResult->status === 'draft';
+})->count();
+
+$inProcess = $orderItems->filter(function ($item) {
+    return $item->status === 'in_process'
+        && (
+            ! $item->diagnosticResult
+            || $item->diagnosticResult->status !== 'draft'
+        );
+})->count();
+
+$completed = $orderItems->where('status', 'completed')->count();
 
                             $printableCompleted = $orderItems->filter(function ($item) {
                                 return $item->status === 'completed'
@@ -193,6 +206,12 @@
                                                 {{ $inProcess }} In Process
                                             </span>
                                         @endif
+
+                                        @if ($draft)
+    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+        {{ $draft }} Draft
+    </span>
+@endif
                                         @if ($completed)
                                             <span class="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
                                                 {{ $completed }} Completed
@@ -277,21 +296,37 @@
                                                         </td>
 
                                                         <td class="px-4 py-3">
-                                                            @if ($item->status === 'ordered')
-                                                                @if ($requiresSample && ! $sampleCollected)
-                                                                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Awaiting Sample</span>
-                                                                @else
-                                                                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">Ready</span>
-                                                                @endif
-                                                            @elseif ($item->status === 'in_process')
-                                                                <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">In Process</span>
-                                                            @elseif ($item->status === 'completed')
-                                                                <span class="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">Completed</span>
-                                                            @else
-                                                                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold capitalize text-gray-700">
-                                                                    {{ str_replace('_', ' ', $item->status) }}
-                                                                </span>
-                                                            @endif
+                                                           @if ($result && $result->status === 'draft')
+    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+        Draft Result
+    </span>
+
+@elseif ($item->status === 'ordered')
+    @if ($requiresSample && ! $sampleCollected)
+        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+            Awaiting Sample
+        </span>
+    @else
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+            Ready
+        </span>
+    @endif
+
+@elseif ($item->status === 'in_process')
+    <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+        In Process
+    </span>
+
+@elseif ($item->status === 'completed')
+    <span class="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+        Completed
+    </span>
+
+@else
+    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold capitalize text-gray-700">
+        {{ str_replace('_', ' ', $item->status) }}
+    </span>
+@endif
                                                         </td>
 
                                                         <td class="px-4 py-3 text-right">
@@ -335,10 +370,18 @@
                                                                         </form>
                                                                     @endif
                                                                 @elseif ($item->status === 'in_process')
-                                                                    <a href="{{ route('diagnostics.items.result.edit', $item) }}"
-                                                                       class="inline-flex rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
-                                                                        Enter Result
-                                                                    </a>
+
+    @if ($result && $result->status === 'draft')
+        <a href="{{ route('diagnostics.items.result.edit', $item) }}"
+           class="inline-flex rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">
+            Edit Draft
+        </a>
+    @else
+        <a href="{{ route('diagnostics.items.result.edit', $item) }}"
+           class="inline-flex rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+            Enter Result
+        </a>
+    @endif
                                                                 @elseif ($item->status === 'completed')
                                                                     @if ($result)
                                                                         <div class="flex items-center justify-end gap-2">
