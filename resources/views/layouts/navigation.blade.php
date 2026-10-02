@@ -39,30 +39,46 @@
         <div class="flex h-16 items-center justify-between">
 
 
-            {{-- BRAND --}}
-            <div class="flex items-center gap-3">
+          {{-- BRAND --}}
+<div class="flex items-center gap-3">
 
-                <div
-                    class="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-sm font-bold tracking-wide"
-                >
-                    TCH
-                </div>
+    <div style="
+        width:52px;
+        height:52px;
+        min-width:52px;
+        max-width:52px;
+        overflow:hidden;
+        border-radius:12px;
+        background:#ffffff;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+    ">
+        <img
+            src="{{ asset('images/favicon.webp') }}"
+            alt="Tura Christian Hospital"
+            style="
+                width:100%;
+                height:100%;
+                object-fit:contain;
+                display:block;
+                padding:3px;
+                box-sizing:border-box;
+            "
+        >
+    </div>
 
-                <div>
+    <div>
+        <div class="text-sm font-semibold">
+            TCH Hospital Enterprise Resource Planning
+        </div>
 
-                    <div class="text-sm font-semibold">
-                        TCH Hospital ERP
-                    </div>
+        <div class="text-xs text-slate-300">
+            Tura Christian Hospital
+        </div>
+    </div>
 
-                    <div class="text-xs text-slate-300">
-                        Tura Christian Hospital
-                    </div>
-
-                </div>
-
-            </div>
-
-
+</div>
 
             {{-- USER MENU - DESKTOP --}}
             <div class="hidden items-center gap-3 sm:flex">
