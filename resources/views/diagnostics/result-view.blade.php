@@ -1,8 +1,11 @@
 <x-app-layout>
 
     <x-slot name="header">
+
         <div class="screen-only flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
             <div>
+
                 <h2 class="text-xl font-semibold text-gray-800">
                     Laboratory Result
                 </h2>
@@ -10,15 +13,19 @@
                 <p class="mt-1 text-sm text-gray-500">
                     Finalized laboratory investigation report.
                 </p>
+
             </div>
 
+
             <div class="flex items-center gap-3">
+
                 <a
                     href="{{ route('laboratory.index') }}"
                     class="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
                     Back to Laboratory
                 </a>
+
 
                 <button
                     type="button"
@@ -27,47 +34,80 @@
                 >
                     Print Report
                 </button>
+
             </div>
+
         </div>
+
     </x-slot>
 
 
     @php
+
         $order = $serviceOrderItem->serviceOrder;
+
         $patient = $order?->patient;
+
         $encounter = $order?->encounter;
+
+        $admission = $order?->admission;
+
         $result = $serviceOrderItem->diagnosticResult;
+
         $sample = $serviceOrderItem->diagnosticSample ?? null;
+
         $resultItems = $result?->items ?? collect();
+
+
+        $departmentName =
+            $admission?->department?->name
+            ?? $encounter?->department?->name
+            ?? '—';
+
+
+        $doctorName =
+            $admission?->consultant?->full_name
+            ?? $admission?->consultant?->name
+            ?? $encounter?->doctor?->full_name
+            ?? $encounter?->doctor?->name
+            ?? 'Unassigned';
+
 
         $reportStatus =
             $result?->status === 'verified'
                 ? 'Verified'
                 : 'Final';
+
     @endphp
 
 
     <style>
+
         /*
         |--------------------------------------------------------------------------
-        | Screen report
+        | Screen Layout
         |--------------------------------------------------------------------------
         */
 
-        .lab-report-shell {
+        .single-report-shell {
             max-width: 980px;
             margin: 0 auto;
         }
 
-        .lab-report {
+
+        .single-report {
             background: #ffffff;
             border: 1px solid #dbe3ee;
             border-radius: 18px;
+
             box-shadow:
                 0 18px 45px rgba(15, 23, 42, 0.08),
                 0 2px 8px rgba(15, 23, 42, 0.04);
+
             overflow: hidden;
+
             color: #0f172a;
+
             font-family:
                 Inter,
                 ui-sans-serif,
@@ -78,357 +118,552 @@
                 sans-serif;
         }
 
-        .lab-report-inner {
+
+        .single-inner {
             padding: 28px 32px 24px;
         }
 
-        .lab-brand {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Header
+        |--------------------------------------------------------------------------
+        */
+
+        .brand {
             display: grid;
-            grid-template-columns: 78px minmax(0, 1fr) auto;
+
+            grid-template-columns:
+                78px
+                minmax(0, 1fr)
+                auto;
+
             align-items: center;
+
             gap: 18px;
+
             padding-bottom: 18px;
+
             border-bottom: 3px solid #10213c;
         }
 
-        .lab-logo {
+
+        .logo {
             width: 72px;
             height: 72px;
+
             object-fit: contain;
         }
 
-        .hospital-name {
+
+        .hospital {
             margin: 0;
-            font-size: 28px;
+
+            font-size: 24pt;
             line-height: 1.05;
+
             font-weight: 800;
-            letter-spacing: -0.025em;
+
             color: #10213c;
         }
 
-        .hospital-address {
+
+        .sub {
             margin-top: 5px;
-            font-size: 15px;
+
+            font-size: 12.75pt;
+
             color: #64748b;
         }
 
 
-        .hospital-contact {
-            margin-top: 4px;
-            font-size: 12px;
-            line-height: 1.3;
-            font-weight: 600;
-            color: #64748b;
-        }
+        .dept {
+            margin-top: 6px;
 
-        .department-name {
-            margin-top: 8px;
-            font-size: 13px;
-            line-height: 1.2;
+            font-size: 12pt;
+
             font-weight: 800;
-            letter-spacing: 0.14em;
+
+            letter-spacing: 0.08em;
+
             text-transform: uppercase;
-            color: #48617f;
+
+            color: #334155;
         }
 
-        .report-heading {
+
+        .heading {
             text-align: right;
         }
 
-        .report-heading-title {
-            font-size: 25px;
-            line-height: 1.05;
+
+        .heading-title {
+            font-size: 15.75pt;
+
             font-weight: 800;
-            letter-spacing: -0.025em;
+
             color: #10213c;
         }
 
-        .report-status {
-            display: inline-flex;
-            margin-top: 8px;
-            border-radius: 999px;
-            padding: 4px 10px;
-            background: #eaf1f8;
-            color: #16375d;
-            font-size: 12px;
+
+        .heading-status {
+            display: inline-block;
+
+            margin-top: 6px;
+
+            padding: 2px 8px;
+
+            border: 1px solid #64748b;
+
+            border-radius: 4px;
+
+            font-size: 9.5pt;
+
             font-weight: 800;
-            letter-spacing: 0.12em;
+
+            letter-spacing: 0.08em;
+
             text-transform: uppercase;
+
+            color: #334155;
         }
 
-        .report-time {
-            margin-top: 6px;
-            font-size: 13px;
+
+        .heading-meta {
+            margin-top: 5px;
+
+            font-size: 11.25pt;
+
             color: #64748b;
         }
 
-        .meta-panel {
-            margin-top: 15px;
-            border: 1px solid #dce4ee;
-            border-radius: 13px;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Patient + Investigation Details
+        |--------------------------------------------------------------------------
+        */
+
+        .meta {
+            margin-top: 18px;
+
+            border: 1px solid #dfe6ee;
+
+            border-radius: 12px;
+
             overflow: hidden;
         }
 
-        .meta-panel-title {
-            padding: 8px 13px;
-            background: #f6f8fb;
-            border-bottom: 1px solid #dce4ee;
-            font-size: 12px;
+
+        .meta-title {
+            padding: 7px 12px;
+
+            background: #f8fafc;
+
+            border-bottom: 1px solid #e2e8f0;
+
+            font-size: 10.5pt;
+
             font-weight: 800;
-            letter-spacing: 0.14em;
+
+            letter-spacing: 0.1em;
+
             text-transform: uppercase;
-            color: #4a607b;
+
+            color: #64748b;
         }
+
 
         .meta-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            column-gap: 18px;
-            row-gap: 10px;
-            padding: 12px 14px;
+
+            grid-template-columns:
+                2fr
+                1fr
+                1fr
+                1fr;
+
+            gap: 0;
         }
 
-        .meta-item-wide {
-            grid-column: span 2;
+
+        .meta-cell {
+            padding: 9px 12px;
+
+            border-right: 1px solid #edf2f7;
+
+            border-bottom: 1px solid #edf2f7;
         }
 
-        .meta-label {
-            margin-bottom: 2px;
-            font-size: 11px;
-            line-height: 1.2;
+
+        .label {
+            font-size: 9.75pt;
+
             font-weight: 800;
-            letter-spacing: 0.09em;
+
+            letter-spacing: 0.08em;
+
             text-transform: uppercase;
-            color: #7b8ba0;
+
+            color: #94a3b8;
         }
 
-        .meta-value {
-            font-size: 14px;
-            line-height: 1.3;
+
+        .value {
+            margin-top: 2px;
+
+            font-size: 12pt;
+
             font-weight: 650;
-            color: #172033;
+
+            color: #1e293b;
         }
 
-        .sample-strip {
+
+        .muted {
+            color: #7b8ba0;
+
+            font-weight: 500;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Sample Details
+        |--------------------------------------------------------------------------
+        */
+
+        .sample-grid {
             display: grid;
-            grid-template-columns: 1.25fr 1fr 1.25fr 1.15fr;
-            gap: 16px;
-            padding: 10px 14px;
-            border-top: 1px solid #e3e9f0;
-            background: #fbfcfe;
+
+            grid-template-columns:
+                1.25fr
+                1fr
+                1.25fr
+                1.15fr;
+
+            border-top: 1px solid #edf2f7;
         }
 
-        .result-panel {
-            margin-top: 15px;
-            border: 1px solid #d8e1eb;
-            border-radius: 13px;
+
+        .sample-cell {
+            padding: 9px 12px;
+
+            border-right: 1px solid #edf2f7;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Investigation Block
+        |--------------------------------------------------------------------------
+        */
+
+        .test {
+            margin-top: 18px;
+
+            border: 1px solid #dfe6ee;
+
+            border-radius: 12px;
+
             overflow: hidden;
         }
 
-        .result-panel-head {
+
+        .test-head {
             display: flex;
-            align-items: center;
+
             justify-content: space-between;
-            padding: 9px 13px;
-            background:
-                linear-gradient(
-                    90deg,
-                    #f5f8fb 0%,
-                    #fbfcfe 100%
-                );
-            border-bottom: 1px solid #d8e1eb;
+
+            gap: 16px;
+
+            padding: 9px 12px;
+
+            background: #f8fafc;
+
+            border-bottom: 1px solid #e2e8f0;
         }
 
-        .result-panel-title {
-            font-size: 13px;
+
+        .test-name {
+            font-size: 13.5pt;
+
             font-weight: 800;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            color: #31465f;
-        }
 
-        .result-panel-status {
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: #16375d;
-        }
-
-        .result-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-        }
-
-        .result-table th {
-            padding: 8px 11px;
-            background: #fafbfd;
-            border-bottom: 1px solid #dfe6ee;
-            text-align: left;
-            font-size: 11px;
-            line-height: 1.2;
-            font-weight: 800;
-            letter-spacing: 0.09em;
-            text-transform: uppercase;
-            color: #60738b;
-        }
-
-        .result-table td {
-            padding: 8px 11px;
-            border-bottom: 1px solid #edf1f5;
-            font-size: 14px;
-            line-height: 1.25;
-            color: #253247;
-            vertical-align: middle;
-        }
-
-        .result-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .parameter-name {
-            font-weight: 700;
-            color: #172033;
-        }
-
-        .parameter-result {
-            font-weight: 800;
             color: #10213c;
         }
 
-        .result-abnormal {
-            color: #a16207;
-        }
 
-        .result-critical {
-            color: #b91c1c;
-        }
+        .test-code {
+            margin-top: 2px;
 
-        .flag-badge {
-            display: inline-flex;
-            min-width: 27px;
-            justify-content: center;
-            border-radius: 999px;
-            padding: 2px 7px;
-            font-size: 11px;
-            font-weight: 800;
-        }
+            font-size: 10.5pt;
 
-        .flag-normal {
-            background: #f1f5f9;
             color: #64748b;
         }
 
-        .flag-abnormal {
-            background: #fef3c7;
+
+        .sample-summary {
+            font-size: 10.5pt;
+
+            text-align: right;
+
+            color: #64748b;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Result Table
+        |--------------------------------------------------------------------------
+        */
+
+        table.results {
+            width: 100%;
+
+            border-collapse: collapse;
+
+            table-layout: fixed;
+        }
+
+
+        .results th {
+            padding: 7px 10px;
+
+            background: #fbfdff;
+
+            border-bottom: 1px solid #e2e8f0;
+
+            text-align: left;
+
+            font-size: 9.75pt;
+
+            text-transform: uppercase;
+
+            letter-spacing: 0.06em;
+
+            color: #64748b;
+        }
+
+
+        .results td {
+            padding: 7px 10px;
+
+            border-bottom: 1px solid #edf2f7;
+
+            font-size: 11.25pt;
+
+            color: #334155;
+
+            vertical-align: top;
+        }
+
+
+        .results tr:last-child td {
+            border-bottom: 0;
+        }
+
+
+        .result-value {
+            font-weight: 800;
+
+            color: #0f172a;
+        }
+
+
+        .result-remark {
+            margin-top: 2px;
+
+            font-size: 9.75pt;
+
+            color: #7b8ba0;
+        }
+
+
+        .abnormal {
+            font-weight: 800;
+
             color: #a16207;
         }
 
-        .flag-critical {
-            background: #fee2e2;
+
+        .critical {
+            font-weight: 800;
+
             color: #b91c1c;
         }
 
-        .comment-box {
-            margin-top: 12px;
-            padding: 10px 13px;
-            border: 1px solid #dfe6ee;
-            border-radius: 11px;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Comment
+        |--------------------------------------------------------------------------
+        */
+
+        .comment {
+            padding: 8px 10px;
+
             background: #fbfcfe;
-        }
 
-        .comment-title {
-            margin-bottom: 4px;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: #65778e;
-        }
+            border-top: 1px solid #edf2f7;
 
-        .comment-text {
+            font-size: 10.5pt;
+
+            line-height: 1.4;
+
+            color: #475569;
+
             white-space: pre-wrap;
-            font-size: 13px;
-            line-height: 1.45;
-            color: #2b3748;
         }
 
-        .report-footer {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Footer
+        |--------------------------------------------------------------------------
+        */
+
+        .footer {
             display: grid;
-            grid-template-columns: 1fr 210px;
+
+            grid-template-columns:
+                1fr
+                210px;
+
             gap: 26px;
+
             align-items: end;
-            margin-top: 18px;
+
+            margin-top: 20px;
         }
 
-        .footer-note {
-            font-size: 11px;
-            line-height: 1.5;
+
+        .footer-left {
+            min-width: 0;
+        }
+
+
+        .print-meta {
+            margin-bottom: 7px;
+
+            font-size: 10px;
+
+            line-height: 1.4;
+
+            color: #475569;
+        }
+
+
+        .print-meta strong {
+            color: #172033;
+        }
+
+
+        .print-separator {
+            padding: 0 7px;
+
+            color: #94a3b8;
+        }
+
+
+        .note {
+            font-size: 10.5pt;
+
+            line-height: 1.45;
+
             color: #7a8797;
         }
 
+
         .signature {
             padding-top: 22px;
-            border-top: 1px solid #6b7d92;
+
             text-align: center;
-            font-size: 12px;
+
+            font-size: 11.25pt;
+
             font-weight: 700;
+
             color: #465870;
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Screen Actions
+        |--------------------------------------------------------------------------
+        */
+
         .screen-actions {
             display: flex;
+
             align-items: center;
+
             justify-content: space-between;
+
             padding: 14px 20px;
+
             border-top: 1px solid #e2e8f0;
+
             background: #f8fafc;
         }
 
 
         /*
         |--------------------------------------------------------------------------
-        | A4 print layout
+        | A4 Laser Print
         |--------------------------------------------------------------------------
-        |
-        | IMPORTANT:
-        | Do not give the report a 297mm min-height in print mode.
-        | With browser print margins that alone can force a second page.
-        |
         */
 
         @page {
             size: A4 portrait;
-            margin: 7mm;
+
+            margin:
+                7mm
+                7mm
+                7mm
+                7mm;
         }
 
+
         @media print {
+
 
             html,
             body {
                 margin: 0 !important;
+
                 padding: 0 !important;
+
                 background: #ffffff !important;
+
                 -webkit-print-color-adjust: exact !important;
+
                 print-color-adjust: exact !important;
             }
+
 
             body * {
                 visibility: hidden;
             }
+
 
             #laboratory-report,
             #laboratory-report * {
                 visibility: visible;
             }
 
+
             #laboratory-report {
                 position: absolute;
+
                 left: 0;
+
                 top: 0;
+
                 width: 100%;
             }
+
 
             .screen-only,
             .screen-actions,
@@ -438,692 +673,1132 @@
                 display: none !important;
             }
 
-            .print-wrapper,
-            .lab-report-shell {
-                width: 100% !important;
-                max-width: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-            }
 
-            .lab-report {
+            .single-report-shell,
+            .single-report {
                 width: 100% !important;
+
+                max-width: none !important;
+
                 min-height: 0 !important;
+
                 height: auto !important;
+
                 margin: 0 !important;
-                border: none !important;
+
+                padding: 0 !important;
+
+                border: 0 !important;
+
                 border-radius: 0 !important;
+
                 box-shadow: none !important;
+
                 overflow: visible !important;
             }
 
-            .lab-report-inner {
+
+            .single-inner {
                 padding: 0 !important;
+
+                min-height: 0 !important;
+
+                height: auto !important;
             }
 
-            .lab-brand {
-                grid-template-columns: 56px minmax(0, 1fr) 185px !important;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Header
+            |--------------------------------------------------------------------------
+            */
+
+            .brand {
+                grid-template-columns:
+                    58px
+                    minmax(0, 1fr)
+                    auto !important;
+
                 gap: 12px !important;
+
                 padding-bottom: 9px !important;
-                border-bottom-width: 2px !important;
             }
 
-            .lab-logo {
+
+            .logo {
                 width: 52px !important;
+
                 height: 52px !important;
             }
 
-            .hospital-name {
-                font-size: 19px !important;
+
+            .hospital {
+                font-size: 18pt !important;
             }
 
-            .hospital-address {
-                margin-top: 2px !important;
-                font-size: 9px !important;
+
+            .sub {
+                font-size: 9.75pt !important;
             }
 
-            .department-name {
+
+            .dept {
+                font-size: 9pt !important;
+            }
+
+
+            .heading-title {
+                font-size: 12pt !important;
+            }
+
+
+            .heading-status {
                 margin-top: 4px !important;
-                font-size: 7.5px !important;
+
+                padding: 1px 6px !important;
+
+                font-size: 7.5pt !important;
             }
 
-            .report-heading-title {
-                font-size: 16px !important;
+
+            .heading-meta {
+                font-size: 9pt !important;
             }
 
-            .report-status {
-                margin-top: 4px !important;
-                padding: 2px 7px !important;
-                font-size: 7px !important;
-            }
 
-            .report-time {
-                margin-top: 3px !important;
-                font-size: 7.5px !important;
-            }
+            /*
+            |--------------------------------------------------------------------------
+            | Patient Details
+            |--------------------------------------------------------------------------
+            */
 
-            .meta-panel {
-                margin-top: 9px !important;
-                border-radius: 8px !important;
+            .meta {
+                margin-top: 10px !important;
+
                 break-inside: avoid !important;
+
                 page-break-inside: avoid !important;
             }
 
-            .meta-panel-title {
-                padding: 5px 9px !important;
-                font-size: 7px !important;
+
+            .meta-title {
+                padding: 5px 8px !important;
+
+                font-size: 8.5pt !important;
             }
 
-            .meta-grid {
-                grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-                gap: 5px 12px !important;
-                padding: 7px 9px !important;
+
+            .meta-cell {
+                padding: 5px 7px !important;
             }
 
-            .meta-label {
-                margin-bottom: 1px !important;
-                font-size: 6.5px !important;
+
+            .label {
+                font-size: 7.875pt !important;
             }
 
-            .meta-value {
-                font-size: 8.5px !important;
-                line-height: 1.2 !important;
+
+            .value {
+                font-size: 9.375pt !important;
             }
 
-            .sample-strip {
-                grid-template-columns: 1.25fr 1fr 1.25fr 1.15fr !important;
-                gap: 10px !important;
-                padding: 6px 9px !important;
+
+            .sample-cell {
+                padding: 5px 7px !important;
             }
 
-            .result-panel {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Test
+            |--------------------------------------------------------------------------
+            */
+
+            .test {
                 margin-top: 9px !important;
-                border-radius: 8px !important;
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
+
+                border-radius: 6px !important;
+
+                overflow: visible !important;
+
+                break-inside: auto !important;
+
+                page-break-inside: auto !important;
             }
 
-            .result-panel-head {
-                padding: 5px 9px !important;
-            }
 
-            .result-panel-title,
-            .result-panel-status {
-                font-size: 7px !important;
-            }
-
-            .result-table th {
+            .test-head {
                 padding: 5px 8px !important;
-                font-size: 6.5px !important;
+
+                break-after: avoid !important;
+
+                page-break-after: avoid !important;
             }
 
-            .result-table td {
-                padding: 5px 8px !important;
-                font-size: 8.5px !important;
+
+            .test-name {
+                font-size: 10.5pt !important;
+            }
+
+
+            .test-code,
+            .sample-summary {
+                font-size: 8.25pt !important;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Result Table
+            |--------------------------------------------------------------------------
+            */
+
+            table.results {
+                width: 100% !important;
+
+                border-collapse: collapse !important;
+
+                table-layout: fixed !important;
+
+                break-inside: auto !important;
+
+                page-break-inside: auto !important;
+            }
+
+
+            .results thead {
+                display: table-header-group !important;
+            }
+
+
+            .results th {
+                padding: 4px 6px !important;
+
+                font-size: 7.875pt !important;
+            }
+
+
+            .results td {
+                padding: 4px 6px !important;
+
+                font-size: 9pt !important;
+
                 line-height: 1.15 !important;
             }
 
-            .flag-badge {
-                min-width: 20px !important;
-                padding: 1px 5px !important;
-                font-size: 6.5px !important;
-            }
 
-            .comment-box {
-                margin-top: 7px !important;
-                padding: 6px 9px !important;
-                border-radius: 7px !important;
+            .results tr {
                 break-inside: avoid !important;
-            }
 
-            .comment-title {
-                font-size: 6.5px !important;
-            }
-
-            .comment-text {
-                font-size: 8px !important;
-                line-height: 1.3 !important;
-            }
-
-            .report-footer {
-                grid-template-columns: 1fr 170px !important;
-                gap: 18px !important;
-                margin-top: 10px !important;
-                break-inside: avoid !important;
                 page-break-inside: avoid !important;
             }
 
-            .footer-note {
-                font-size: 6.5px !important;
-                line-height: 1.35 !important;
+
+            .results td,
+            .results th {
+                break-inside: avoid !important;
+
+                page-break-inside: avoid !important;
             }
+
+
+            .result-remark {
+                font-size: 7.5pt !important;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Abnormal Values
+            |--------------------------------------------------------------------------
+            */
+
+            .abnormal,
+            .critical {
+                color: #000000 !important;
+
+                font-weight: 800 !important;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Comment
+            |--------------------------------------------------------------------------
+            */
+
+            .comment {
+                padding: 5px 7px !important;
+
+                font-size: 8.25pt !important;
+
+                break-inside: avoid !important;
+
+                page-break-inside: avoid !important;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Compact Footer
+            |--------------------------------------------------------------------------
+            */
+
+            .footer {
+    margin-top: 14px !important;
+
+    grid-template-columns:
+        1fr
+        155px !important;
+
+    gap: 12px !important;
+
+    align-items: end !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+
+    break-before: auto !important;
+    page-break-before: auto !important;
+}
+
+            .footer-left {
+                min-width: 0 !important;
+            }
+
+
+            .print-meta {
+                margin-bottom: 2px !important;
+
+                font-size: 7pt !important;
+
+                line-height: 1.2 !important;
+
+                color: #374151 !important;
+            }
+
+
+            .print-meta strong {
+                font-weight: 700 !important;
+
+                color: #111827 !important;
+            }
+
+
+            .print-separator {
+                padding: 0 4px !important;
+            }
+
+
+            .note {
+                font-size: 6.5pt !important;
+
+                line-height: 1.2 !important;
+
+                color: #64748b !important;
+            }
+
 
             .signature {
-                padding-top: 15px !important;
-                font-size: 7px !important;
-            }
+    padding-top: 14px !important;
 
-            table,
-            tr,
-            td,
-            th {
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-            }
+    font-size: 7.5pt !important;
+
+    line-height: 1.3 !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
         }
+
     </style>
 
 
-    <div class="py-6 print-wrapper">
+    <div class="py-6">
 
-        <div class="lab-report-shell px-4 sm:px-6 lg:px-8 print-wrapper">
+        <div class="single-report-shell px-4 sm:px-6 lg:px-8">
+
 
             <section
                 id="laboratory-report"
-                class="lab-report"
+                class="single-report"
             >
 
-                <div class="lab-report-inner">
+
+                <div class="single-inner">
 
 
-                    {{-- PREMIUM LETTERHEAD --}}
-                    <div class="lab-brand">
+                    {{-- HEADER --}}
+                    <div class="brand">
+
 
                         <img
                             src="{{ asset('images/TCH_favicon.png') }}"
                             alt="Tura Christian Hospital"
-                            class="lab-logo"
+                            class="logo"
                         >
 
 
                         <div>
 
-                            <h1 class="hospital-name">
+
+                            <h1 class="hospital">
                                 Tura Christian Hospital
                             </h1>
 
-                            <div class="hospital-address">
+
+                            <div class="sub">
                                 Tura, West Garo Hills, Meghalaya
                             </div>
 
 
-                            <div class="hospital-contact">
+                            <div class="sub">
                                 Email: tchcare@yahoo.com
-                                &nbsp;•&nbsp;
+                                ·
                                 Website: www.turachristianhospital.org
                             </div>
 
-                            <div class="department-name">
+
+                            <div class="dept">
                                 Department of Laboratory Medicine
                             </div>
 
+
                         </div>
 
 
-                        <div class="report-heading">
+                        <div class="heading">
 
-                            <div class="report-heading-title">
+
+                            <div class="heading-title">
                                 Laboratory Report
                             </div>
 
-                            <div class="report-status">
+
+                            <div class="heading-status">
+
                                 {{ $reportStatus }} Report
+
                             </div>
 
-                            <div class="report-time">
-                                {{ $result?->entered_at?->format('d M Y, h:i A') ?? now()->format('d M Y, h:i A') }}
+
+                            <div class="heading-meta">
+
+                                {{
+                                    $result?->entered_at?->format(
+                                        'd M Y, h:i A'
+                                    )
+                                    ?? now()->format(
+                                        'd M Y, h:i A'
+                                    )
+                                }}
+
                             </div>
+
 
                         </div>
+
 
                     </div>
 
 
-                    {{-- PATIENT + INVESTIGATION DETAILS --}}
-                    <div class="meta-panel">
+                    {{-- PATIENT & INVESTIGATION DETAILS --}}
+                    <div class="meta">
 
-                        <div class="meta-panel-title">
+
+                        <div class="meta-title">
                             Patient & Investigation Details
                         </div>
 
 
                         <div class="meta-grid">
 
-                            <div class="meta-item-wide">
-                                <div class="meta-label">
+
+                            <div class="meta-cell">
+
+                                <div class="label">
                                     Patient Name
                                 </div>
 
-                                <div class="meta-value">
+                                <div class="value">
                                     {{ $patient?->full_name ?? '—' }}
                                 </div>
+
                             </div>
 
 
-                            <div>
-                                <div class="meta-label">
+                            <div class="meta-cell">
+
+                                <div class="label">
                                     UHID
                                 </div>
 
-                                <div class="meta-value">
+                                <div class="value">
                                     {{ $patient?->uhid ?? '—' }}
                                 </div>
+
                             </div>
 
 
-                            <div>
-                                <div class="meta-label">
+                            <div class="meta-cell">
+
+                                <div class="label">
                                     MRD
                                 </div>
 
-                                <div class="meta-value">
+                                <div class="value">
                                     {{ $patient?->mrd_number ?: '—' }}
                                 </div>
+
                             </div>
 
 
-                            <div>
-                                <div class="meta-label">
+                            <div class="meta-cell">
+
+                                <div class="label">
                                     Age / Sex
                                 </div>
 
-                                <div class="meta-value">
-                                    @if ($patient?->age !== null)
-                                        {{ $patient->age }} yrs
-                                    @else
-                                        —
-                                    @endif
+                                <div class="value">
+
+                                    {{
+                                        $patient?->age !== null
+                                            ? $patient->age . ' yrs'
+                                            : '—'
+                                    }}
+
                                     /
+
                                     {{ $patient?->sex ?: '—' }}
+
                                 </div>
+
                             </div>
 
 
-                            <div>
-                                <div class="meta-label">
-                                    Mobile
-                                </div>
+                            <div class="meta-cell">
 
-                                <div class="meta-value">
-                                    {{ $patient?->phone ?: '—' }}
-                                </div>
-                            </div>
-
-
-                            <div>
-                                <div class="meta-label">
-                                    Blood Group
-                                </div>
-
-                                <div class="meta-value">
-                                    {{ $patient?->blood_group ?: '—' }}
-                                </div>
-                            </div>
-
-
-                            <div>
-                                <div class="meta-label">
+                                <div class="label">
                                     Order No.
                                 </div>
 
-                                <div class="meta-value">
+                                <div class="value">
                                     {{ $order?->order_no ?? '—' }}
                                 </div>
+
                             </div>
 
 
-                            <div class="meta-item-wide">
-                                <div class="meta-label">
-                                    Investigation
-                                </div>
+                            <div class="meta-cell">
 
-                                <div class="meta-value">
-                                    {{ $serviceOrderItem->service_name }}
-                                    @if ($serviceOrderItem->service_code)
-                                        <span class="muted">
-                                            · {{ $serviceOrderItem->service_code }}
-                                        </span>
-                                    @endif
-                                </div>
-                            </div>
-
-
-                            <div>
-                                <div class="meta-label">
+                                <div class="label">
                                     Department
                                 </div>
 
-                                <div class="meta-value">
-                                    {{ $encounter?->department?->name ?? '—' }}
+                                <div class="value">
+                                    {{ $departmentName }}
                                 </div>
+
                             </div>
 
 
-                            <div>
-                                <div class="meta-label">
+                            <div class="meta-cell">
+
+                                <div class="label">
                                     Referring Doctor
                                 </div>
 
-                                <div class="meta-value">
-                                    {{ $encounter?->doctor?->full_name ?? 'Unassigned' }}
+                                <div class="value">
+                                    {{ $doctorName }}
                                 </div>
+
                             </div>
+
+
+                            <div class="meta-cell">
+
+                                <div class="label">
+                                    Investigation
+                                </div>
+
+                                <div class="value">
+
+                                    {{ $serviceOrderItem->service_name }}
+
+                                    @if ($serviceOrderItem->service_code)
+
+                                        <span class="muted">
+
+                                            ·
+                                            {{ $serviceOrderItem->service_code }}
+
+                                        </span>
+
+                                    @endif
+
+                                </div>
+
+                            </div>
+
 
                         </div>
 
 
                         @if ($serviceOrderItem->requires_sample)
 
-                            <div class="sample-strip">
 
-                                <div>
-                                    <div class="meta-label">
+                            <div class="sample-grid">
+
+
+                                <div class="sample-cell">
+
+                                    <div class="label">
                                         Sample No.
                                     </div>
 
-                                    <div class="meta-value">
+                                    <div class="value">
                                         {{ $sample?->sample_no ?? '—' }}
                                     </div>
+
                                 </div>
 
 
-                                <div>
-                                    <div class="meta-label">
+                                <div class="sample-cell">
+
+                                    <div class="label">
                                         Specimen
                                     </div>
 
-                                    <div class="meta-value">
+                                    <div class="value">
                                         {{ $sample?->specimen_type ?? '—' }}
                                     </div>
+
                                 </div>
 
 
-                                <div>
-                                    <div class="meta-label">
+                                <div class="sample-cell">
+
+                                    <div class="label">
                                         Collected At
                                     </div>
 
-                                    <div class="meta-value">
-                                        {{ $sample?->collected_at?->format('d M Y, h:i A') ?? '—' }}
+                                    <div class="value">
+
+                                        {{
+                                            $sample?->collected_at?->format(
+                                                'd M Y, h:i A'
+                                            )
+                                            ?? '—'
+                                        }}
+
                                     </div>
+
                                 </div>
 
 
-                                <div>
-                                    <div class="meta-label">
+                                <div class="sample-cell">
+
+                                    <div class="label">
                                         Reported At
                                     </div>
 
-                                    <div class="meta-value">
-                                        {{ $result?->entered_at?->format('d M Y, h:i A') ?? '—' }}
+                                    <div class="value">
+
+                                        {{
+                                            $result?->entered_at?->format(
+                                                'd M Y, h:i A'
+                                            )
+                                            ?? '—'
+                                        }}
+
                                     </div>
+
                                 </div>
+
 
                             </div>
 
+
                         @endif
+
 
                     </div>
 
 
-                    {{-- STRUCTURED RESULT TABLE --}}
-                    <div class="result-panel">
+                    {{-- SINGLE INVESTIGATION --}}
+                    <section class="test">
 
-                        <div class="result-panel-head">
 
-                            <div class="result-panel-title">
-                                Test Results
+                        <div class="test-head">
+
+
+                            <div>
+
+
+                                <div class="test-name">
+                                    {{ $serviceOrderItem->service_name }}
+                                </div>
+
+
+                                <div class="test-code">
+                                    {{ $serviceOrderItem->service_code ?: '—' }}
+                                </div>
+
+
                             </div>
 
-                            <div class="result-panel-status">
-                                {{ $reportStatus }}
+
+                            <div class="sample-summary">
+
+
+                                @if ($serviceOrderItem->requires_sample)
+
+                                    Sample:
+
+                                    {{ $sample?->sample_no ?? '—' }}
+
+                                    @if ($sample?->specimen_type)
+
+                                        ·
+                                        {{ $sample->specimen_type }}
+
+                                    @endif
+
+                                    <br>
+
+                                @endif
+
+
+                                Reported:
+
+                                {{
+                                    $result?->entered_at?->format(
+                                        'd M Y, h:i A'
+                                    )
+                                    ?? '—'
+                                }}
+
+
                             </div>
+
 
                         </div>
 
 
                         @if ($resultItems->count())
 
-                            <table class="result-table">
+
+                            <table class="results">
+
 
                                 <thead>
+
+
                                     <tr>
-                                        <th style="width: 31%;">
+
+
+                                        <th style="width:31%;">
                                             Parameter
                                         </th>
 
-                                        <th style="width: 18%;">
+
+                                        <th style="width:18%;">
                                             Result
                                         </th>
 
-                                        <th style="width: 15%;">
+
+                                        <th style="width:15%;">
                                             Unit
                                         </th>
 
-                                        <th style="width: 25%;">
+
+                                        <th style="width:25%;">
                                             Reference Range
                                         </th>
 
-                                        <th style="width: 11%; text-align:center;">
+
+                                        <th style="width:11%; text-align:center;">
                                             Flag
                                         </th>
+
+
                                     </tr>
+
+
                                 </thead>
 
 
                                 <tbody>
 
+
                                     @foreach ($resultItems as $item)
 
+
                                         @php
+
                                             $flag = $item->flag;
 
-                                            if (! $flag) {
-                                                $rawResult = trim(str_replace(',', '', (string) $item->result_value));
-                                                $range = trim(str_replace(['–', '—', '−'], '-', (string) $item->reference_range));
 
-                                                if (preg_match('/^-?\d+(?:\.\d+)?$/', $rawResult)) {
-                                                    $numericResult = (float) $rawResult;
+                                            if (! $flag) {
+
+                                                $rawResult = trim(
+                                                    str_replace(
+                                                        ',',
+                                                        '',
+                                                        (string) $item->result_value
+                                                    )
+                                                );
+
+
+                                                $range = trim(
+                                                    str_replace(
+                                                        ['–', '—', '−'],
+                                                        '-',
+                                                        (string) $item->reference_range
+                                                    )
+                                                );
+
+
+                                                if (
+                                                    preg_match(
+                                                        '/^-?\d+(?:\.\d+)?$/',
+                                                        $rawResult
+                                                    )
+                                                ) {
+
+                                                    $numericResult =
+                                                        (float) $rawResult;
+
+
                                                     $matches = [];
 
-                                                    if (preg_match('/^<=\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
-                                                        $flag = $numericResult > (float) $matches[1] ? 'high' : null;
-                                                    } elseif (preg_match('/^<\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
-                                                        $flag = $numericResult >= (float) $matches[1] ? 'high' : null;
-                                                    } elseif (preg_match('/^>=\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
-                                                        $flag = $numericResult < (float) $matches[1] ? 'low' : null;
-                                                    } elseif (preg_match('/^>\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
-                                                        $flag = $numericResult <= (float) $matches[1] ? 'low' : null;
-                                                    } elseif (preg_match('/^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/', $range, $matches)) {
-                                                        $low = (float) $matches[1];
-                                                        $high = (float) $matches[2];
+
+                                                    if (
+                                                        preg_match(
+                                                            '/^<=\s*(-?\d+(?:\.\d+)?)$/',
+                                                            $range,
+                                                            $matches
+                                                        )
+                                                    ) {
+
+                                                        $flag =
+                                                            $numericResult > (float) $matches[1]
+                                                                ? 'high'
+                                                                : null;
+
+
+                                                    } elseif (
+                                                        preg_match(
+                                                            '/^<\s*(-?\d+(?:\.\d+)?)$/',
+                                                            $range,
+                                                            $matches
+                                                        )
+                                                    ) {
+
+                                                        $flag =
+                                                            $numericResult >= (float) $matches[1]
+                                                                ? 'high'
+                                                                : null;
+
+
+                                                    } elseif (
+                                                        preg_match(
+                                                            '/^>=\s*(-?\d+(?:\.\d+)?)$/',
+                                                            $range,
+                                                            $matches
+                                                        )
+                                                    ) {
+
+                                                        $flag =
+                                                            $numericResult < (float) $matches[1]
+                                                                ? 'low'
+                                                                : null;
+
+
+                                                    } elseif (
+                                                        preg_match(
+                                                            '/^>\s*(-?\d+(?:\.\d+)?)$/',
+                                                            $range,
+                                                            $matches
+                                                        )
+                                                    ) {
+
+                                                        $flag =
+                                                            $numericResult <= (float) $matches[1]
+                                                                ? 'low'
+                                                                : null;
+
+
+                                                    } elseif (
+                                                        preg_match(
+                                                            '/^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/',
+                                                            $range,
+                                                            $matches
+                                                        )
+                                                    ) {
+
+                                                        $low =
+                                                            (float) $matches[1];
+
+
+                                                        $high =
+                                                            (float) $matches[2];
+
 
                                                         if ($low > $high) {
-                                                            [$low, $high] = [$high, $low];
+
+                                                            [
+                                                                $low,
+                                                                $high
+                                                            ] = [
+                                                                $high,
+                                                                $low
+                                                            ];
+
                                                         }
 
-                                                        $flag = $numericResult < $low
-                                                            ? 'low'
-                                                            : ($numericResult > $high ? 'high' : null);
+
+                                                        $flag =
+                                                            $numericResult < $low
+                                                                ? 'low'
+                                                                : (
+                                                                    $numericResult > $high
+                                                                        ? 'high'
+                                                                        : null
+                                                                );
+
                                                     }
+
                                                 }
+
                                             }
 
-                                            $flagLabel = match ($flag) {
-                                                'low' => 'LOW',
-                                                'high' => 'HIGH',
-                                                'critical_low' => 'CRITICAL LOW',
-                                                'critical_high' => 'CRITICAL HIGH',
-                                                'abnormal' => 'ABNORMAL',
-                                                default => '—',
-                                            };
 
-                                            $flagClass = match ($flag) {
-                                                'critical_low',
-                                                'critical_high' =>
-                                                    'flag-critical',
+                                            $flagLabel =
+                                                match ($flag) {
 
-                                                'low',
-                                                'high',
-                                                'abnormal' =>
-                                                    'flag-abnormal',
+                                                    'low' =>
+                                                        'LOW',
 
-                                                default =>
-                                                    'flag-normal',
-                                            };
+                                                    'high' =>
+                                                        'HIGH',
 
-                                            $resultClass = match ($flag) {
-                                                'critical_low',
-                                                'critical_high' =>
-                                                    'result-critical',
+                                                    'critical_low' =>
+                                                        'CRITICAL LOW',
 
-                                                'low',
-                                                'high',
-                                                'abnormal' =>
-                                                    'result-abnormal',
+                                                    'critical_high' =>
+                                                        'CRITICAL HIGH',
 
-                                                default =>
-                                                    '',
-                                            };
+                                                    'abnormal' =>
+                                                        'ABNORMAL',
+
+                                                    default =>
+                                                        '—',
+
+                                                };
+
+
+                                            $valueClass =
+                                                match ($flag) {
+
+                                                    'critical_low',
+                                                    'critical_high' =>
+                                                        'critical',
+
+                                                    'low',
+                                                    'high',
+                                                    'abnormal' =>
+                                                        'abnormal',
+
+                                                    default =>
+                                                        '',
+
+                                                };
+
                                         @endphp
 
 
                                         <tr>
 
+
                                             <td>
-                                                <div class="parameter-name">
+
+
+                                                <strong>
                                                     {{ $item->parameter_name }}
-                                                </div>
+                                                </strong>
+
 
                                                 @if ($item->remarks)
 
-                                                    <div style="margin-top:2px; font-size: 11px; color:#7b8ba0;">
+
+                                                    <div class="result-remark">
+
                                                         {{ $item->remarks }}
+
                                                     </div>
 
+
                                                 @endif
+
+
                                             </td>
 
 
                                             <td>
-                                                <span class="parameter-result {{ $resultClass }}">
+
+
+                                                <span class="result-value {{ $valueClass }}">
+
                                                     {{ $item->result_value ?? '—' }}
+
                                                 </span>
+
+
                                             </td>
 
 
                                             <td>
+
                                                 {{ $item->unit ?: '—' }}
+
                                             </td>
 
 
                                             <td>
+
                                                 {{ $item->reference_range ?: '—' }}
+
                                             </td>
 
 
                                             <td style="text-align:center;">
-                                                <span class="flag-badge {{ $flagClass }}">
-                                                    {{ $flagLabel }}
-                                                </span>
+
+                                                {{ $flagLabel }}
+
                                             </td>
+
 
                                         </tr>
 
+
                                     @endforeach
 
+
                                 </tbody>
+
 
                             </table>
 
 
                         @elseif ($result?->result_text)
 
-                            <div style="padding:12px 14px; white-space:pre-wrap; font-size: 14px; line-height:1.5;">
+
+                            <div class="comment">
+
                                 {{ $result->result_text }}
+
                             </div>
 
 
                         @else
 
-                            <div style="padding:12px 14px; font-size: 14px; color:#a16207;">
+
+                            <div class="comment">
+
                                 No laboratory result details are available.
+
                             </div>
+
 
                         @endif
 
-                    </div>
+
+                        @if (
+                            $result?->result_text
+                            &&
+                            $resultItems->count()
+                        )
 
 
-                    {{-- COMMENT / INTERPRETATION --}}
-                    @if ($result?->result_text && $resultItems->count())
+                            <div class="comment">
 
-                        <div class="comment-box">
+                                <strong>
+                                    Comment:
+                                </strong>
 
-                            <div class="comment-title">
-                                Comments / Interpretation
-                            </div>
+                                {{ $result->result_text }}
 
-                            <div class="comment-text">{{ $result->result_text }}</div>
-
-                        </div>
-
-                    @endif
-
-
-                    {{-- REPORT FOOTER --}}
-                    <div class="report-footer">
-
-                        <div>
-
-                            <div class="meta-label">
-                                Reported By
-                            </div>
-
-                            <div class="meta-value" style="margin-bottom:6px;">
-                                {{ $result?->enteredBy?->name ?? '—' }}
                             </div>
 
 
-                            @if ($result?->verified_at)
-
-                                <div class="meta-label">
-                                    Verified By
-                                </div>
-
-                                <div class="meta-value">
-                                    {{ $result?->verifiedBy?->name ?? '—' }}
-                                    ·
-                                    {{ $result?->verified_at?->format('d M Y, h:i A') }}
-                                </div>
-
-                            @endif
+                        @endif
 
 
-                            <div class="footer-note" style="margin-top:7px;">
-                                Generated electronically from TCH Hospital ERP.
-                                Laboratory values should be interpreted in the appropriate clinical context.
-                                <br>
-                                Email: tchcare@yahoo.com
-                                &nbsp;•&nbsp;
-                                Website: www.turachristianhospital.org
+                    </section>
+
+
+                    {{-- COMPACT FOOTER --}}
+                    <div class="footer">
+
+
+                        <div class="footer-left">
+
+
+                            <div class="print-meta">
+
+                                Printed by:
+
+                                <strong>
+                                    {{ auth()->user()?->name ?? 'System' }}
+                                </strong>
+
+
+                                <span class="print-separator">
+                                    •
+                                </span>
+
+
+                                Printed on:
+
+                                <strong>
+                                    {{ now()->format('d M Y, h:i A') }}
+                                </strong>
+
                             </div>
+
+
+                            <div class="note">
+
+                                This report contains a finalized/verified
+                                laboratory investigation from
+                                Tura Christian Hospital.
+
+                                Laboratory results should be interpreted
+                                in the appropriate clinical context.
+
+                            </div>
+
 
                         </div>
 
 
                         <div class="signature">
-                            Authorized Signature
+
+                            Authorized Laboratory Signatory
+
                         </div>
+
 
                     </div>
 
+
                 </div>
 
-                        <x-print-audit />
 
                 {{-- SCREEN ACTIONS --}}
                 <div class="screen-actions screen-only">
+
 
                     <a
                         href="{{ route('laboratory.index') }}"
@@ -1141,21 +1816,37 @@
                         Print Laboratory Report
                     </button>
 
+
                 </div>
+
 
             </section>
 
+
         </div>
+
 
     </div>
 
 
     @if (request()->boolean('print'))
+
+
         <script>
-            window.addEventListener('load', function () {
-                window.print();
-            });
+
+            window.addEventListener(
+                'load',
+                function () {
+
+                    window.print();
+
+                }
+            );
+
         </script>
+
+
     @endif
+
 
 </x-app-layout>
