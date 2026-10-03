@@ -15,10 +15,10 @@ use Illuminate\View\View;
 
 class FinanceVoucherController extends Controller
 {
-                    public function __construct(
+    public function __construct(
         private readonly FinanceVoucherNumberService $voucherNumberService
-    ) {
-    }
+    ) {}
+
     /**
      * Display Finance vouchers.
      */
@@ -79,7 +79,7 @@ class FinanceVoucherController extends Controller
     {
         $type = $request->string('type')->toString();
 
-        if (!in_array($type, ['receipt', 'payment', 'transfer'], true)) {
+        if (! in_array($type, ['receipt', 'payment', 'transfer'], true)) {
             $type = 'receipt';
         }
 
@@ -95,6 +95,9 @@ class FinanceVoucherController extends Controller
             $heads = FinanceHead::query()
                 ->where('head_type', 'income')
                 ->where('is_active', true)
+                ->whereDoesntHave('children', function ($query) {
+                    $query->where('is_active', true);
+                })
                 ->orderBy('category')
                 ->orderBy('name')
                 ->get();
@@ -104,6 +107,9 @@ class FinanceVoucherController extends Controller
             $heads = FinanceHead::query()
                 ->where('head_type', 'expense')
                 ->where('is_active', true)
+                ->whereDoesntHave('children', function ($query) {
+                    $query->where('is_active', true);
+                })
                 ->orderBy('category')
                 ->orderBy('name')
                 ->get();
@@ -186,11 +192,10 @@ class FinanceVoucherController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$sourceAccount) {
+        if (! $sourceAccount) {
             return back()
                 ->withErrors([
-                    'finance_account_id' =>
-                        'The selected finance account is not active.',
+                    'finance_account_id' => 'The selected finance account is not active.',
                 ])
                 ->withInput();
         }
@@ -202,8 +207,7 @@ class FinanceVoucherController extends Controller
             if (empty($validated['finance_head_id'])) {
                 return back()
                     ->withErrors([
-                        'finance_head_id' =>
-                            'A finance head is required.',
+                        'finance_head_id' => 'A finance head is required.',
                     ])
                     ->withInput();
             }
@@ -213,11 +217,26 @@ class FinanceVoucherController extends Controller
                 ->where('is_active', true)
                 ->first();
 
-            if (!$head) {
+            if (! $head) {
                 return back()
                     ->withErrors([
-                        'finance_head_id' =>
-                            'The selected finance head is not active.',
+                        'finance_head_id' => 'The selected finance head is not active.',
+                    ])
+                    ->withInput();
+            }
+
+            /*
+            * Classification parent heads cannot receive vouchers directly.
+            * A voucher must use one of the active child heads instead.
+            */
+            if (
+                $head->children()
+                    ->where('is_active', true)
+                    ->exists()
+            ) {
+                return back()
+                    ->withErrors([
+                        'finance_head_id' => 'The selected finance head is a parent category. Please select a specific sub-head.',
                     ])
                     ->withInput();
             }
@@ -228,8 +247,7 @@ class FinanceVoucherController extends Controller
             if ($head->head_type !== $expectedHeadType) {
                 return back()
                     ->withErrors([
-                        'finance_head_id' =>
-                            'The selected finance head does not match the voucher type.',
+                        'finance_head_id' => 'The selected finance head does not match the voucher type.',
                     ])
                     ->withInput();
             }
@@ -246,8 +264,7 @@ class FinanceVoucherController extends Controller
             if (empty($validated['destination_account_id'])) {
                 return back()
                     ->withErrors([
-                        'destination_account_id' =>
-                            'Destination account is required for a transfer.',
+                        'destination_account_id' => 'Destination account is required for a transfer.',
                     ])
                     ->withInput();
             }
@@ -258,8 +275,7 @@ class FinanceVoucherController extends Controller
             ) {
                 return back()
                     ->withErrors([
-                        'destination_account_id' =>
-                            'Source and destination accounts must be different.',
+                        'destination_account_id' => 'Source and destination accounts must be different.',
                     ])
                     ->withInput();
             }
@@ -269,18 +285,17 @@ class FinanceVoucherController extends Controller
                 ->where('is_active', true)
                 ->first();
 
-            if (!$destinationAccount) {
+            if (! $destinationAccount) {
                 return back()
                     ->withErrors([
-                        'destination_account_id' =>
-                            'The destination account is not active.',
+                        'destination_account_id' => 'The destination account is not active.',
                     ])
                     ->withInput();
             }
         }
 
         $voucher = DB::transaction(function () use ($validated) {
-            $voucher = new FinanceVoucher();
+            $voucher = new FinanceVoucher;
 
             $voucher->voucher_no =
     $this->voucherNumberService->generate(
@@ -362,8 +377,7 @@ class FinanceVoucherController extends Controller
     ): RedirectResponse {
         if ($financeVoucher->status !== 'draft') {
             return back()->withErrors([
-                'voucher' =>
-                    'Only draft vouchers can be posted.',
+                'voucher' => 'Only draft vouchers can be posted.',
             ]);
         }
 
@@ -409,8 +423,7 @@ class FinanceVoucherController extends Controller
 
         if ($financeVoucher->status !== 'posted') {
             return back()->withErrors([
-                'voucher' =>
-                    'Only posted vouchers can be cancelled.',
+                'voucher' => 'Only posted vouchers can be cancelled.',
             ]);
         }
 
@@ -440,6 +453,4 @@ class FinanceVoucherController extends Controller
             'Finance voucher cancelled successfully.'
         );
     }
-
-
 }
