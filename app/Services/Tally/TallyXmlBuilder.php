@@ -20,13 +20,27 @@ class TallyXmlBuilder
         ]);
 
         $entries = $this->ledgerEntries($voucher);
+        $voucherType = $this->tallyVoucherType($voucher);
+        $date = $voucher->voucher_date->format('Ymd');
 
         $xml = new SimpleXMLElement(
             '<?xml version="1.0" encoding="UTF-8"?><ENVELOPE></ENVELOPE>'
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Import Header
+        |--------------------------------------------------------------------------
+        */
+
         $header = $xml->addChild('HEADER');
         $header->addChild('TALLYREQUEST', 'Import Data');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Import Body
+        |--------------------------------------------------------------------------
+        */
 
         $body = $xml->addChild('BODY');
         $importData = $body->addChild('IMPORTDATA');
@@ -35,13 +49,21 @@ class TallyXmlBuilder
         $requestDesc->addChild('REPORTNAME', 'Vouchers');
 
         $requestData = $importData->addChild('REQUESTDATA');
+
         $message = $requestData->addChild('TALLYMESSAGE');
+        $message->addAttribute('xmlns:UDF', 'TallyUDF');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Voucher
+        |--------------------------------------------------------------------------
+        */
 
         $voucherNode = $message->addChild('VOUCHER');
 
         $voucherNode->addAttribute(
             'VCHTYPE',
-            $this->tallyVoucherType($voucher)
+            $voucherType
         );
 
         $voucherNode->addAttribute(
@@ -49,27 +71,20 @@ class TallyXmlBuilder
             'Create'
         );
 
+        $voucherNode->addAttribute(
+            'OBJVIEW',
+            'Accounting Voucher View'
+        );
+
         $voucherNode->addChild(
             'DATE',
-            $voucher->voucher_date->format('Ymd')
+            $date
         );
 
         $voucherNode->addChild(
-            'VOUCHERTYPENAME',
-            $this->tallyVoucherType($voucher)
+            'VCHSTATUSDATE',
+            $date
         );
-
-        $voucherNode->addChild(
-            'VOUCHERNUMBER',
-            $this->escape($voucher->voucher_no)
-        );
-
-        if (filled($voucher->reference_no)) {
-            $voucherNode->addChild(
-                'REFERENCE',
-                $this->escape($voucher->reference_no)
-            );
-        }
 
         if (filled($voucher->narration)) {
             $voucherNode->addChild(
@@ -77,6 +92,94 @@ class TallyXmlBuilder
                 $this->escape($voucher->narration)
             );
         }
+
+        $voucherNode->addChild(
+            'VOUCHERTYPENAME',
+            $voucherType
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Party Ledger
+        |--------------------------------------------------------------------------
+        | Receipt  : Cash / Bank receiving the money
+        | Payment  : Cash / Bank paying the money
+        | Contra   : Source Cash / Bank account
+        |--------------------------------------------------------------------------
+        */
+
+        $voucherNode->addChild(
+            'PARTYLEDGERNAME',
+            $this->escape(
+                $this->partyLedger($voucher)
+            )
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | ERP Reference
+        |--------------------------------------------------------------------------
+        | Let Tally maintain its own voucher numbering.
+        | Store the ERP voucher number as the reference for reconciliation.
+        |--------------------------------------------------------------------------
+        */
+
+        $reference = filled($voucher->reference_no)
+            ? $voucher->reference_no
+            : $voucher->voucher_no;
+
+        $voucherNode->addChild(
+            'REFERENCE',
+            $this->escape($reference)
+        );
+
+        $voucherNode->addChild(
+            'PERSISTEDVIEW',
+            'Accounting Voucher View'
+        );
+
+        $voucherNode->addChild(
+            'EFFECTIVEDATE',
+            $date
+        );
+
+        $voucherNode->addChild(
+            'ISOPTIONAL',
+            'No'
+        );
+
+        $voucherNode->addChild(
+            'ISCANCELLED',
+            'No'
+        );
+
+        $voucherNode->addChild(
+            'ISPOSTDATED',
+            'No'
+        );
+
+        $voucherNode->addChild(
+            'ISINVOICE',
+            'No'
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Ledger Entries
+        |--------------------------------------------------------------------------
+        |
+        | Tally's own exported XML uses:
+        |
+        | Debit:
+        |   ISDEEMEDPOSITIVE = Yes
+        |   AMOUNT            = negative
+        |
+        | Credit:
+        |   ISDEEMEDPOSITIVE = No
+        |   AMOUNT            = positive
+        |
+        |--------------------------------------------------------------------------
+        */
 
         foreach ($entries as $entry) {
             $ledgerEntry = $voucherNode->addChild(
@@ -91,6 +194,11 @@ class TallyXmlBuilder
             $ledgerEntry->addChild(
                 'ISDEEMEDPOSITIVE',
                 $entry['debit'] ? 'Yes' : 'No'
+            );
+
+            $ledgerEntry->addChild(
+                'ISPARTYLEDGER',
+                $entry['party'] ? 'Yes' : 'No'
             );
 
             $ledgerEntry->addChild(
@@ -117,7 +225,8 @@ class TallyXmlBuilder
      * @return array<int, array{
      *     ledger: string,
      *     amount: float,
-     *     debit: bool
+     *     debit: bool,
+     *     party: bool
      * }>
      */
     private function ledgerEntries(FinanceVoucher $voucher): array
@@ -136,24 +245,29 @@ class TallyXmlBuilder
         |--------------------------------------------------------------------------
         | Debit  : Cash / Bank
         | Credit : Income
+        |
+        | Order mirrors TallyPrime's own exported Receipt XML:
+        | Income first, Cash / Bank second.
         |--------------------------------------------------------------------------
         */
 
         if ($voucher->voucher_type === 'receipt') {
             return [
                 [
-                    'ledger' => $this->accountLedger(
-                        $voucher->financeAccount
-                    ),
-                    'amount' => $amount,
-                    'debit' => true,
-                ],
-                [
                     'ledger' => $this->headLedger(
                         $voucher->financeHead
                     ),
                     'amount' => $amount,
                     'debit' => false,
+                    'party' => false,
+                ],
+                [
+                    'ledger' => $this->accountLedger(
+                        $voucher->financeAccount
+                    ),
+                    'amount' => $amount,
+                    'debit' => true,
+                    'party' => true,
                 ],
             ];
         }
@@ -175,6 +289,7 @@ class TallyXmlBuilder
                     ),
                     'amount' => $amount,
                     'debit' => true,
+                    'party' => false,
                 ],
                 [
                     'ledger' => $this->accountLedger(
@@ -182,6 +297,7 @@ class TallyXmlBuilder
                     ),
                     'amount' => $amount,
                     'debit' => false,
+                    'party' => true,
                 ],
             ];
         }
@@ -203,6 +319,7 @@ class TallyXmlBuilder
                     ),
                     'amount' => $amount,
                     'debit' => true,
+                    'party' => false,
                 ],
                 [
                     'ledger' => $this->accountLedger(
@@ -210,6 +327,7 @@ class TallyXmlBuilder
                     ),
                     'amount' => $amount,
                     'debit' => false,
+                    'party' => true,
                 ],
             ];
         }
@@ -232,6 +350,24 @@ class TallyXmlBuilder
             default => throw new RuntimeException(
                 sprintf(
                     'Voucher type "%s" is not supported.',
+                    $voucher->voucher_type
+                )
+            ),
+        };
+    }
+
+    private function partyLedger(FinanceVoucher $voucher): string
+    {
+        return match ($voucher->voucher_type) {
+            'receipt',
+            'payment',
+            'transfer' => $this->accountLedger(
+                $voucher->financeAccount
+            ),
+
+            default => throw new RuntimeException(
+                sprintf(
+                    'Voucher type "%s" has no supported party ledger.',
                     $voucher->voucher_type
                 )
             ),
