@@ -92,6 +92,8 @@ class TallyExportController extends Controller
     /**
      * Generate and download Tally XML for one posted Finance voucher.
      *
+     * A normal export is allowed only once.
+     *
      * "exported" means the ERP successfully generated the XML file.
      * It does not mean that Tally has confirmed the import.
      */
@@ -105,6 +107,14 @@ class TallyExportController extends Controller
             $tallyExportService,
             $tallyXmlBuilder
         ): array {
+            /*
+            |--------------------------------------------------------------------------
+            | Lock Voucher
+            |--------------------------------------------------------------------------
+            | Prevent two simultaneous requests from exporting the same voucher.
+            |--------------------------------------------------------------------------
+            */
+
             $voucher = FinanceVoucher::query()
                 ->whereKey($financeVoucher->getKey())
                 ->lockForUpdate()
@@ -117,6 +127,31 @@ class TallyExportController extends Controller
                 'tallyExport',
             ]);
 
+            /*
+            |--------------------------------------------------------------------------
+            | Duplicate Export Protection
+            |--------------------------------------------------------------------------
+            | Once an export record exists, normal Download XML is blocked.
+            | Re-export should be handled later through a separate explicit action.
+            |--------------------------------------------------------------------------
+            */
+
+            if ($voucher->tallyExport !== null) {
+                return [
+                    'ok' => false,
+                    'errors' => [
+                        'Voucher '.$voucher->voucher_no
+                        .' has already been exported to Tally.',
+                    ],
+                ];
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Export Eligibility
+            |--------------------------------------------------------------------------
+            */
+
             $eligibility = $tallyExportService
                 ->checkEligibility($voucher);
 
@@ -127,25 +162,43 @@ class TallyExportController extends Controller
                 ];
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Build XML
+            |--------------------------------------------------------------------------
+            */
+
             $xml = $tallyXmlBuilder->build($voucher);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Export Reference
+            |--------------------------------------------------------------------------
+            */
 
             $exportReference = 'TALLY-'.Str::upper(
                 Str::uuid()->toString()
             );
 
-            TallyExport::updateOrCreate(
-                [
-                    'finance_voucher_id' => $voucher->id,
-                ],
-                [
-                    'status' => 'exported',
-                    'export_reference' => $exportReference,
-                    'exported_at' => now(),
-                    'exported_by' => auth()->id(),
-                    'confirmed_at' => null,
-                    'error_message' => null,
-                ]
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | Record Export
+            |--------------------------------------------------------------------------
+            | finance_voucher_id is unique in tally_exports, providing a second
+            | database-level safeguard against duplicate export records.
+            |--------------------------------------------------------------------------
+            */
+
+            TallyExport::create([
+                'finance_voucher_id' => $voucher->id,
+                'status' => 'exported',
+                'export_reference' => $exportReference,
+                'exported_at' => now(),
+                'exported_by' => auth()->id(),
+                'confirmed_at' => null,
+                'error_message' => null,
+                'remarks' => null,
+            ]);
 
             return [
                 'ok' => true,
@@ -153,6 +206,12 @@ class TallyExportController extends Controller
                 'filename' => $this->filename($voucher),
             ];
         });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Failed Export
+        |--------------------------------------------------------------------------
+        */
 
         if (! $result['ok']) {
             return redirect()
@@ -162,6 +221,12 @@ class TallyExportController extends Controller
                     implode(' ', $result['errors'])
                 );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Download XML
+        |--------------------------------------------------------------------------
+        */
 
         return response(
             $result['xml'],
