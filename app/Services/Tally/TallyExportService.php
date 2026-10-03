@@ -41,8 +41,14 @@ class TallyExportService
         |--------------------------------------------------------------------------
         */
 
-        if ($voucher->tallyExport !== null) {
-            $errors[] = 'This Finance voucher already has a Tally export record.';
+        if (
+            $voucher->tallyExport !== null
+            && (
+                $voucher->tallyExport->status === 'exported'
+                || $voucher->tallyExport->confirmed_at !== null
+            )
+        ) {
+            $errors[] = 'This Finance voucher has already been exported to Tally.';
         }
 
         /*

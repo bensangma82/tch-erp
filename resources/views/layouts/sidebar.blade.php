@@ -819,10 +819,15 @@
         Finance Master
     </a>
 
-    <a href="{{ route('finance.tally.index') }}"
-       class="block rounded-md px-3 py-1.5 text-[12.5px] transition {{ request()->routeIs('finance.tally.*') ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-white' }}">
-        Tally Integration
-    </a>
+   <a href="{{ route('finance.tally.index') }}"
+   class="block rounded-md px-3 py-1.5 text-[12.5px] transition {{ request()->routeIs('finance.tally.index', 'finance.tally.heads.*', 'finance.tally.accounts.*') ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-white' }}">
+    Tally Integration
+</a>
+
+<a href="{{ route('finance.tally.exports.index') }}"
+   class="block rounded-md px-3 py-1.5 text-[12.5px] transition {{ request()->routeIs('finance.tally.exports.*') ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-white' }}">
+    Tally Export
+</a>
 @endif
 
                         </div>

@@ -314,13 +314,28 @@
                                                 </div>
                                             @endif
                                         @elseif ($check['eligible'])
-                                            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
-                                                Ready
-                                            </span>
+    <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
+        Ready
+    </span>
 
-                                            <div class="mt-2 text-xs text-gray-500">
-                                                All required Tally ledger mappings are available.
-                                            </div>
+    <div class="mt-2 text-xs text-gray-500">
+        All required Tally ledger mappings are available.
+    </div>
+
+    <form
+        method="POST"
+        action="{{ route('finance.tally.exports.download', $voucher) }}"
+        class="mt-3"
+    >
+        @csrf
+
+        <button
+            type="submit"
+            class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        >
+            Download XML
+        </button>
+    </form>
                                         @else
                                             <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
                                                 Blocked

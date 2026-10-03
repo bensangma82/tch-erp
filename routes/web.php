@@ -850,6 +850,11 @@ Route::middleware([
             [TallyExportController::class, 'index']
         )->name('finance.tally.exports.index');
 
+        Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/download',
+    [TallyExportController::class, 'download']
+)->name('finance.tally.exports.download');
+
         /*
 |--------------------------------------------------------------------------
 | Finance Vouchers
