@@ -137,7 +137,12 @@ class TallyExportController extends Controller
                 ];
             }
 
-            $xml = $tallyXmlBuilder->build($voucher);
+            $remoteId = Str::uuid()->toString();
+
+            $xml = $tallyXmlBuilder->build(
+                $voucher,
+                $remoteId
+            );
 
             $exportReference = 'TALLY-'.Str::upper(
                 Str::uuid()->toString()
@@ -147,6 +152,7 @@ class TallyExportController extends Controller
                 'finance_voucher_id' => $voucher->id,
                 'status' => 'exported',
                 'export_reference' => $exportReference,
+                'remote_id' => $remoteId,
                 'exported_at' => now(),
                 'exported_by' => auth()->id(),
                 'confirmed_at' => null,
@@ -228,7 +234,12 @@ class TallyExportController extends Controller
                 ];
             }
 
-            $xml = $tallyXmlBuilder->build($voucher);
+            $remoteId = Str::uuid()->toString();
+
+            $xml = $tallyXmlBuilder->build(
+                $voucher,
+                $remoteId
+            );
 
             $exportReference = 'TALLY-'.Str::upper(
                 Str::uuid()->toString()
@@ -238,10 +249,13 @@ class TallyExportController extends Controller
                 'finance_voucher_id' => $voucher->id,
                 'status' => 'sending',
                 'export_reference' => $exportReference,
+                'remote_id' => $remoteId,
+                'tally_voucher_id' => null,
                 'exported_at' => null,
                 'exported_by' => auth()->id(),
                 'confirmed_at' => null,
                 'error_message' => null,
+                'tally_response' => null,
                 'remarks' => 'Direct Tally send initiated.',
             ]);
 
@@ -304,6 +318,8 @@ class TallyExportController extends Controller
                 ->whereKey($prepared['export_id'])
                 ->update([
                     'status' => 'confirmed',
+                    'tally_voucher_id' => $parsed['last_voucher_id'],
+                    'tally_response' => $parsed['raw'],
                     'exported_at' => now(),
                     'confirmed_at' => now(),
                     'error_message' => null,
@@ -323,6 +339,8 @@ class TallyExportController extends Controller
             ->whereKey($prepared['export_id'])
             ->update([
                 'status' => 'failed',
+                'tally_voucher_id' => $parsed['last_voucher_id'],
+                'tally_response' => $parsed['raw'],
                 'exported_at' => now(),
                 'confirmed_at' => null,
                 'error_message' => $parsed['message']
@@ -531,7 +549,16 @@ class TallyExportController extends Controller
                 ];
             }
 
-            $xml = $tallyXmlBuilder->build($voucher);
+            $remoteId = $voucher->tallyExport->remote_id;
+
+            if (blank($remoteId)) {
+                $remoteId = Str::uuid()->toString();
+            }
+
+            $xml = $tallyXmlBuilder->build(
+                $voucher,
+                $remoteId
+            );
 
             $exportReference = 'TALLY-'.Str::upper(
                 Str::uuid()->toString()
@@ -540,6 +567,9 @@ class TallyExportController extends Controller
             $voucher->tallyExport->update([
                 'status' => 'exported',
                 'export_reference' => $exportReference,
+                'remote_id' => $remoteId,
+                'tally_voucher_id' => null,
+                'tally_response' => null,
                 'exported_at' => now(),
                 'exported_by' => auth()->id(),
                 'confirmed_at' => null,
@@ -570,6 +600,232 @@ class TallyExportController extends Controller
                 'Content-Disposition' => 'attachment; filename="'.$result['filename'].'"',
             ]
         );
+    }
+
+    /**
+     * Retry a failed voucher directly to TallyPrime.
+     *
+     * The existing REMOTEID is reused so Tally can identify the same voucher.
+     * If Tally has already created the voucher, the same identity can be altered
+     * instead of creating a duplicate.
+     */
+    public function retryDirect(
+        FinanceVoucher $financeVoucher,
+        TallyExportService $tallyExportService,
+        TallyXmlBuilder $tallyXmlBuilder,
+        TallyHttpClient $tallyHttpClient,
+        TallyResponseParser $tallyResponseParser
+    ): RedirectResponse {
+        $prepared = DB::transaction(function () use (
+            $financeVoucher,
+            $tallyExportService,
+            $tallyXmlBuilder
+        ): array {
+            $voucher = FinanceVoucher::query()
+                ->whereKey($financeVoucher->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $voucher->load([
+                'financeHead.tallyMapping',
+                'financeAccount.tallyMapping',
+                'destinationAccount.tallyMapping',
+                'tallyExport',
+            ]);
+
+            if ($voucher->tallyExport === null) {
+                return [
+                    'ok' => false,
+                    'message' => 'This voucher has never been exported to Tally.',
+                ];
+            }
+
+            if ($voucher->tallyExport->status !== 'failed') {
+                return [
+                    'ok' => false,
+                    'message' => 'Only failed Tally vouchers can be retried directly.',
+                ];
+            }
+
+            $eligibility = $tallyExportService
+                ->checkEligibility($voucher);
+
+            if (! $eligibility['eligible']) {
+                return [
+                    'ok' => false,
+                    'message' => implode(
+                        ' ',
+                        $eligibility['errors']
+                    ),
+                ];
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Stable Tally Identity
+            |--------------------------------------------------------------------------
+            */
+
+            $remoteId = $voucher->tallyExport->remote_id;
+
+            if (blank($remoteId)) {
+                $remoteId = Str::uuid()->toString();
+            }
+
+            $xml = $tallyXmlBuilder->build(
+                $voucher,
+                $remoteId
+            );
+
+            $exportReference = 'TALLY-'.Str::upper(
+                Str::uuid()->toString()
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Mark Sending Before Network Call
+            |--------------------------------------------------------------------------
+            */
+
+            $voucher->tallyExport->update([
+                'status' => 'sending',
+                'export_reference' => $exportReference,
+                'remote_id' => $remoteId,
+                'exported_by' => auth()->id(),
+                'confirmed_at' => null,
+                'error_message' => null,
+                'remarks' => 'Direct Tally retry initiated.',
+            ]);
+
+            return [
+                'ok' => true,
+                'voucher_no' => $voucher->voucher_no,
+                'xml' => $xml,
+                'export_id' => $voucher->tallyExport->id,
+            ];
+        });
+
+        if (! $prepared['ok']) {
+            return redirect()
+                ->route('finance.tally.exports.index')
+                ->with(
+                    'error',
+                    $prepared['message']
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Send to Tally
+        |--------------------------------------------------------------------------
+        */
+
+        try {
+            $responseXml = $tallyHttpClient->postXml(
+                $prepared['xml']
+            );
+        } catch (Throwable $exception) {
+            TallyExport::query()
+                ->whereKey($prepared['export_id'])
+                ->update([
+                    'status' => 'unknown',
+                    'error_message' => 'Tally retry result is uncertain: '
+                        .$exception->getMessage(),
+                    'remarks' => 'Direct retry attempted. Check Tally manually before another retry.',
+                ]);
+
+            return redirect()
+                ->route('finance.tally.exports.index')
+                ->with(
+                    'error',
+                    'The retry result for '
+                    .$prepared['voucher_no']
+                    .' is uncertain. Check Tally before attempting another retry.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Parse Tally Response
+        |--------------------------------------------------------------------------
+        */
+
+        $parsed = $tallyResponseParser->parse(
+            $responseXml
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Success
+        |--------------------------------------------------------------------------
+        |
+        | Tally may return either CREATED=1 or ALTERED=1.
+        |--------------------------------------------------------------------------
+        */
+
+        if ($parsed['success']) {
+            $remarks = 'Direct Tally retry successful.'
+                .' Created: '.$parsed['created']
+                .'; Altered: '.$parsed['altered'];
+
+            if ($parsed['last_voucher_id'] !== null) {
+                $remarks .= '; Tally Voucher ID: '
+                    .$parsed['last_voucher_id'];
+            }
+
+            TallyExport::query()
+                ->whereKey($prepared['export_id'])
+                ->update([
+                    'status' => 'confirmed',
+                    'tally_voucher_id' => $parsed['last_voucher_id'],
+                    'tally_response' => $parsed['raw'],
+                    'exported_at' => now(),
+                    'confirmed_at' => now(),
+                    'error_message' => null,
+                    'remarks' => $remarks,
+                ]);
+
+            return redirect()
+                ->route('finance.tally.exports.index')
+                ->with(
+                    'success',
+                    'Voucher '.$prepared['voucher_no']
+                    .' was retried successfully in Tally.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Explicit Tally Failure
+        |--------------------------------------------------------------------------
+        */
+
+        TallyExport::query()
+            ->whereKey($prepared['export_id'])
+            ->update([
+                'status' => 'failed',
+                'tally_voucher_id' => $parsed['last_voucher_id'],
+                'tally_response' => $parsed['raw'],
+                'exported_at' => now(),
+                'confirmed_at' => null,
+                'error_message' => $parsed['message']
+                    ?? 'TallyPrime rejected the retry.',
+                'remarks' => 'Direct Tally retry failed.'
+                    .' Created: '.$parsed['created']
+                    .'; Altered: '.$parsed['altered']
+                    .'; Ignored: '.$parsed['ignored']
+                    .'; Errors: '.$parsed['errors'],
+            ]);
+
+        return redirect()
+            ->route('finance.tally.exports.index')
+            ->with(
+                'error',
+                'TallyPrime rejected retry for '
+                .$prepared['voucher_no']
+                .': '
+                .($parsed['message'] ?? 'Unknown Tally error.')
+            );
     }
 
     /**

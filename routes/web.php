@@ -894,6 +894,10 @@ Route::post(
     '/admin/finance/tally/exports/{financeVoucher}/re-export',
     [TallyExportController::class, 'reExport']
 )->name('finance.tally.exports.re-export');
+Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/retry-direct',
+    [TallyExportController::class, 'retryDirect']
+)->name('finance.tally.exports.retry-direct');
         /*
 |--------------------------------------------------------------------------
 | Finance Vouchers

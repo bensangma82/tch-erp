@@ -424,7 +424,21 @@
                     </div>
                 </div>
             @endif
+<form
+    method="POST"
+    action="{{ route('finance.tally.exports.retry-direct', $voucher) }}"
+    class="mt-3"
+>
+    @csrf
 
+    <button
+        type="submit"
+        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+        onclick="return confirm('Retry this failed voucher directly to TallyPrime using the same voucher identity?')"
+    >
+        Retry Direct Send
+    </button>
+</form>
             <form
                 method="POST"
                 action="{{ route('finance.tally.exports.re-export', $voucher) }}"

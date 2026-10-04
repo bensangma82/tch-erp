@@ -11,8 +11,10 @@ class TallyXmlBuilder
     /**
      * Build Tally-compatible XML for one Finance voucher.
      */
-    public function build(FinanceVoucher $voucher): string
-    {
+    public function build(
+        FinanceVoucher $voucher,
+        ?string $remoteId = null
+    ): string {
         $voucher->loadMissing([
             'financeHead.tallyMapping',
             'financeAccount.tallyMapping',
@@ -60,6 +62,13 @@ class TallyXmlBuilder
         */
 
         $voucherNode = $message->addChild('VOUCHER');
+
+        if (filled($remoteId)) {
+            $voucherNode->addAttribute(
+                'REMOTEID',
+                $remoteId
+            );
+        }
 
         $voucherNode->addAttribute(
             'VCHTYPE',
