@@ -1538,120 +1538,121 @@
 
             <td class="px-5 py-4">
 
-                <select
-                    class="medicine-select w-full min-w-[320px] rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                >
+                <div class="medicine-search-wrapper relative">
 
-                    <option
-                        value=""
-                        data-stock="0"
-                        data-price="0"
-                        data-gst="0"
-                        data-hsn=""
-                    >
-                        Select medicine
-                    </option>
+    <input
+        type="text"
+        class="medicine-search-input w-full min-w-[320px] rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+        placeholder="Type medicine name, brand or strength..."
+        autocomplete="off"
+    >
 
+    <select
+        class="medicine-select hidden"
+    >
 
-                    @foreach ($medicines as $medicine)
+        <option
+            value=""
+            data-stock="0"
+            data-price="0"
+            data-gst="0"
+            data-hsn=""
+        >
+            Select medicine
+        </option>
 
-                        @php
+        @foreach ($medicines as $medicine)
 
-                            $estimatedBatch =
-                                $medicine
-                                    ->stockBatches()
-                                    ->where(
-                                        'is_active',
-                                        true
-                                    )
-                                    ->where(
-                                        'quantity_available',
-                                        '>',
-                                        0
-                                    )
-                                    ->where(
-                                        function ($query) {
-
-                                            $query
-                                                ->whereNull(
-                                                    'expiry_date'
-                                                )
-                                                ->orWhereDate(
-                                                    'expiry_date',
-                                                    '>=',
-                                                    today()
-                                                );
-
-                                        }
-                                    )
-                                    ->orderByRaw(
-                                        'CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END'
-                                    )
-                                    ->orderBy(
-                                        'expiry_date'
-                                    )
-                                    ->orderBy(
-                                        'received_date'
-                                    )
-                                    ->orderBy(
-                                        'id'
-                                    )
-                                    ->first();
-
-
-                            $estimatedPrice =
-                                $estimatedBatch?->selling_price
-                                ?? $medicine->default_selling_price
-                                ?? 0;
-
-
-                            $gstPercent =
-                                (float) (
-                                    $medicine->gst_percent
-                                    ?? 0
+            @php
+                $estimatedBatch =
+                    $medicine
+                        ->stockBatches()
+                        ->where('is_active', true)
+                        ->where('quantity_available', '>', 0)
+                        ->where(function ($query) {
+                            $query
+                                ->whereNull('expiry_date')
+                                ->orWhereDate(
+                                    'expiry_date',
+                                    '>=',
+                                    today()
                                 );
+                        })
+                        ->orderByRaw(
+                            'CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END'
+                        )
+                        ->orderBy('expiry_date')
+                        ->orderBy('received_date')
+                        ->orderBy('id')
+                        ->first();
 
-                        @endphp
+                $estimatedPrice =
+                    $estimatedBatch?->selling_price
+                    ?? $medicine->default_selling_price
+                    ?? 0;
+
+                $gstPercent =
+                    (float) (
+                        $medicine->gst_percent
+                        ?? 0
+                    );
+
+                $medicineLabel =
+                    $medicine->generic_name
+                    . (
+                        $medicine->brand_name
+                            ? ' — ' . $medicine->brand_name
+                            : ''
+                    )
+                    . (
+                        $medicine->strength
+                            ? ' — ' . $medicine->strength
+                            : ''
+                    )
+                    . ' — GST '
+                    . number_format($gstPercent, 2)
+                    . '%'
+                    . ' (Stock: '
+                    . (int) ($medicine->available_stock ?? 0)
+                    . ')';
+
+                    $medicineInputLabel =
+    $medicine->generic_name
+    . (
+        $medicine->brand_name
+            ? ' — ' . $medicine->brand_name
+            : ''
+    )
+    . (
+        $medicine->strength
+            ? ' — ' . $medicine->strength
+            : ''
+    );
+            @endphp
+
+            <option
+                value="{{ $medicine->id }}"
+                data-stock="{{ (int) ($medicine->available_stock ?? 0) }}"
+                data-price="{{ (float) $estimatedPrice }}"
+                data-gst="{{ $gstPercent }}"
+                data-hsn="{{ $medicine->hsn_code ?? '' }}"
+                data-label="{{ $medicineLabel }}"
+                data-input-label="{{ $medicineInputLabel }}"
+            >
+                {{ $medicineLabel }}
+            </option>
+
+        @endforeach
+
+    </select>
 
 
-                        <option
-                            value="{{ $medicine->id }}"
-                            data-stock="{{ (int) ($medicine->available_stock ?? 0) }}"
-                            data-price="{{ (float) $estimatedPrice }}"
-                            data-gst="{{ $gstPercent }}"
-                            data-hsn="{{ $medicine->hsn_code ?? '' }}"
-                        >
+    <div
+        class="medicine-search-menu absolute z-50 mt-1 hidden max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl"
+    >
+    </div>
 
-                            {{ $medicine->generic_name }}
-
-                            @if ($medicine->brand_name)
-
-                                —
-                                {{ $medicine->brand_name }}
-
-                            @endif
-
-
-                            @if ($medicine->strength)
-
-                                —
-                                {{ $medicine->strength }}
-
-                            @endif
-
-
-                            — GST
-                            {{ number_format($gstPercent, 2) }}%
-
-                            (Stock:
-                            {{ (int) ($medicine->available_stock ?? 0) }})
-
-                        </option>
-
-                    @endforeach
-
-                </select>
+</div>
 
             </td>
 
@@ -2595,7 +2596,293 @@
 
                 }
 
+function initialiseMedicineSearch(row)
+{
+    const select =
+        row.querySelector(
+            '.medicine-select'
+        );
 
+    const input =
+        row.querySelector(
+            '.medicine-search-input'
+        );
+
+    const menu =
+        row.querySelector(
+            '.medicine-search-menu'
+        );
+
+    if (
+        ! select
+        ||
+        ! input
+        ||
+        ! menu
+    ) {
+        return;
+    }
+
+
+    const medicineOptions =
+        Array.from(select.options)
+            .filter(function (option) {
+                return option.value !== '';
+            });
+
+
+    function closeMenu()
+    {
+        menu.classList.add('hidden');
+    }
+
+
+    function selectMedicine(option)
+    {
+        select.value =
+            option.value;
+
+        input.value =
+    option.dataset.inputLabel
+    || option.dataset.label
+    || option.textContent.trim();
+
+        closeMenu();
+
+        select.dispatchEvent(
+            new Event(
+                'change',
+                {
+                    bubbles: true,
+                }
+            )
+        );
+    }
+
+
+    function renderOptions(searchText = '')
+    {
+        const query =
+            searchText
+                .trim()
+                .toLowerCase();
+
+        const matches =
+            medicineOptions
+                .filter(function (option) {
+
+                    const label =
+                        (
+                            option.dataset.label
+                            || option.textContent
+                            || ''
+                        )
+                            .toLowerCase();
+
+                    return query === ''
+                        || label.includes(query);
+                })
+                .slice(0, 30);
+
+
+        menu.innerHTML = '';
+
+
+        if (matches.length === 0)
+        {
+            const empty =
+                document.createElement('div');
+
+            empty.className =
+                'px-4 py-3 text-sm text-slate-500';
+
+            empty.textContent =
+                'No medicine found';
+
+            menu.appendChild(empty);
+
+            menu.classList.remove('hidden');
+
+            return;
+        }
+
+
+        matches.forEach(
+            function (option)
+            {
+                const button =
+                    document.createElement('button');
+
+                button.type =
+                    'button';
+
+                button.className =
+                    'block w-full border-b border-slate-100 px-4 py-3 text-left text-sm text-slate-700 last:border-b-0 hover:bg-blue-50';
+
+
+                const label =
+                    document.createElement('div');
+
+                label.className =
+                    'font-medium text-slate-900';
+
+                label.textContent =
+                    option.dataset.label
+                    || option.textContent.trim();
+
+
+                const details =
+                    document.createElement('div');
+
+                details.className =
+                    'mt-1 text-xs text-slate-500';
+
+                details.textContent =
+                    'Available: '
+                    + Number(
+                        option.dataset.stock
+                        || 0
+                    ).toLocaleString('en-IN')
+                    + '  ·  Rate: '
+                    + money(
+                        Number(
+                            option.dataset.price
+                            || 0
+                        )
+                    );
+
+
+                button.appendChild(label);
+                button.appendChild(details);
+
+
+                button.addEventListener(
+                    'mousedown',
+                    function (event)
+                    {
+                        event.preventDefault();
+
+                        selectMedicine(option);
+                    }
+                );
+
+
+                menu.appendChild(button);
+            }
+        );
+
+
+        menu.classList.remove('hidden');
+    }
+
+
+    input.addEventListener(
+        'focus',
+        function ()
+        {
+            renderOptions(
+                input.value
+            );
+        }
+    );
+
+
+    input.addEventListener(
+        'input',
+        function ()
+        {
+            /*
+            |--------------------------------------------------------------------------
+            | Clear previous selection while typing
+            |--------------------------------------------------------------------------
+            */
+
+            select.value = '';
+
+            updateRow(row);
+
+            renderOptions(
+                input.value
+            );
+        }
+    );
+
+
+    input.addEventListener(
+        'keydown',
+        function (event)
+        {
+            if (
+                event.key === 'Escape'
+            ) {
+                closeMenu();
+
+                input.blur();
+
+                return;
+            }
+
+
+            if (
+                event.key === 'Enter'
+            ) {
+                const firstButton =
+                    menu.querySelector(
+                        'button'
+                    );
+
+                if (firstButton)
+                {
+                    event.preventDefault();
+
+                    firstButton.dispatchEvent(
+                        new MouseEvent(
+                            'mousedown',
+                            {
+                                bubbles: true,
+                            }
+                        )
+                    );
+                }
+            }
+        }
+    );
+
+
+    input.addEventListener(
+        'blur',
+        function ()
+        {
+            window.setTimeout(
+                closeMenu,
+                150
+            );
+        }
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Restore medicine when editing / rebuilding a row
+    |--------------------------------------------------------------------------
+    */
+
+    if (select.value)
+    {
+        const selectedOption =
+            select.options[
+                select.selectedIndex
+            ];
+
+        if (selectedOption)
+        {
+           input.value =
+    selectedOption.dataset.inputLabel
+    || selectedOption.dataset.label
+    || selectedOption.textContent.trim();
+        }
+    }
+}
 
                 function updateRow(row)
                 {
@@ -2856,6 +3143,8 @@
 
                         }
                     );
+
+                    initialiseMedicineSearch(row);
 
 
                     quantity.addEventListener(
