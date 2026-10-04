@@ -462,7 +462,21 @@
         <div class="mt-2 text-xs text-gray-500">
             All required Tally ledger mappings are available.
         </div>
+<form
+    method="POST"
+    action="{{ route('finance.tally.exports.send', $voucher) }}"
+    class="mt-3"
+>
+    @csrf
 
+    <button
+        type="submit"
+        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+        onclick="return confirm('Send this voucher directly to TallyPrime?')"
+    >
+        Send to Tally
+    </button>
+</form>
         <form
             method="POST"
             action="{{ route('finance.tally.exports.download', $voucher) }}"

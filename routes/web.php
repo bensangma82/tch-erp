@@ -865,11 +865,35 @@ Route::middleware([
     [TallyExportController::class, 'markFailed']
 )->name('finance.tally.exports.fail');
 
+Route::get(
+    '/admin/finance/tally/exports',
+    [TallyExportController::class, 'index']
+)->name('finance.tally.exports.index');
+
+Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/download',
+    [TallyExportController::class, 'download']
+)->name('finance.tally.exports.download');
+
+Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/send',
+    [TallyExportController::class, 'send']
+)->name('finance.tally.exports.send');
+
+Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/confirm',
+    [TallyExportController::class, 'confirm']
+)->name('finance.tally.exports.confirm');
+
+Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/fail',
+    [TallyExportController::class, 'markFailed']
+)->name('finance.tally.exports.fail');
+
 Route::post(
     '/admin/finance/tally/exports/{financeVoucher}/re-export',
     [TallyExportController::class, 'reExport']
 )->name('finance.tally.exports.re-export');
-
         /*
 |--------------------------------------------------------------------------
 | Finance Vouchers
