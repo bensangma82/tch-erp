@@ -806,7 +806,7 @@
 
 
 
-                    <div class="overflow-x-auto">
+                   <div class="overflow-visible">
 
                         <table class="min-w-full divide-y divide-slate-200">
 
@@ -1538,18 +1538,40 @@
 
             <td class="px-5 py-4">
 
-                <div class="medicine-search-wrapper relative">
+               <div class="medicine-search-wrapper">
 
     <input
         type="text"
         class="medicine-search-input w-full min-w-[320px] rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
         placeholder="Type medicine name, brand or strength..."
         autocomplete="off"
+        list="medicine-search-list"
     >
 
-    <select
-        class="medicine-select hidden"
-    >
+    <datalist id="medicine-search-list">
+        @foreach ($medicines as $medicine)
+
+            @php
+                $medicineInputLabel =
+                    $medicine->generic_name
+                    . (
+                        $medicine->brand_name
+                            ? ' — ' . $medicine->brand_name
+                            : ''
+                    )
+                    . (
+                        $medicine->strength
+                            ? ' — ' . $medicine->strength
+                            : ''
+                    );
+            @endphp
+
+            <option value="{{ $medicineInputLabel }}"></option>
+
+        @endforeach
+    </datalist>
+
+    <select class="medicine-select hidden">
 
         <option
             value=""
@@ -1557,6 +1579,7 @@
             data-price="0"
             data-gst="0"
             data-hsn=""
+            data-input-label=""
         >
             Select medicine
         </option>
@@ -1592,12 +1615,9 @@
                     ?? 0;
 
                 $gstPercent =
-                    (float) (
-                        $medicine->gst_percent
-                        ?? 0
-                    );
+                    (float) ($medicine->gst_percent ?? 0);
 
-                $medicineLabel =
+                $medicineInputLabel =
                     $medicine->generic_name
                     . (
                         $medicine->brand_name
@@ -1608,26 +1628,7 @@
                         $medicine->strength
                             ? ' — ' . $medicine->strength
                             : ''
-                    )
-                    . ' — GST '
-                    . number_format($gstPercent, 2)
-                    . '%'
-                    . ' (Stock: '
-                    . (int) ($medicine->available_stock ?? 0)
-                    . ')';
-
-                    $medicineInputLabel =
-    $medicine->generic_name
-    . (
-        $medicine->brand_name
-            ? ' — ' . $medicine->brand_name
-            : ''
-    )
-    . (
-        $medicine->strength
-            ? ' — ' . $medicine->strength
-            : ''
-    );
+                    );
             @endphp
 
             <option
@@ -1636,15 +1637,16 @@
                 data-price="{{ (float) $estimatedPrice }}"
                 data-gst="{{ $gstPercent }}"
                 data-hsn="{{ $medicine->hsn_code ?? '' }}"
-                data-label="{{ $medicineLabel }}"
                 data-input-label="{{ $medicineInputLabel }}"
             >
-                {{ $medicineLabel }}
+                {{ $medicineInputLabel }}
             </option>
 
         @endforeach
 
     </select>
+
+</div>
 
 
     <div
@@ -2595,7 +2597,6 @@
                     calculateSummary();
 
                 }
-
 function initialiseMedicineSearch(row)
 {
     const select =
@@ -2608,46 +2609,60 @@ function initialiseMedicineSearch(row)
             '.medicine-search-input'
         );
 
-    const menu =
-        row.querySelector(
-            '.medicine-search-menu'
-        );
-
     if (
         ! select
         ||
         ! input
-        ||
-        ! menu
-    ) {
+    )
+    {
         return;
     }
 
 
-    const medicineOptions =
-        Array.from(select.options)
-            .filter(function (option) {
-                return option.value !== '';
-            });
-
-
-    function closeMenu()
+    function syncMedicine()
     {
-        menu.classList.add('hidden');
-    }
+        const typedValue =
+            input.value
+                .trim()
+                .toLowerCase();
 
 
-    function selectMedicine(option)
-    {
-        select.value =
-            option.value;
+        const matchingOption =
+            Array.from(
+                select.options
+            )
+                .find(function (option) {
 
-        input.value =
-    option.dataset.inputLabel
-    || option.dataset.label
-    || option.textContent.trim();
+                    if (! option.value)
+                    {
+                        return false;
+                    }
 
-        closeMenu();
+
+                    const label =
+                        (
+                            option.dataset.inputLabel
+                            || option.textContent
+                            || ''
+                        )
+                            .trim()
+                            .toLowerCase();
+
+
+                    return label === typedValue;
+                });
+
+
+        if (matchingOption)
+        {
+            select.value =
+                matchingOption.value;
+        }
+        else
+        {
+            select.value = '';
+        }
+
 
         select.dispatchEvent(
             new Event(
@@ -2660,212 +2675,17 @@ function initialiseMedicineSearch(row)
     }
 
 
-    function renderOptions(searchText = '')
-    {
-        const query =
-            searchText
-                .trim()
-                .toLowerCase();
-
-        const matches =
-            medicineOptions
-                .filter(function (option) {
-
-                    const label =
-                        (
-                            option.dataset.label
-                            || option.textContent
-                            || ''
-                        )
-                            .toLowerCase();
-
-                    return query === ''
-                        || label.includes(query);
-                })
-                .slice(0, 30);
-
-
-        menu.innerHTML = '';
-
-
-        if (matches.length === 0)
-        {
-            const empty =
-                document.createElement('div');
-
-            empty.className =
-                'px-4 py-3 text-sm text-slate-500';
-
-            empty.textContent =
-                'No medicine found';
-
-            menu.appendChild(empty);
-
-            menu.classList.remove('hidden');
-
-            return;
-        }
-
-
-        matches.forEach(
-            function (option)
-            {
-                const button =
-                    document.createElement('button');
-
-                button.type =
-                    'button';
-
-                button.className =
-                    'block w-full border-b border-slate-100 px-4 py-3 text-left text-sm text-slate-700 last:border-b-0 hover:bg-blue-50';
-
-
-                const label =
-                    document.createElement('div');
-
-                label.className =
-                    'font-medium text-slate-900';
-
-                label.textContent =
-                    option.dataset.label
-                    || option.textContent.trim();
-
-
-                const details =
-                    document.createElement('div');
-
-                details.className =
-                    'mt-1 text-xs text-slate-500';
-
-                details.textContent =
-                    'Available: '
-                    + Number(
-                        option.dataset.stock
-                        || 0
-                    ).toLocaleString('en-IN')
-                    + '  ·  Rate: '
-                    + money(
-                        Number(
-                            option.dataset.price
-                            || 0
-                        )
-                    );
-
-
-                button.appendChild(label);
-                button.appendChild(details);
-
-
-                button.addEventListener(
-                    'mousedown',
-                    function (event)
-                    {
-                        event.preventDefault();
-
-                        selectMedicine(option);
-                    }
-                );
-
-
-                menu.appendChild(button);
-            }
-        );
-
-
-        menu.classList.remove('hidden');
-    }
-
-
-    input.addEventListener(
-        'focus',
-        function ()
-        {
-            renderOptions(
-                input.value
-            );
-        }
-    );
-
-
     input.addEventListener(
         'input',
-        function ()
-        {
-            /*
-            |--------------------------------------------------------------------------
-            | Clear previous selection while typing
-            |--------------------------------------------------------------------------
-            */
-
-            select.value = '';
-
-            updateRow(row);
-
-            renderOptions(
-                input.value
-            );
-        }
+        syncMedicine
     );
 
 
     input.addEventListener(
-        'keydown',
-        function (event)
-        {
-            if (
-                event.key === 'Escape'
-            ) {
-                closeMenu();
-
-                input.blur();
-
-                return;
-            }
-
-
-            if (
-                event.key === 'Enter'
-            ) {
-                const firstButton =
-                    menu.querySelector(
-                        'button'
-                    );
-
-                if (firstButton)
-                {
-                    event.preventDefault();
-
-                    firstButton.dispatchEvent(
-                        new MouseEvent(
-                            'mousedown',
-                            {
-                                bubbles: true,
-                            }
-                        )
-                    );
-                }
-            }
-        }
+        'change',
+        syncMedicine
     );
 
-
-    input.addEventListener(
-        'blur',
-        function ()
-        {
-            window.setTimeout(
-                closeMenu,
-                150
-            );
-        }
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Restore medicine when editing / rebuilding a row
-    |--------------------------------------------------------------------------
-    */
 
     if (select.value)
     {
@@ -2874,12 +2694,12 @@ function initialiseMedicineSearch(row)
                 select.selectedIndex
             ];
 
+
         if (selectedOption)
         {
-           input.value =
-    selectedOption.dataset.inputLabel
-    || selectedOption.dataset.label
-    || selectedOption.textContent.trim();
+            input.value =
+                selectedOption.dataset.inputLabel
+                || selectedOption.textContent.trim();
         }
     }
 }
