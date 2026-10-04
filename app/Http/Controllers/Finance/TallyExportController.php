@@ -239,6 +239,63 @@ class TallyExportController extends Controller
     }
 
     /**
+     * Confirm that an exported voucher was successfully imported into Tally.
+     */
+    public function confirm(
+        FinanceVoucher $financeVoucher
+    ): RedirectResponse {
+        $result = DB::transaction(function () use (
+            $financeVoucher
+        ): array {
+            $voucher = FinanceVoucher::query()
+                ->whereKey($financeVoucher->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $voucher->load('tallyExport');
+
+            if ($voucher->tallyExport === null) {
+                return [
+                    'ok' => false,
+                    'message' => 'This voucher has not been exported to Tally yet.',
+                ];
+            }
+
+            if ($voucher->tallyExport->status === 'confirmed') {
+                return [
+                    'ok' => false,
+                    'message' => 'This voucher has already been confirmed as imported into Tally.',
+                ];
+            }
+
+            if ($voucher->tallyExport->status !== 'exported') {
+                return [
+                    'ok' => false,
+                    'message' => 'Only exported vouchers can be confirmed as imported.',
+                ];
+            }
+
+            $voucher->tallyExport->update([
+                'status' => 'confirmed',
+                'confirmed_at' => now(),
+                'error_message' => null,
+            ]);
+
+            return [
+                'ok' => true,
+                'message' => 'Voucher '.$voucher->voucher_no.' confirmed as imported into Tally.',
+            ];
+        });
+
+        return redirect()
+            ->route('finance.tally.exports.index')
+            ->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['message']
+            );
+    }
+
+    /**
      * Create a filesystem-safe XML filename.
      */
     private function filename(

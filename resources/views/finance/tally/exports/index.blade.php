@@ -32,6 +32,23 @@
     <div class="py-6">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
+            {{-- Flash Messages --}}
+            @if (session('success'))
+                <div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
+                    <div class="text-sm font-medium text-green-800">
+                        {{ session('success') }}
+                    </div>
+                </div>
+            @endif
+
+            @if (session('error'))
+                <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+                    <div class="text-sm font-medium text-red-800">
+                        {{ session('error') }}
+                    </div>
+                </div>
+            @endif
+
             {{-- Information --}}
             <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
                 <h3 class="text-sm font-semibold text-blue-900">
@@ -142,7 +159,7 @@
                 </form>
             </div>
 
-            {{-- Voucher table --}}
+            {{-- Voucher Table --}}
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
@@ -183,17 +200,21 @@
                                 @php
                                     $check = $eligibility[$voucher->id] ?? [
                                         'eligible' => false,
-                                        'errors' => ['Eligibility could not be determined.'],
+                                        'errors' => [
+                                            'Eligibility could not be determined.',
+                                        ],
                                     ];
 
                                     $export = $voucher->tallyExport;
                                 @endphp
 
                                 <tr class="align-top hover:bg-gray-50">
+                                    {{-- Date --}}
                                     <td class="whitespace-nowrap px-4 py-4 text-sm text-gray-700">
                                         {{ $voucher->voucher_date?->format('d-m-Y') }}
                                     </td>
 
+                                    {{-- Voucher --}}
                                     <td class="whitespace-nowrap px-4 py-4">
                                         <a
                                             href="{{ route('finance.vouchers.show', $voucher) }}"
@@ -203,6 +224,7 @@
                                         </a>
                                     </td>
 
+                                    {{-- Voucher Type --}}
                                     <td class="whitespace-nowrap px-4 py-4">
                                         @if ($voucher->voucher_type === 'receipt')
                                             <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
@@ -223,6 +245,7 @@
                                         @endif
                                     </td>
 
+                                    {{-- Finance Head --}}
                                     <td class="px-4 py-4 text-sm text-gray-700">
                                         @if ($voucher->financeHead)
                                             <div class="font-medium text-gray-900">
@@ -246,6 +269,7 @@
                                         @endif
                                     </td>
 
+                                    {{-- Account --}}
                                     <td class="px-4 py-4 text-sm text-gray-700">
                                         @if ($voucher->financeAccount)
                                             <div class="font-medium text-gray-900">
@@ -291,18 +315,35 @@
                                         @endif
                                     </td>
 
+                                    {{-- Amount --}}
                                     <td class="whitespace-nowrap px-4 py-4 text-right text-sm font-semibold text-gray-900">
                                         ₹{{ number_format((float) $voucher->amount, 2) }}
                                     </td>
 
+                                    {{-- Tally Status --}}
                                     <td class="min-w-64 px-4 py-4">
                                         @if ($export)
-                                            <span class="inline-flex rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800">
-                                                {{ ucfirst($export->status) }}
-                                            </span>
+                                            {{-- Existing Export --}}
+                                            @if ($export->status === 'confirmed')
+                                                <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
+                                                    Confirmed
+                                                </span>
+                                            @elseif ($export->status === 'exported')
+                                                <span class="inline-flex rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800">
+                                                    Exported
+                                                </span>
+                                            @elseif ($export->status === 'failed')
+                                                <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
+                                                    Failed
+                                                </span>
+                                            @else
+                                                <span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
+                                                    {{ ucfirst($export->status) }}
+                                                </span>
+                                            @endif
 
                                             @if ($export->export_reference)
-                                                <div class="mt-2 text-xs text-gray-500">
+                                                <div class="mt-2 break-all text-xs text-gray-500">
                                                     Ref:
                                                     {{ $export->export_reference }}
                                                 </div>
@@ -310,33 +351,75 @@
 
                                             @if ($export->exported_at)
                                                 <div class="mt-1 text-xs text-gray-500">
+                                                    Exported:
                                                     {{ $export->exported_at->format('d-m-Y H:i') }}
                                                 </div>
                                             @endif
+
+                                            {{-- Confirm Imported --}}
+                                            @if ($export->status === 'exported')
+                                                <form
+                                                    method="POST"
+                                                    action="{{ route('finance.tally.exports.confirm', $voucher) }}"
+                                                    class="mt-3"
+                                                >
+                                                    @csrf
+
+                                                    <button
+                                                        type="submit"
+                                                        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                                                        onclick="return confirm('Confirm that this voucher was successfully imported into Tally?')"
+                                                    >
+                                                        Confirm Imported
+                                                    </button>
+                                                </form>
+                                            @endif
+
+                                            {{-- Confirmed Timestamp --}}
+                                            @if (
+                                                $export->status === 'confirmed'
+                                                && $export->confirmed_at
+                                            )
+                                                <div class="mt-2 text-xs font-medium text-green-700">
+                                                    Confirmed:
+                                                    {{ $export->confirmed_at->format('d-m-Y H:i') }}
+                                                </div>
+                                            @endif
+
+                                            {{-- Error --}}
+                                            @if ($export->error_message)
+                                                <div class="mt-2 text-xs text-red-700">
+                                                    {{ $export->error_message }}
+                                                </div>
+                                            @endif
+
                                         @elseif ($check['eligible'])
-    <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
-        Ready
-    </span>
+                                            {{-- Ready for Export --}}
+                                            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
+                                                Ready
+                                            </span>
 
-    <div class="mt-2 text-xs text-gray-500">
-        All required Tally ledger mappings are available.
-    </div>
+                                            <div class="mt-2 text-xs text-gray-500">
+                                                All required Tally ledger mappings are available.
+                                            </div>
 
-    <form
-        method="POST"
-        action="{{ route('finance.tally.exports.download', $voucher) }}"
-        class="mt-3"
-    >
-        @csrf
+                                            <form
+                                                method="POST"
+                                                action="{{ route('finance.tally.exports.download', $voucher) }}"
+                                                class="mt-3"
+                                            >
+                                                @csrf
 
-        <button
-            type="submit"
-            class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-        >
-            Download XML
-        </button>
-    </form>
+                                                <button
+                                                    type="submit"
+                                                    class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                                >
+                                                    Download XML
+                                                </button>
+                                            </form>
+
                                         @else
+                                            {{-- Blocked --}}
                                             <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
                                                 Blocked
                                             </span>

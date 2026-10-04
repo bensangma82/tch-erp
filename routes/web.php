@@ -851,9 +851,14 @@ Route::middleware([
         )->name('finance.tally.exports.index');
 
         Route::post(
-    '/admin/finance/tally/exports/{financeVoucher}/download',
-    [TallyExportController::class, 'download']
-)->name('finance.tally.exports.download');
+            '/admin/finance/tally/exports/{financeVoucher}/download',
+            [TallyExportController::class, 'download']
+        )->name('finance.tally.exports.download');
+
+        Route::post(
+            '/admin/finance/tally/exports/{financeVoucher}/confirm',
+            [TallyExportController::class, 'confirm']
+        )->name('finance.tally.exports.confirm');
 
         /*
 |--------------------------------------------------------------------------
@@ -1834,12 +1839,12 @@ Route::middleware([
             ->whereNumber('serviceOrderItem')
             ->name('diagnostics.items.status');
 
-            Route::post(
-    '/diagnostics/orders/{serviceOrderId}/start-processing',
-    [DiagnosticWorklistController::class, 'bulkStartProcessing']
-)
-    ->whereNumber('serviceOrderId')
-    ->name('diagnostics.orders.start-processing');
+        Route::post(
+            '/diagnostics/orders/{serviceOrderId}/start-processing',
+            [DiagnosticWorklistController::class, 'bulkStartProcessing']
+        )
+            ->whereNumber('serviceOrderId')
+            ->name('diagnostics.orders.start-processing');
     });
 
     /*
@@ -1902,18 +1907,18 @@ Route::middleware([
             ->whereNumber('serviceOrderItem')
             ->name('diagnostics.items.sample.store');
 
-            Route::post(
-    '/diagnostics/orders/{serviceOrderId}/samples/collect',
-    [DiagnosticSampleController::class, 'bulkStore']
-)
-    ->whereNumber('serviceOrderId')
-    ->name('diagnostics.orders.samples.bulk-store');
+        Route::post(
+            '/diagnostics/orders/{serviceOrderId}/samples/collect',
+            [DiagnosticSampleController::class, 'bulkStore']
+        )
+            ->whereNumber('serviceOrderId')
+            ->name('diagnostics.orders.samples.bulk-store');
 
-    Route::get(
-    '/diagnostics/samples/{sampleNo}/label',
-    [DiagnosticSampleController::class, 'printLabel']
-)
-    ->name('diagnostics.samples.label');
+        Route::get(
+            '/diagnostics/samples/{sampleNo}/label',
+            [DiagnosticSampleController::class, 'printLabel']
+        )
+            ->name('diagnostics.samples.label');
 
         Route::get(
             '/diagnostics/items/{serviceOrderItem}/sample/reject',
