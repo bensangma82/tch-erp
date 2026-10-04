@@ -814,10 +814,16 @@ class IpBillingController extends Controller
                             'ordered',
 
                         'requires_sample' =>
-                            $service->requires_sample,
+    $service->requires_sample,
 
-                        'requires_report' =>
-                            $service->requires_report,
+'specimen_type' =>
+    $service->default_specimen_type,
+
+'sample_container' =>
+    $service->sample_container,
+
+'requires_report' =>
+    $service->requires_report,
                     ]);
 
 

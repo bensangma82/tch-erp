@@ -13,12 +13,43 @@
                 </p>
             </div>
 
-            <a
-                href="{{ route('laboratory.index') }}"
-                class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-                Back to Laboratory
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+
+    @if ($previousItem)
+        <a
+            href="{{ route(
+                'diagnostics.items.result.edit',
+                $previousItem
+            ) }}"
+            class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+        >
+            ← Previous Test
+        </a>
+    @endif
+
+    @if ($nextItem)
+        <a
+            href="{{ route(
+                'diagnostics.items.result.edit',
+                $nextItem
+            ) }}"
+            class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+        >
+            Next Test →
+        </a>
+    @endif
+
+    <a
+        href="{{ route(
+            'laboratory.index',
+            ['open_order' => $serviceOrderItem->service_order_id]
+        ) }}#lab-order-{{ $serviceOrderItem->service_order_id }}"
+        class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+    >
+        Back to Laboratory
+    </a>
+
+</div>
 
         </div>
     </x-slot>
@@ -213,7 +244,11 @@
                         <div class="mt-1 text-lg font-bold text-slate-900">
                             {{ $serviceOrderItem->service_name }}
                         </div>
-
+@if ($currentPosition && $totalResultItems)
+    <div class="mt-1 text-sm font-semibold text-blue-600">
+        Test {{ $currentPosition }} of {{ $totalResultItems }}
+    </div>
+@endif
                         <div class="mt-3 space-y-1 text-sm text-slate-600">
 
                             <div>
@@ -607,18 +642,19 @@
 
                         <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
                             <div class="text-sm font-semibold text-blue-800">
-                                Save Draft
+                                Save Draft & Next
                             </div>
 
                             <p class="mt-1 text-xs leading-5 text-blue-700">
-                                Saves all structured values and keeps the investigation in process.
+                                Save Draft & Next
+Saves the current values as a draft and opens the next investigation.
                             </p>
                         </div>
 
 
                         <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
                             <div class="text-sm font-semibold text-amber-800">
-                                Finalize Result
+                                Finalize & Next
                             </div>
 
                             <p class="mt-1 text-xs leading-5 text-amber-700">
@@ -647,7 +683,7 @@
                                 value="save_draft"
                                 class="inline-flex justify-center rounded-lg border border-blue-600 bg-white px-5 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
                             >
-                                Save Draft
+                                Save Draft & Next
                             </button>
 
 
@@ -657,7 +693,7 @@
                                 value="finalize"
                                 class="inline-flex justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
                             >
-                                Finalize Result
+                                Finalize & Next
                             </button>
 
                         </div>

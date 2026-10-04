@@ -17,6 +17,8 @@ class Service extends Model
         'price',
         'is_active',
         'requires_sample',
+        'default_specimen_type',
+        'sample_container',
         'requires_report',
         'unit',
         'description',

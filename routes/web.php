@@ -1833,6 +1833,13 @@ Route::middleware([
         )
             ->whereNumber('serviceOrderItem')
             ->name('diagnostics.items.status');
+
+            Route::post(
+    '/diagnostics/orders/{serviceOrderId}/start-processing',
+    [DiagnosticWorklistController::class, 'bulkStartProcessing']
+)
+    ->whereNumber('serviceOrderId')
+    ->name('diagnostics.orders.start-processing');
     });
 
     /*
@@ -1894,6 +1901,19 @@ Route::middleware([
         )
             ->whereNumber('serviceOrderItem')
             ->name('diagnostics.items.sample.store');
+
+            Route::post(
+    '/diagnostics/orders/{serviceOrderId}/samples/collect',
+    [DiagnosticSampleController::class, 'bulkStore']
+)
+    ->whereNumber('serviceOrderId')
+    ->name('diagnostics.orders.samples.bulk-store');
+
+    Route::get(
+    '/diagnostics/samples/{sampleNo}/label',
+    [DiagnosticSampleController::class, 'printLabel']
+)
+    ->name('diagnostics.samples.label');
 
         Route::get(
             '/diagnostics/items/{serviceOrderItem}/sample/reject',

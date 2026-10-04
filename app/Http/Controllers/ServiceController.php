@@ -191,6 +191,18 @@ class ServiceController extends Controller
                 'boolean',
             ],
 
+            'default_specimen_type' => [
+    'nullable',
+    'string',
+    'max:100',
+],
+
+'sample_container' => [
+    'nullable',
+    'string',
+    'max:150',
+],
+
             'requires_report' => [
                 'nullable',
                 'boolean',
@@ -212,6 +224,16 @@ class ServiceController extends Controller
 
         $validated['requires_sample'] =
             $request->boolean('requires_sample');
+
+            $validated['default_specimen_type'] =
+    $validated['requires_sample']
+        ? ($validated['default_specimen_type'] ?? null)
+        : null;
+
+$validated['sample_container'] =
+    $validated['requires_sample']
+        ? ($validated['sample_container'] ?? null)
+        : null;
 
         $validated['requires_report'] =
             $request->boolean('requires_report');
@@ -318,6 +340,18 @@ class ServiceController extends Controller
                 'string',
                 'max:2000',
             ],
+
+            'default_specimen_type' => [
+    'nullable',
+    'string',
+    'max:100',
+],
+
+'sample_container' => [
+    'nullable',
+    'string',
+    'max:150',
+],
         ]);
 
         $validated['code'] =
@@ -330,6 +364,16 @@ class ServiceController extends Controller
 
         $validated['requires_sample'] =
             $request->boolean('requires_sample');
+
+            $validated['default_specimen_type'] =
+    $validated['requires_sample']
+        ? ($validated['default_specimen_type'] ?? null)
+        : null;
+
+$validated['sample_container'] =
+    $validated['requires_sample']
+        ? ($validated['sample_container'] ?? null)
+        : null;
 
         $validated['requires_report'] =
             $request->boolean('requires_report');

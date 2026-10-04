@@ -130,6 +130,7 @@ class DiagnosticWorklistController extends Controller
                 ]);
         }
 
+
         return view(
             'diagnostics.imaging-report-entry',
             compact('serviceOrderItem')
@@ -387,6 +388,118 @@ class DiagnosticWorklistController extends Controller
         );
     }
 
+              /**
+ * Start processing all ready laboratory investigations in an order.
+ */
+public function bulkStartProcessing(
+    int $serviceOrderId
+) {
+    $items = ServiceOrderItem::with([
+        'serviceOrder',
+        'diagnosticSample',
+    ])
+        ->where('service_order_id', $serviceOrderId)
+        ->where('category', 'laboratory')
+        ->get();
+
+    if ($items->isEmpty()) {
+        return redirect()
+            ->route('laboratory.index')
+            ->withErrors([
+                'status' => 'No laboratory investigations were found for this order.',
+            ]);
+    }
+
+    $order =
+        $items->first()?->serviceOrder;
+
+    if (
+        ! in_array(
+            $order?->status,
+            ['paid', 'authorized'],
+            true
+        )
+    ) {
+        return redirect()
+            ->route('laboratory.index')
+            ->withErrors([
+                'status' =>
+                    'This laboratory order has not been released for processing.',
+            ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ready investigations
+    |--------------------------------------------------------------------------
+    |
+    | Only ordered investigations that satisfy their sample requirement
+    | are eligible to move to in_process.
+    |
+    */
+
+    $readyItems =
+        $items->filter(function ($item) {
+            if ($item->status !== 'ordered') {
+                return false;
+            }
+
+            if (! $item->requires_sample) {
+                return true;
+            }
+
+            return $item->diagnosticSample
+                && $item->diagnosticSample->status === 'collected';
+        });
+
+    if ($readyItems->isEmpty()) {
+        return redirect()
+            ->to(
+                route(
+                    'laboratory.index',
+                    ['open_order' => $serviceOrderId]
+                )
+                . '#lab-order-' . $serviceOrderId
+            )
+            ->withErrors([
+                'status' =>
+                    'There are no ready investigations to start processing.',
+            ]);
+    }
+
+    DB::transaction(function () use ($readyItems) {
+        ServiceOrderItem::query()
+            ->whereIn(
+                'id',
+                $readyItems->pluck('id')
+            )
+            ->where('status', 'ordered')
+            ->update([
+                'status' => 'in_process',
+                'updated_at' => now(),
+            ]);
+    });
+
+    $count =
+        $readyItems->count();
+
+    return redirect()
+        ->to(
+            route(
+                'laboratory.index',
+                ['open_order' => $serviceOrderId]
+            )
+            . '#lab-order-' . $serviceOrderId
+        )
+        ->with(
+            'success',
+            $count .
+            ($count === 1
+                ? ' investigation started processing.'
+                : ' investigations started processing.')
+        );
+}
+
     /*
     |--------------------------------------------------------------------------
     | Laboratory Result Entry Page
@@ -448,19 +561,100 @@ class DiagnosticWorklistController extends Controller
         }
 
         if ($serviceOrderItem->status !== 'in_process') {
-            return redirect()
-                ->route('laboratory.index')
-                ->withErrors([
-                    'result' => 'Start processing this investigation before entering a result.',
-                ]);
-        }
+    return redirect()
+        ->route('laboratory.index')
+        ->withErrors([
+            'result' => 'Start processing this investigation before entering a result.',
+        ]);
+}
 
-        return view(
-            'diagnostics.result-entry',
-            compact('serviceOrderItem')
-        );
-    }
+/*
+|--------------------------------------------------------------------------
+| Previous / Next Laboratory Investigation
+|--------------------------------------------------------------------------
+*/
 
+$previousItem = ServiceOrderItem::query()
+    ->where(
+        'service_order_id',
+        $serviceOrderItem->service_order_id
+    )
+    ->where('category', 'laboratory')
+    ->where('status', 'in_process')
+    ->where('id', '<', $serviceOrderItem->id)
+    ->orderByDesc('id')
+    ->first();
+
+$nextItem = ServiceOrderItem::query()
+    ->where(
+        'service_order_id',
+        $serviceOrderItem->service_order_id
+    )
+    ->where('category', 'laboratory')
+    ->where('status', 'in_process')
+    ->where('id', '>', $serviceOrderItem->id)
+    ->orderBy('id')
+    ->first();
+
+/*
+|--------------------------------------------------------------------------
+| Result Entry Position
+|--------------------------------------------------------------------------
+|
+| Count all laboratory investigations in this order so the displayed
+| position remains stable, e.g. Test 3 of 9.
+|
+*/
+
+$allLaboratoryItems = ServiceOrderItem::query()
+    ->where(
+        'service_order_id',
+        $serviceOrderItem->service_order_id
+    )
+    ->where('category', 'laboratory')
+    ->orderBy('id')
+    ->get();
+
+$currentPosition =
+    $allLaboratoryItems->search(
+        fn ($item) =>
+            (int) $item->id === (int) $serviceOrderItem->id
+    );
+
+$currentPosition =
+    $currentPosition === false
+        ? null
+        : $currentPosition + 1;
+
+$totalResultItems =
+    $allLaboratoryItems->count();
+
+return view(
+    'diagnostics.result-entry',
+    compact(
+        'serviceOrderItem',
+        'previousItem',
+        'nextItem',
+        'currentPosition',
+        'totalResultItems'
+    )
+);
+
+return view(
+    'diagnostics.result-entry',
+    compact(
+        'serviceOrderItem',
+        'previousItem',
+        'nextItem'
+    )
+);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Save Draft / Finalize Laboratory Result
+|--------------------------------------------------------------------------
+*/
     /*
     |--------------------------------------------------------------------------
     | Save Draft / Finalize Laboratory Result
@@ -677,23 +871,122 @@ class DiagnosticWorklistController extends Controller
         });
 
         if ($validated['action'] === 'save_draft') {
-            return redirect()
-                ->route(
-                    'diagnostics.items.result.edit',
-                    $serviceOrderItem
-                )
-                ->with(
-                    'success',
-                    'Draft laboratory result saved successfully.'
-                );
-        }
 
+    $nextItem = ServiceOrderItem::query()
+        ->where(
+            'service_order_id',
+            $serviceOrderItem->service_order_id
+        )
+        ->where('category', 'laboratory')
+        ->where('status', 'in_process')
+        ->where('id', '>', $serviceOrderItem->id)
+        ->orderBy('id')
+        ->first();
+
+    if (! $nextItem) {
+        $nextItem = ServiceOrderItem::query()
+            ->where(
+                'service_order_id',
+                $serviceOrderItem->service_order_id
+            )
+            ->where('category', 'laboratory')
+            ->where('status', 'in_process')
+            ->where('id', '!=', $serviceOrderItem->id)
+            ->orderBy('id')
+            ->first();
+    }
+
+    if ($nextItem) {
         return redirect()
-            ->route('laboratory.index')
+            ->route(
+                'diagnostics.items.result.edit',
+                $nextItem
+            )
             ->with(
                 'success',
-                'Laboratory result finalized and investigation completed.'
+                'Draft saved. Continue with the next investigation.'
             );
+    }
+
+    return redirect()
+        ->to(
+            route(
+                'laboratory.index',
+                [
+                    'open_order' =>
+                        $serviceOrderItem->service_order_id,
+                ]
+            )
+            . '#lab-order-'
+            . $serviceOrderItem->service_order_id
+        )
+        ->with(
+            'success',
+            'Draft laboratory result saved successfully.'
+        );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Move directly to the next investigation
+|--------------------------------------------------------------------------
+|
+| After finalizing one result, automatically open the next laboratory
+| investigation from the same order that is still in process.
+|
+*/
+
+$nextItem = ServiceOrderItem::query()
+    ->where(
+        'service_order_id',
+        $serviceOrderItem->service_order_id
+    )
+    ->where('category', 'laboratory')
+    ->where('status', 'in_process')
+    ->where('id', '>', $serviceOrderItem->id)
+    ->orderBy('id')
+    ->first();
+
+if (! $nextItem) {
+    $nextItem = ServiceOrderItem::query()
+        ->where(
+            'service_order_id',
+            $serviceOrderItem->service_order_id
+        )
+        ->where('category', 'laboratory')
+        ->where('status', 'in_process')
+        ->orderBy('id')
+        ->first();
+}
+
+if ($nextItem) {
+    return redirect()
+        ->route(
+            'diagnostics.items.result.edit',
+            $nextItem
+        )
+        ->with(
+            'success',
+            'Result finalized. Continue with the next investigation.'
+        );
+}
+
+return redirect()
+    ->to(
+        route(
+            'laboratory.index',
+            [
+                'open_order' =>
+                    $serviceOrderItem->service_order_id,
+            ]
+        )
+        . '#lab-order-'
+        . $serviceOrderItem->service_order_id
+    )
+    ->with(
+        'success',
+        'All available laboratory results for this order have been completed.'
+    );
     }
 
     /*

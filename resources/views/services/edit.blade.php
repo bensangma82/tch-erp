@@ -475,6 +475,79 @@
 
                                 </label>
 
+                                   {{-- SAMPLE DETAILS --}}
+<div
+    id="sample_details"
+    class="md:col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2"
+>
+    <div>
+        <label
+            for="default_specimen_type"
+            class="block text-sm font-semibold text-gray-700"
+        >
+            Default Specimen Type
+        </label>
+
+        <select
+            id="default_specimen_type"
+            name="default_specimen_type"
+            class="mt-2 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+        >
+            <option value="">Select specimen</option>
+
+            @foreach ([
+                'Whole Blood',
+                'Serum',
+                'Plasma',
+                'EDTA Blood',
+                'Citrated Blood',
+                'Fluoride Blood',
+                'Urine',
+                '24 Hour Urine',
+                'Stool',
+                'Sputum',
+                'CSF',
+                'Pleural Fluid',
+                'Ascitic Fluid',
+                'Synovial Fluid',
+                'Swab',
+                'Tissue',
+                'Other',
+            ] as $specimenType)
+                <option
+                    value="{{ $specimenType }}"
+                    @selected(
+                        old(
+                            'default_specimen_type',
+                            $service->default_specimen_type
+                        ) === $specimenType
+                    )
+                >
+                    {{ $specimenType }}
+                </option>
+            @endforeach
+        </select>
+    </div>
+
+    <div>
+        <label
+            for="sample_container"
+            class="block text-sm font-semibold text-gray-700"
+        >
+            Sample Container
+        </label>
+
+        <input
+            type="text"
+            id="sample_container"
+            name="sample_container"
+            value="{{ old('sample_container', $service->sample_container) }}"
+            placeholder="e.g. Plain/SST tube"
+            maxlength="150"
+            class="mt-2 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+        >
+    </div>
+</div>
 
                                 {{-- REQUIRES REPORT --}}
                                 <label class="flex items-start gap-3">

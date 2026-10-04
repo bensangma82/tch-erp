@@ -20,6 +20,8 @@ class ServiceOrderItem extends Model
         'amount',
         'status',
         'requires_sample',
+        'specimen_type',
+        'sample_container',
         'requires_report',
     ];
 
