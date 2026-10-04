@@ -111,8 +111,6 @@ class TallyExportController extends Controller
             |--------------------------------------------------------------------------
             | Lock Voucher
             |--------------------------------------------------------------------------
-            | Prevent two simultaneous requests from exporting the same voucher.
-            |--------------------------------------------------------------------------
             */
 
             $voucher = FinanceVoucher::query()
@@ -130,9 +128,6 @@ class TallyExportController extends Controller
             /*
             |--------------------------------------------------------------------------
             | Duplicate Export Protection
-            |--------------------------------------------------------------------------
-            | Once an export record exists, normal Download XML is blocked.
-            | Re-export should be handled later through a separate explicit action.
             |--------------------------------------------------------------------------
             */
 
@@ -184,9 +179,6 @@ class TallyExportController extends Controller
             |--------------------------------------------------------------------------
             | Record Export
             |--------------------------------------------------------------------------
-            | finance_voucher_id is unique in tally_exports, providing a second
-            | database-level safeguard against duplicate export records.
-            |--------------------------------------------------------------------------
             */
 
             TallyExport::create([
@@ -207,12 +199,6 @@ class TallyExportController extends Controller
             ];
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | Failed Export
-        |--------------------------------------------------------------------------
-        */
-
         if (! $result['ok']) {
             return redirect()
                 ->route('finance.tally.exports.index')
@@ -221,12 +207,6 @@ class TallyExportController extends Controller
                     implode(' ', $result['errors'])
                 );
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Download XML
-        |--------------------------------------------------------------------------
-        */
 
         return response(
             $result['xml'],
@@ -283,7 +263,8 @@ class TallyExportController extends Controller
 
             return [
                 'ok' => true,
-                'message' => 'Voucher '.$voucher->voucher_no.' confirmed as imported into Tally.',
+                'message' => 'Voucher '.$voucher->voucher_no
+                    .' confirmed as imported into Tally.',
             ];
         });
 
@@ -296,13 +277,218 @@ class TallyExportController extends Controller
     }
 
     /**
+     * Mark an exported voucher as rejected or failed in Tally.
+     */
+    public function markFailed(
+        Request $request,
+        FinanceVoucher $financeVoucher
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'error_message' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        $result = DB::transaction(function () use (
+            $financeVoucher,
+            $validated
+        ): array {
+            $voucher = FinanceVoucher::query()
+                ->whereKey($financeVoucher->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $voucher->load('tallyExport');
+
+            if ($voucher->tallyExport === null) {
+                return [
+                    'ok' => false,
+                    'message' => 'This voucher has not been exported to Tally yet.',
+                ];
+            }
+
+            if ($voucher->tallyExport->status === 'confirmed') {
+                return [
+                    'ok' => false,
+                    'message' => 'A confirmed Tally import cannot be marked as failed.',
+                ];
+            }
+
+            if ($voucher->tallyExport->status === 'failed') {
+                return [
+                    'ok' => false,
+                    'message' => 'This voucher is already marked as failed.',
+                ];
+            }
+
+            if ($voucher->tallyExport->status !== 'exported') {
+                return [
+                    'ok' => false,
+                    'message' => 'Only exported vouchers can be marked as failed.',
+                ];
+            }
+
+            $voucher->tallyExport->update([
+                'status' => 'failed',
+                'error_message' => $validated['error_message'],
+                'confirmed_at' => null,
+            ]);
+
+            return [
+                'ok' => true,
+                'message' => 'Voucher '.$voucher->voucher_no
+                    .' marked as failed. It can now be re-exported.',
+            ];
+        });
+
+        return redirect()
+            ->route('finance.tally.exports.index')
+            ->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['message']
+            );
+    }
+
+    /**
+     * Re-export a voucher only after its previous Tally import failed.
+     */
+    public function reExport(
+        FinanceVoucher $financeVoucher,
+        TallyExportService $tallyExportService,
+        TallyXmlBuilder $tallyXmlBuilder
+    ): Response|RedirectResponse {
+        $result = DB::transaction(function () use (
+            $financeVoucher,
+            $tallyExportService,
+            $tallyXmlBuilder
+        ): array {
+            $voucher = FinanceVoucher::query()
+                ->whereKey($financeVoucher->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $voucher->load([
+                'financeHead.tallyMapping',
+                'financeAccount.tallyMapping',
+                'destinationAccount.tallyMapping',
+                'tallyExport',
+            ]);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Existing Export Required
+            |--------------------------------------------------------------------------
+            */
+
+            if ($voucher->tallyExport === null) {
+                return [
+                    'ok' => false,
+                    'errors' => [
+                        'This voucher has never been exported. Use Download XML instead.',
+                    ],
+                ];
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Re-export Only Failed Vouchers
+            |--------------------------------------------------------------------------
+            */
+
+            if ($voucher->tallyExport->status !== 'failed') {
+                return [
+                    'ok' => false,
+                    'errors' => [
+                        'Only vouchers marked as failed can be re-exported.',
+                    ],
+                ];
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Re-check Eligibility
+            |--------------------------------------------------------------------------
+            */
+
+            $eligibility = $tallyExportService
+                ->checkEligibility($voucher);
+
+            if (! $eligibility['eligible']) {
+                return [
+                    'ok' => false,
+                    'errors' => $eligibility['errors'],
+                ];
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Build Fresh XML
+            |--------------------------------------------------------------------------
+            */
+
+            $xml = $tallyXmlBuilder->build($voucher);
+
+            /*
+            |--------------------------------------------------------------------------
+            | New Export Reference
+            |--------------------------------------------------------------------------
+            */
+
+            $exportReference = 'TALLY-'.Str::upper(
+                Str::uuid()->toString()
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update Existing Export Record
+            |--------------------------------------------------------------------------
+            */
+
+            $voucher->tallyExport->update([
+                'status' => 'exported',
+                'export_reference' => $exportReference,
+                'exported_at' => now(),
+                'exported_by' => auth()->id(),
+                'confirmed_at' => null,
+                'error_message' => null,
+            ]);
+
+            return [
+                'ok' => true,
+                'xml' => $xml,
+                'filename' => $this->filename($voucher),
+            ];
+        });
+
+        if (! $result['ok']) {
+            return redirect()
+                ->route('finance.tally.exports.index')
+                ->with(
+                    'error',
+                    implode(' ', $result['errors'])
+                );
+        }
+
+        return response(
+            $result['xml'],
+            200,
+            [
+                'Content-Type' => 'application/xml; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$result['filename'].'"',
+            ]
+        );
+    }
+
+    /**
      * Create a filesystem-safe XML filename.
      */
     private function filename(
         FinanceVoucher $voucher
     ): string {
         $voucherNumber = preg_replace(
-            '/[^A-Za-z0-9_-]+/',
+            '/[^A-Za-z0-9\_-]+/',
             '-',
             $voucher->voucher_no
         );

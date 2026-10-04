@@ -860,6 +860,16 @@ Route::middleware([
             [TallyExportController::class, 'confirm']
         )->name('finance.tally.exports.confirm');
 
+        Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/fail',
+    [TallyExportController::class, 'markFailed']
+)->name('finance.tally.exports.fail');
+
+Route::post(
+    '/admin/finance/tally/exports/{financeVoucher}/re-export',
+    [TallyExportController::class, 'reExport']
+)->name('finance.tally.exports.re-export');
+
         /*
 |--------------------------------------------------------------------------
 | Finance Vouchers

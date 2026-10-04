@@ -321,118 +321,178 @@
                                     </td>
 
                                     {{-- Tally Status --}}
-                                    <td class="min-w-64 px-4 py-4">
-                                        @if ($export)
-                                            {{-- Existing Export --}}
-                                            @if ($export->status === 'confirmed')
-                                                <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
-                                                    Confirmed
-                                                </span>
-                                            @elseif ($export->status === 'exported')
-                                                <span class="inline-flex rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800">
-                                                    Exported
-                                                </span>
-                                            @elseif ($export->status === 'failed')
-                                                <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
-                                                    Failed
-                                                </span>
-                                            @else
-                                                <span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
-                                                    {{ ucfirst($export->status) }}
-                                                </span>
-                                            @endif
+                                   <td class="min-w-64 px-4 py-4">
+    @if ($export)
+        {{-- Status Badge --}}
+        @if ($export->status === 'confirmed')
+            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
+                Confirmed
+            </span>
+        @elseif ($export->status === 'exported')
+            <span class="inline-flex rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800">
+                Exported
+            </span>
+        @elseif ($export->status === 'failed')
+            <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
+                Failed
+            </span>
+        @else
+            <span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
+                {{ ucfirst($export->status) }}
+            </span>
+        @endif
 
-                                            @if ($export->export_reference)
-                                                <div class="mt-2 break-all text-xs text-gray-500">
-                                                    Ref:
-                                                    {{ $export->export_reference }}
-                                                </div>
-                                            @endif
+        {{-- Export Reference --}}
+        @if ($export->export_reference)
+            <div class="mt-2 break-all text-xs text-gray-500">
+                Ref:
+                {{ $export->export_reference }}
+            </div>
+        @endif
 
-                                            @if ($export->exported_at)
-                                                <div class="mt-1 text-xs text-gray-500">
-                                                    Exported:
-                                                    {{ $export->exported_at->format('d-m-Y H:i') }}
-                                                </div>
-                                            @endif
+        {{-- Exported Timestamp --}}
+        @if ($export->exported_at)
+            <div class="mt-1 text-xs text-gray-500">
+                Exported:
+                {{ $export->exported_at->format('d-m-Y H:i') }}
+            </div>
+        @endif
 
-                                            {{-- Confirm Imported --}}
-                                            @if ($export->status === 'exported')
-                                                <form
-                                                    method="POST"
-                                                    action="{{ route('finance.tally.exports.confirm', $voucher) }}"
-                                                    class="mt-3"
-                                                >
-                                                    @csrf
+        {{-- Exported: Confirm or Mark Failed --}}
+        @if ($export->status === 'exported')
+            <div class="mt-3 space-y-3">
+                <form
+                    method="POST"
+                    action="{{ route('finance.tally.exports.confirm', $voucher) }}"
+                >
+                    @csrf
 
-                                                    <button
-                                                        type="submit"
-                                                        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                                                        onclick="return confirm('Confirm that this voucher was successfully imported into Tally?')"
-                                                    >
-                                                        Confirm Imported
-                                                    </button>
-                                                </form>
-                                            @endif
+                    <button
+                        type="submit"
+                        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        onclick="return confirm('Confirm that this voucher was successfully imported into Tally?')"
+                    >
+                        Confirm Imported
+                    </button>
+                </form>
 
-                                            {{-- Confirmed Timestamp --}}
-                                            @if (
-                                                $export->status === 'confirmed'
-                                                && $export->confirmed_at
-                                            )
-                                                <div class="mt-2 text-xs font-medium text-green-700">
-                                                    Confirmed:
-                                                    {{ $export->confirmed_at->format('d-m-Y H:i') }}
-                                                </div>
-                                            @endif
+                <form
+                    method="POST"
+                    action="{{ route('finance.tally.exports.fail', $voucher) }}"
+                    class="space-y-2"
+                >
+                    @csrf
 
-                                            {{-- Error --}}
-                                            @if ($export->error_message)
-                                                <div class="mt-2 text-xs text-red-700">
-                                                    {{ $export->error_message }}
-                                                </div>
-                                            @endif
+                    <label
+                        for="error_message_{{ $voucher->id }}"
+                        class="block text-xs font-medium text-gray-600"
+                    >
+                        If Tally rejected the import:
+                    </label>
 
-                                        @elseif ($check['eligible'])
-                                            {{-- Ready for Export --}}
-                                            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
-                                                Ready
-                                            </span>
+                    <input
+                        id="error_message_{{ $voucher->id }}"
+                        type="text"
+                        name="error_message"
+                        required
+                        maxlength="1000"
+                        placeholder="Reason / Tally error message"
+                        class="block w-full rounded-md border-gray-300 text-xs shadow-sm focus:border-red-500 focus:ring-red-500"
+                    >
 
-                                            <div class="mt-2 text-xs text-gray-500">
-                                                All required Tally ledger mappings are available.
-                                            </div>
+                    <button
+                        type="submit"
+                        class="inline-flex items-center rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                        onclick="return confirm('Mark this Tally export as failed?')"
+                    >
+                        Mark Failed
+                    </button>
+                </form>
+            </div>
+        @endif
 
-                                            <form
-                                                method="POST"
-                                                action="{{ route('finance.tally.exports.download', $voucher) }}"
-                                                class="mt-3"
-                                            >
-                                                @csrf
+        {{-- Failed: Show Error and Re-export --}}
+        @if ($export->status === 'failed')
+            @if ($export->error_message)
+                <div class="mt-3 rounded-md border border-red-200 bg-red-50 p-2">
+                    <div class="text-xs font-semibold text-red-800">
+                        Tally Import Error
+                    </div>
 
-                                                <button
-                                                    type="submit"
-                                                    class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                                                >
-                                                    Download XML
-                                                </button>
-                                            </form>
+                    <div class="mt-1 text-xs text-red-700">
+                        {{ $export->error_message }}
+                    </div>
+                </div>
+            @endif
 
-                                        @else
-                                            {{-- Blocked --}}
-                                            <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                                                Blocked
-                                            </span>
+            <form
+                method="POST"
+                action="{{ route('finance.tally.exports.re-export', $voucher) }}"
+                class="mt-3"
+            >
+                @csrf
 
-                                            <ul class="mt-2 space-y-1 text-xs text-red-700">
-                                                @foreach ($check['errors'] as $error)
-                                                    <li>
-                                                        • {{ $error }}
-                                                    </li>
-                                                @endforeach
-                                            </ul>
-                                        @endif
-                                    </td>
+                <button
+                    type="submit"
+                    class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    onclick="return confirm('Re-export this failed voucher to Tally?')"
+                >
+                    Re-export XML
+                </button>
+            </form>
+        @endif
+
+        {{-- Confirmed Timestamp --}}
+        @if (
+            $export->status === 'confirmed'
+            && $export->confirmed_at
+        )
+            <div class="mt-2 text-xs font-medium text-green-700">
+                Confirmed:
+                {{ $export->confirmed_at->format('d-m-Y H:i') }}
+            </div>
+        @endif
+
+    @elseif ($check['eligible'])
+        {{-- Ready --}}
+        <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
+            Ready
+        </span>
+
+        <div class="mt-2 text-xs text-gray-500">
+            All required Tally ledger mappings are available.
+        </div>
+
+        <form
+            method="POST"
+            action="{{ route('finance.tally.exports.download', $voucher) }}"
+            class="mt-3"
+        >
+            @csrf
+
+            <button
+                type="submit"
+                class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+                Download XML
+            </button>
+        </form>
+
+    @else
+        {{-- Blocked --}}
+        <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            Blocked
+        </span>
+
+        <ul class="mt-2 space-y-1 text-xs text-red-700">
+            @foreach ($check['errors'] as $error)
+                <li>
+                    • {{ $error }}
+                </li>
+            @endforeach
+        </ul>
+    @endif
+</td>
                                 </tr>
                             @empty
                                 <tr>
