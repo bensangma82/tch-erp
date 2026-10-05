@@ -1536,202 +1536,254 @@
 
             {{-- MEDICINE --}}
 
-            <td class="px-5 py-4">
+<td class="px-5 py-4 align-middle">
 
-               <div class="medicine-search-wrapper">
+    <div class="medicine-search-wrapper relative">
 
-    <input
-        type="text"
-        class="medicine-search-input w-full min-w-[320px] rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-        placeholder="Type medicine name, brand or strength..."
-        autocomplete="off"
-        list="medicine-search-list"
-    >
-
-    <datalist id="medicine-search-list">
-        @foreach ($medicines as $medicine)
-
-            @php
-                $medicineInputLabel =
-                    $medicine->generic_name
-                    . (
-                        $medicine->brand_name
-                            ? ' — ' . $medicine->brand_name
-                            : ''
-                    )
-                    . (
-                        $medicine->strength
-                            ? ' — ' . $medicine->strength
-                            : ''
-                    );
-            @endphp
-
-            <option value="{{ $medicineInputLabel }}"></option>
-
-        @endforeach
-    </datalist>
-
-    <select class="medicine-select hidden">
-
-        <option
-            value=""
-            data-stock="0"
-            data-price="0"
-            data-gst="0"
-            data-hsn=""
-            data-input-label=""
+        <input
+            type="text"
+            class="medicine-search-input
+                   w-full min-w-[320px]
+                   rounded-xl
+                   border border-slate-300
+                   bg-white
+                   px-4 py-3
+                   text-sm font-medium text-slate-800
+                   shadow-sm
+                   placeholder:text-slate-400
+                   transition
+                   hover:border-slate-400
+                   focus:border-blue-500
+                   focus:ring-2
+                   focus:ring-blue-100"
+            placeholder="Search generic, brand or strength..."
+            autocomplete="off"
         >
-            Select medicine
-        </option>
 
-        @foreach ($medicines as $medicine)
-
-            @php
-                $estimatedBatch =
-                    $medicine
-                        ->stockBatches()
-                        ->where('is_active', true)
-                        ->where('quantity_available', '>', 0)
-                        ->where(function ($query) {
-                            $query
-                                ->whereNull('expiry_date')
-                                ->orWhereDate(
-                                    'expiry_date',
-                                    '>=',
-                                    today()
-                                );
-                        })
-                        ->orderByRaw(
-                            'CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END'
-                        )
-                        ->orderBy('expiry_date')
-                        ->orderBy('received_date')
-                        ->orderBy('id')
-                        ->first();
-
-                $estimatedPrice =
-                    $estimatedBatch?->selling_price
-                    ?? $medicine->default_selling_price
-                    ?? 0;
-
-                $gstPercent =
-                    (float) ($medicine->gst_percent ?? 0);
-
-                $medicineInputLabel =
-                    $medicine->generic_name
-                    . (
-                        $medicine->brand_name
-                            ? ' — ' . $medicine->brand_name
-                            : ''
-                    )
-                    . (
-                        $medicine->strength
-                            ? ' — ' . $medicine->strength
-                            : ''
-                    );
-            @endphp
+        <select class="medicine-select hidden">
 
             <option
-                value="{{ $medicine->id }}"
-                data-stock="{{ (int) ($medicine->available_stock ?? 0) }}"
-                data-price="{{ (float) $estimatedPrice }}"
-                data-gst="{{ $gstPercent }}"
-                data-hsn="{{ $medicine->hsn_code ?? '' }}"
-                data-input-label="{{ $medicineInputLabel }}"
+                value=""
+                data-stock="0"
+                data-price="0"
+                data-gst="0"
+                data-hsn=""
+                data-input-label=""
             >
-                {{ $medicineInputLabel }}
+                Select medicine
             </option>
 
-        @endforeach
+            @foreach ($medicines as $medicine)
 
-    </select>
+                @php
+                    $estimatedBatch =
+                        $medicine
+                            ->stockBatches()
+                            ->where(
+                                'is_active',
+                                true
+                            )
+                            ->where(
+                                'quantity_available',
+                                '>',
+                                0
+                            )
+                            ->where(
+                                function ($query) {
 
-</div>
+                                    $query
+                                        ->whereNull(
+                                            'expiry_date'
+                                        )
+                                        ->orWhereDate(
+                                            'expiry_date',
+                                            '>=',
+                                            today()
+                                        );
+                                }
+                            )
+                            ->orderByRaw(
+                                'CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END'
+                            )
+                            ->orderBy(
+                                'expiry_date'
+                            )
+                            ->orderBy(
+                                'received_date'
+                            )
+                            ->orderBy(
+                                'id'
+                            )
+                            ->first();
 
 
-    <div
-        class="medicine-search-menu absolute z-50 mt-1 hidden max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl"
-    >
+                    $estimatedPrice =
+                        $estimatedBatch?->selling_price
+                        ??
+                        $medicine->default_selling_price
+                        ??
+                        0;
+
+
+                    $gstPercent =
+                        (float)
+                        (
+                            $medicine->gst_percent
+                            ??
+                            0
+                        );
+
+
+                    $medicineInputLabel =
+                        $medicine->generic_name
+                        .
+                        (
+                            $medicine->brand_name
+                                ? ' — ' . $medicine->brand_name
+                                : ''
+                        )
+                        .
+                        (
+                            $medicine->strength
+                                ? ' — ' . $medicine->strength
+                                : ''
+                        );
+                @endphp
+
+
+                <option
+                    value="{{ $medicine->id }}"
+                    data-stock="{{ (int) ($medicine->available_stock ?? 0) }}"
+                    data-price="{{ (float) $estimatedPrice }}"
+                    data-gst="{{ $gstPercent }}"
+                    data-hsn="{{ $medicine->hsn_code ?? '' }}"
+                    data-input-label="{{ $medicineInputLabel }}"
+                >
+                    {{ $medicineInputLabel }}
+                </option>
+
+            @endforeach
+
+        </select>
+
+
+        {{-- SEARCH RESULTS --}}
+
+        <div
+            class="medicine-search-menu
+                   absolute
+                   left-0 right-0 top-full
+                   z-50
+                   mt-2
+                   hidden
+                   max-h-72
+                   overflow-y-auto
+                   rounded-xl
+                   border border-slate-200
+                   bg-white
+                   shadow-xl"
+        >
+        </div>
+
     </div>
 
-</div>
-
-            </td>
+</td>
 
 
 
-            {{-- AVAILABLE --}}
+{{-- AVAILABLE STOCK --}}
 
-            <td class="px-4 py-4 text-right">
+<td class="px-4 py-4 text-center align-middle">
 
-                <span class="available-stock font-semibold text-slate-700">
-                    0
-                </span>
+    <div class="inline-flex min-w-[64px] items-center justify-center rounded-lg bg-slate-100 px-3 py-2">
 
-            </td>
+        <span class="available-stock text-sm font-bold text-slate-700">
+            0
+        </span>
 
+    </div>
 
-
-            {{-- RATE / GST ONLY FOR OPD --}}
-
-            @unless ($admission)
-
-                <td class="px-4 py-4 text-right">
-
-                    <div class="estimated-rate font-semibold text-slate-700">
-                        ₹0.00
-                    </div>
-
-                    <div class="mt-1 text-[10px] text-slate-400">
-                        incl. GST
-                    </div>
-
-                </td>
-
-
-                <td class="px-4 py-4 text-right">
-
-                    <span class="gst-rate font-semibold text-slate-700">
-                        0.00%
-                    </span>
-
-                </td>
-
-            @endunless
+</td>
 
 
 
-            {{-- QUANTITY --}}
+{{-- RATE / GST ONLY FOR OPD --}}
 
-            <td class="px-4 py-4 text-right">
+@unless ($admission)
 
-                <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value="1"
-                    class="quantity-input w-24 rounded-lg border-slate-300 text-right shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                >
+    {{-- RATE --}}
 
-            </td>
+    <td class="px-4 py-4 text-center align-middle">
+
+        <div class="estimated-rate text-base font-bold text-slate-800">
+            ₹0.00
+        </div>
+
+        <div class="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+            incl. GST
+        </div>
+
+    </td>
+
+
+    {{-- GST --}}
+
+    <td class="px-4 py-4 text-center align-middle">
+
+        <span
+            class="gst-rate inline-flex min-w-[68px] items-center justify-center rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600"
+        >
+            0.00%
+        </span>
+
+    </td>
+
+@endunless
 
 
 
-            {{-- LINE TOTAL OPD --}}
+{{-- QUANTITY --}}
 
-            @unless ($admission)
+<td class="px-4 py-4 text-center align-middle">
 
-                <td class="px-4 py-4 text-right">
+    <input
+        type="number"
+        min="1"
+        step="1"
+        value="1"
+        class="quantity-input
+               w-20
+               rounded-xl
+               border border-slate-300
+               bg-white
+               px-3 py-3
+               text-center
+               text-sm font-bold text-slate-800
+               shadow-sm
+               transition
+               focus:border-blue-500
+               focus:ring-2
+               focus:ring-blue-100"
+        required
+    >
 
-                    <span class="line-total font-bold text-slate-900">
-                        ₹0.00
-                    </span>
+</td>
 
-                </td>
 
-            @endunless
 
+{{-- LINE TOTAL OPD --}}
+
+@unless ($admission)
+
+    <td class="px-4 py-4 text-center align-middle">
+
+        <span class="line-total whitespace-nowrap text-base font-bold text-slate-900">
+            ₹0.00
+        </span>
+
+    </td>
+
+@endunless
 
 
             {{-- REMOVE --}}
@@ -2609,60 +2661,145 @@ function initialiseMedicineSearch(row)
             '.medicine-search-input'
         );
 
+    const menu =
+        row.querySelector(
+            '.medicine-search-menu'
+        );
+
     if (
         ! select
         ||
         ! input
+        ||
+        ! menu
     )
     {
         return;
     }
 
 
-    function syncMedicine()
+    /*
+    |--------------------------------------------------------------------------
+    | Escape HTML
+    |--------------------------------------------------------------------------
+    */
+
+    function escapeHtml(value)
     {
-        const typedValue =
-            input.value
-                .trim()
-                .toLowerCase();
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
 
-        const matchingOption =
-            Array.from(
-                select.options
-            )
-                .find(function (option) {
+    /*
+    |--------------------------------------------------------------------------
+    | Highlight Typed Search Text
+    |--------------------------------------------------------------------------
+    */
 
-                    if (! option.value)
-                    {
-                        return false;
-                    }
-
-
-                    const label =
-                        (
-                            option.dataset.inputLabel
-                            || option.textContent
-                            || ''
-                        )
-                            .trim()
-                            .toLowerCase();
-
-
-                    return label === typedValue;
-                });
-
-
-        if (matchingOption)
+    function highlightMatch(label, search)
+    {
+        if (! search)
         {
-            select.value =
-                matchingOption.value;
-        }
-        else
-        {
-            select.value = '';
+            return escapeHtml(label);
         }
 
+        const lowerLabel =
+            label.toLowerCase();
+
+        const lowerSearch =
+            search.toLowerCase();
+
+        let position = 0;
+        let matchIndex;
+
+        let html = '';
+
+        while (
+            (
+                matchIndex =
+                    lowerLabel.indexOf(
+                        lowerSearch,
+                        position
+                    )
+            ) !== -1
+        )
+        {
+            html +=
+                escapeHtml(
+                    label.substring(
+                        position,
+                        matchIndex
+                    )
+                );
+
+            html +=
+                '<span class="rounded bg-yellow-200 px-1 font-bold text-slate-900">'
+                +
+                escapeHtml(
+                    label.substring(
+                        matchIndex,
+                        matchIndex + search.length
+                    )
+                )
+                +
+                '</span>';
+
+            position =
+                matchIndex
+                +
+                search.length;
+        }
+
+        html +=
+            escapeHtml(
+                label.substring(position)
+            );
+
+        return html;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hide Search Menu
+    |--------------------------------------------------------------------------
+    */
+
+    function hideMenu()
+    {
+        menu.classList.add('hidden');
+
+        menu.innerHTML = '';
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Select Medicine
+    |--------------------------------------------------------------------------
+    */
+
+    function selectMedicine(option)
+    {
+        if (! option)
+        {
+            return;
+        }
+
+        select.value =
+            option.value;
+
+        input.value =
+            option.dataset.inputLabel
+            ||
+            option.textContent.trim();
+
+        hideMenu();
 
         select.dispatchEvent(
             new Event(
@@ -2675,17 +2812,274 @@ function initialiseMedicineSearch(row)
     }
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | Render Matching Medicines
+    |--------------------------------------------------------------------------
+    */
+
+    function renderMenu()
+    {
+        const search =
+            input.value.trim();
+
+        const searchLower =
+            search.toLowerCase();
+
+        menu.innerHTML = '';
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Require Search Text
+        |--------------------------------------------------------------------------
+        */
+
+        if (! searchLower)
+        {
+            hideMenu();
+
+            return;
+        }
+
+
+        const matches =
+            Array.from(
+                select.options
+            )
+                .filter(function (option) {
+
+                    if (! option.value)
+                    {
+                        return false;
+                    }
+
+                    const label =
+                        (
+                            option.dataset.inputLabel
+                            ||
+                            option.textContent
+                            ||
+                            ''
+                        )
+                            .trim();
+
+                    return label
+                        .toLowerCase()
+                        .includes(
+                            searchLower
+                        );
+                })
+                .slice(
+                    0,
+                    20
+                );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | No Matches
+        |--------------------------------------------------------------------------
+        */
+
+        if (! matches.length)
+        {
+            menu.innerHTML = `
+                <div class="px-4 py-3 text-sm text-slate-500">
+                    No matching medicine found
+                </div>
+            `;
+
+            menu.classList.remove(
+                'hidden'
+            );
+
+            return;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Medicine Suggestions
+        |--------------------------------------------------------------------------
+        */
+
+        matches.forEach(
+            function (option) {
+
+                const label =
+                    option.dataset.inputLabel
+                    ||
+                    option.textContent.trim();
+
+                const stock =
+                    Number(
+                        option.dataset.stock
+                        ??
+                        0
+                    );
+
+
+                const item =
+                    document.createElement(
+                        'button'
+                    );
+
+                item.type =
+                    'button';
+
+                item.className =
+                    'block w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none';
+
+
+                item.innerHTML = `
+                    <div class="flex items-center justify-between gap-4">
+
+                        <div class="text-sm font-medium text-slate-800">
+                            ${highlightMatch(
+                                label,
+                                search
+                            )}
+                        </div>
+
+                        <div class="shrink-0 text-xs text-slate-500">
+                            Stock: ${stock.toLocaleString('en-IN')}
+                        </div>
+
+                    </div>
+                `;
+
+
+                item.addEventListener(
+                    'mousedown',
+                    function (event) {
+
+                        event.preventDefault();
+
+                        selectMedicine(
+                            option
+                        );
+                    }
+                );
+
+
+                menu.appendChild(
+                    item
+                );
+            }
+        );
+
+
+        menu.classList.remove(
+            'hidden'
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search While Typing
+    |--------------------------------------------------------------------------
+    */
+
     input.addEventListener(
         'input',
-        syncMedicine
+        function () {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Clear Existing Selection Until User Selects Result
+            |--------------------------------------------------------------------------
+            */
+
+            select.value = '';
+
+            select.dispatchEvent(
+                new Event(
+                    'change',
+                    {
+                        bubbles: true,
+                    }
+                )
+            );
+
+            renderMenu();
+        }
     );
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Show Search Again on Focus
+    |--------------------------------------------------------------------------
+    */
 
     input.addEventListener(
-        'change',
-        syncMedicine
+        'focus',
+        function () {
+
+            if (
+                input.value.trim()
+                &&
+                ! select.value
+            )
+            {
+                renderMenu();
+            }
+        }
     );
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Close on Escape
+    |--------------------------------------------------------------------------
+    */
+
+    input.addEventListener(
+        'keydown',
+        function (event) {
+
+            if (
+                event.key ===
+                'Escape'
+            )
+            {
+                hideMenu();
+
+                input.blur();
+            }
+        }
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Close When Clicking Outside
+    |--------------------------------------------------------------------------
+    */
+
+    document.addEventListener(
+        'mousedown',
+        function (event) {
+
+            if (
+                ! row.contains(
+                    event.target
+                )
+            )
+            {
+                hideMenu();
+            }
+        }
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Restore Existing Selected Medicine
+    |--------------------------------------------------------------------------
+    */
 
     if (select.value)
     {
@@ -2694,330 +3088,264 @@ function initialiseMedicineSearch(row)
                 select.selectedIndex
             ];
 
-
         if (selectedOption)
         {
             input.value =
                 selectedOption.dataset.inputLabel
-                || selectedOption.textContent.trim();
+                ||
+                selectedOption.textContent.trim();
         }
     }
 }
+function updateRow(row)
+{
+    const select =
+        row.querySelector(
+            '.medicine-select'
+        );
 
-                function updateRow(row)
-                {
+    const available =
+        row.querySelector(
+            '.available-stock'
+        );
 
-                    const select =
-                        row.querySelector(
-                            '.medicine-select'
-                        );
+    const rate =
+        row.querySelector(
+            '.estimated-rate'
+        );
 
+    const gstRate =
+        row.querySelector(
+            '.gst-rate'
+        );
 
-                    const available =
-                        row.querySelector(
-                            '.available-stock'
-                        );
+    const quantity =
+        row.querySelector(
+            '.quantity-input'
+        );
 
+    const lineTotal =
+        row.querySelector(
+            '.line-total'
+        );
 
-                    const rate =
-                        row.querySelector(
-                            '.estimated-rate'
-                        );
+    if (
+        ! select
+        ||
+        ! quantity
+    )
+    {
+        return;
+    }
 
+    const option =
+        select.options[
+            select.selectedIndex
+        ];
 
-                    const gstRate =
-                        row.querySelector(
-                            '.gst-rate'
-                        );
+    const stock =
+        Number(
+            option?.dataset?.stock
+            ??
+            0
+        );
 
+    const price =
+        Number(
+            option?.dataset?.price
+            ??
+            0
+        );
 
-                    const quantity =
-                        row.querySelector(
-                            '.quantity-input'
-                        );
+    const gst =
+        Number(
+            option?.dataset?.gst
+            ??
+            0
+        );
 
+    const qty =
+        Math.max(
+            0,
+            Number(
+                quantity.value
+                ??
+                0
+            )
+        );
 
-                    const lineTotal =
-                        row.querySelector(
-                            '.line-total'
-                        );
+    if (available)
+    {
+        available.textContent =
+            stock.toLocaleString(
+                'en-IN'
+            );
+    }
 
+    if (rate)
+    {
+        rate.textContent =
+            money(price);
+    }
 
-                    if (
-                        ! select
-                        ||
-                        ! quantity
-                    )
-                    {
-                        return;
-                    }
+    if (gstRate)
+    {
+        gstRate.textContent =
+            gst.toFixed(2)
+            +
+            '%';
+    }
 
+    if (select.value)
+    {
+        quantity.max =
+            stock;
+    }
+    else
+    {
+        quantity.removeAttribute(
+            'max'
+        );
+    }
 
-                    const option =
-                        select.options[
-                            select.selectedIndex
-                        ];
-
-
-                    const stock =
-                        Number(
-                            option?.dataset?.stock
-                            ??
-                            0
-                        );
-
-
-                    const price =
-                        Number(
-                            option?.dataset?.price
-                            ??
-                            0
-                        );
-
-
-                    const gst =
-                        Number(
-                            option?.dataset?.gst
-                            ??
-                            0
-                        );
-
-
-                    const qty =
-                        Math.max(
-                            0,
-                            Number(
-                                quantity.value
-                                ??
-                                0
-                            )
-                        );
-
-
-                    if (available)
-                    {
-
-                        available.textContent =
-                            stock.toLocaleString(
-                                'en-IN'
-                            );
-
-                    }
-
-
-                    if (rate)
-                    {
-
-                        rate.textContent =
-                            money(price);
-
-                    }
-
-
-                    if (gstRate)
-                    {
-
-                        gstRate.textContent =
-                            gst.toFixed(2)
-                            +
-                            '%';
-
-                    }
-
-
-                    if (select.value)
-                    {
-
-                        quantity.max =
-                            stock;
-
-                    }
-                    else
-                    {
-
-                        quantity.removeAttribute(
-                            'max'
-                        );
-
-                    }
-
-
-                    if (lineTotal)
-                    {
-
-                        lineTotal.textContent =
-                            money(
-                                roundMoney(
-                                    price
-                                    *
-                                    qty
-                                )
-                            );
-
-                    }
-
-
-                    if (
-                        select.value
-                        &&
-                        (
-                            qty <= 0
-                            ||
-                            qty > stock
-                        )
-                    )
-                    {
-
-                        quantity.classList.add(
-                            'border-red-400',
-                            'bg-red-50'
-                        );
-
-                    }
-                    else
-                    {
-
-                        quantity.classList.remove(
-                            'border-red-400',
-                            'bg-red-50'
-                        );
-
-                    }
-
-
-                    calculateSummary();
-
-                }
-
-
-
-                function addRow(
-                    medicineId = '',
-                    quantityValue = 1
+    if (lineTotal)
+    {
+        lineTotal.textContent =
+            money(
+                roundMoney(
+                    price
+                    *
+                    qty
                 )
-                {
+            );
+    }
 
-                    if (
-                        ! template
-                        ||
-                        ! rowsContainer
+    if (
+        select.value
+        &&
+        (
+            qty <= 0
+            ||
+            qty > stock
+        )
+    )
+    {
+        quantity.classList.add(
+            'border-red-400',
+            'bg-red-50'
+        );
+    }
+    else
+    {
+        quantity.classList.remove(
+            'border-red-400',
+            'bg-red-50'
+        );
+    }
+
+    calculateSummary();
+}
+
+
+function addRow(
+    medicineId = '',
+    quantityValue = 1
+)
+{
+    if (
+        ! template
+        ||
+        ! rowsContainer
+    )
+    {
+        return;
+    }
+
+    const clone =
+        template.content.cloneNode(
+            true
+        );
+
+    const row =
+        clone.querySelector(
+            '.medicine-row'
+        );
+
+    const select =
+        row.querySelector(
+            '.medicine-select'
+        );
+
+    const quantity =
+        row.querySelector(
+            '.quantity-input'
+        );
+
+    const remove =
+        row.querySelector(
+            '.remove-row'
+        );
+
+    if (medicineId)
+    {
+        select.value =
+            String(
+                medicineId
+            );
+    }
+
+    quantity.value =
+        quantityValue
+        ||
+        1;
+
+    select.addEventListener(
+        'change',
+        function ()
+        {
+            updateRow(row);
+        }
+    );
+
+    initialiseMedicineSearch(row);
+
+    quantity.addEventListener(
+        'input',
+        function ()
+        {
+            updateRow(row);
+        }
+    );
+
+    remove.addEventListener(
+        'click',
+        function ()
+        {
+            row.remove();
+
+            renumberRows();
+
+            if (
+                rowsContainer
+                    .querySelectorAll(
+                        '.medicine-row'
                     )
-                    {
-                        return;
-                    }
+                    .length === 0
+            )
+            {
+                addRow();
+            }
+        }
+    );
 
+    rowsContainer.appendChild(
+        row
+    );
 
-                    const clone =
-                        template.content.cloneNode(
-                            true
-                        );
+    updateRow(row);
 
-
-                    const row =
-                        clone.querySelector(
-                            '.medicine-row'
-                        );
-
-
-                    const select =
-                        row.querySelector(
-                            '.medicine-select'
-                        );
-
-
-                    const quantity =
-                        row.querySelector(
-                            '.quantity-input'
-                        );
-
-
-                    const remove =
-                        row.querySelector(
-                            '.remove-row'
-                        );
-
-
-                    if (medicineId)
-                    {
-
-                        select.value =
-                            String(
-                                medicineId
-                            );
-
-                    }
-
-
-                    quantity.value =
-                        quantityValue
-                        ||
-                        1;
-
-
-                    select.addEventListener(
-                        'change',
-                        function ()
-                        {
-
-                            updateRow(row);
-
-                        }
-                    );
-
-                    initialiseMedicineSearch(row);
-
-
-                    quantity.addEventListener(
-                        'input',
-                        function ()
-                        {
-
-                            updateRow(row);
-
-                        }
-                    );
-
-
-                    remove.addEventListener(
-                        'click',
-                        function ()
-                        {
-
-                            row.remove();
-
-                            renumberRows();
-
-
-                            if (
-                                rowsContainer
-                                    .querySelectorAll(
-                                        '.medicine-row'
-                                    )
-                                    .length === 0
-                            )
-                            {
-
-                                addRow();
-
-                            }
-
-                        }
-                    );
-
-
-                    rowsContainer.appendChild(
-                        row
-                    );
-
-
-                    updateRow(row);
-
-                    renumberRows();
-
-                }
-
-
-
+    renumberRows();
+}
                 /*
                 |--------------------------------------------------------------------------
                 | Sale Summary
