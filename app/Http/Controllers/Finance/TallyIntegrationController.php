@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FinanceAccount;
 use App\Models\FinanceHead;
 use App\Models\TallyLedgerMapping;
+use App\Services\Tally\TallyQueryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -33,6 +34,40 @@ class TallyIntegrationController extends Controller
         return view('finance.tally.index', [
             'financeHeads' => $financeHeads,
             'financeAccounts' => $financeAccounts,
+        ]);
+    }
+
+    /**
+     * Display the current Trial Balance retrieved from Tally.
+     */
+    public function trialBalance(
+        TallyQueryService $tallyQueryService
+    ): View {
+        $trialBalance = [];
+        $error = null;
+
+        try {
+            $trialBalance = $tallyQueryService->trialBalance();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            $error = 'Unable to retrieve the Trial Balance from Tally. Please ensure TallyPrime is running and the configured company is open.';
+        }
+
+        $totalDebit = array_sum(
+            array_column($trialBalance, 'debit')
+        );
+
+        $totalCredit = array_sum(
+            array_column($trialBalance, 'credit')
+        );
+
+        return view('finance.tally.trial-balance', [
+            'trialBalance' => $trialBalance,
+            'totalDebit' => $totalDebit,
+            'totalCredit' => $totalCredit,
+            'difference' => $totalDebit - $totalCredit,
+            'error' => $error,
         ]);
     }
 

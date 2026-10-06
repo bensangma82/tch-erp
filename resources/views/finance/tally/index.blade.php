@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-4">
             <div>
                 <h2 class="text-xl font-semibold text-gray-800">
                     Tally Integration
@@ -10,6 +10,13 @@
                     Map TCH ERP Finance Heads and Accounts to existing Tally ledgers.
                 </p>
             </div>
+
+            <a
+                href="{{ route('finance.tally.trial-balance') }}"
+                class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+            >
+                Trial Balance
+            </a>
         </div>
     </x-slot>
 
@@ -24,7 +31,9 @@
 
             @if ($errors->any())
                 <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    <div class="font-semibold">Please correct the following:</div>
+                    <div class="font-semibold">
+                        Please correct the following:
+                    </div>
 
                     <ul class="mt-2 list-disc pl-5">
                         @foreach ($errors->all() as $error)
@@ -53,21 +62,27 @@
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     ERP Code
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     ERP Finance Head
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     Type
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     Tally Ledger
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     Tally Group
                                 </th>
+
                                 <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600">
                                     Active
                                 </th>
+
                                 <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
@@ -177,21 +192,27 @@
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     ERP Code
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     ERP Account
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     Type
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     Tally Ledger
                                 </th>
+
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">
                                     Tally Group
                                 </th>
+
                                 <th class="px-4 py-3 text-center text-xs font-semibold uppercase text-gray-600">
                                     Active
                                 </th>
+
                                 <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
