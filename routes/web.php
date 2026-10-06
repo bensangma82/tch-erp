@@ -837,6 +837,11 @@ Route::middleware([
             [TallyIntegrationController::class, 'trialBalance']
         )->name('finance.tally.trial-balance');
 
+        Route::get(
+    '/admin/finance/tally/income-expenditure',
+    [TallyIntegrationController::class, 'incomeAndExpenditure']
+)->name('finance.tally.income-expenditure');
+
         Route::put(
             '/admin/finance/tally/heads/{financeHead}',
             [TallyIntegrationController::class, 'saveHead']
