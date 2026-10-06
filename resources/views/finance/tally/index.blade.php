@@ -32,6 +32,12 @@
     >
         Balance Sheet
     </a>
+    <a
+    href="{{ route('finance.tally.cash-flow') }}"
+    class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+>
+    Cash Flow
+</a>
 </div>
         </div>
     </x-slot>

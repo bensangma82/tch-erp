@@ -142,6 +142,48 @@ class TallyIntegrationController extends Controller
     }
 
     /**
+     * Display the current Cash Flow report retrieved from Tally.
+     */
+    public function cashFlow(
+        TallyQueryService $tallyQueryService
+    ): View {
+        $report = [
+            'operating' => [],
+            'investing' => [],
+            'financing' => [],
+            'unclassified' => [],
+            'total_operating' => 0.0,
+            'total_investing' => 0.0,
+            'total_financing' => 0.0,
+            'total_unclassified' => 0.0,
+            'net_cash_flow' => 0.0,
+        ];
+
+        $error = null;
+
+        try {
+            $report = $tallyQueryService->cashFlow();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            $error = 'Unable to retrieve the Cash Flow report from Tally. Please ensure TallyPrime is running and the configured company is open.';
+        }
+
+        return view('finance.tally.cash-flow', [
+            'operating' => $report['operating'],
+            'investing' => $report['investing'],
+            'financing' => $report['financing'],
+            'unclassified' => $report['unclassified'],
+            'totalOperating' => $report['total_operating'],
+            'totalInvesting' => $report['total_investing'],
+            'totalFinancing' => $report['total_financing'],
+            'totalUnclassified' => $report['total_unclassified'],
+            'netCashFlow' => $report['net_cash_flow'],
+            'error' => $error,
+        ]);
+    }
+
+    /**
      * Create or update the Tally mapping for a Finance Head.
      */
     public function saveHead(
