@@ -70,39 +70,77 @@ class TallyIntegrationController extends Controller
             'error' => $error,
         ]);
     }
-/**
- * Display the current Income & Expenditure report retrieved from Tally.
- */
-public function incomeAndExpenditure(
-    TallyQueryService $tallyQueryService
-): View {
-    $report = [
-        'income' => [],
-        'expenditure' => [],
-        'total_income' => 0.0,
-        'total_expenditure' => 0.0,
-        'surplus_deficit' => 0.0,
-    ];
 
-    $error = null;
+    /**
+     * Display the current Income & Expenditure report retrieved from Tally.
+     */
+    public function incomeAndExpenditure(
+        TallyQueryService $tallyQueryService
+    ): View {
+        $report = [
+            'income' => [],
+            'expenditure' => [],
+            'total_income' => 0.0,
+            'total_expenditure' => 0.0,
+            'surplus_deficit' => 0.0,
+        ];
 
-    try {
-        $report = $tallyQueryService->incomeAndExpenditure();
-    } catch (\Throwable $exception) {
-        report($exception);
+        $error = null;
 
-        $error = 'Unable to retrieve the Income & Expenditure report from Tally. Please ensure TallyPrime is running and the configured company is open.';
+        try {
+            $report = $tallyQueryService->incomeAndExpenditure();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            $error = 'Unable to retrieve the Income & Expenditure report from Tally. Please ensure TallyPrime is running and the configured company is open.';
+        }
+
+        return view('finance.tally.income-expenditure', [
+            'income' => $report['income'],
+            'expenditure' => $report['expenditure'],
+            'totalIncome' => $report['total_income'],
+            'totalExpenditure' => $report['total_expenditure'],
+            'surplusDeficit' => $report['surplus_deficit'],
+            'error' => $error,
+        ]);
     }
 
-    return view('finance.tally.income-expenditure', [
-        'income' => $report['income'],
-        'expenditure' => $report['expenditure'],
-        'totalIncome' => $report['total_income'],
-        'totalExpenditure' => $report['total_expenditure'],
-        'surplusDeficit' => $report['surplus_deficit'],
-        'error' => $error,
-    ]);
-}
+    /**
+     * Display the current Balance Sheet retrieved from Tally.
+     */
+    public function balanceSheet(
+        TallyQueryService $tallyQueryService
+    ): View {
+        $report = [
+            'assets' => [],
+            'liabilities' => [],
+            'current_profit_loss' => 0.0,
+            'total_assets' => 0.0,
+            'total_liabilities' => 0.0,
+            'difference' => 0.0,
+        ];
+
+        $error = null;
+
+        try {
+            $report = $tallyQueryService->balanceSheet();
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            $error = 'Unable to retrieve the Balance Sheet from Tally. Please ensure TallyPrime is running and the configured company is open.';
+        }
+
+        return view('finance.tally.balance-sheet', [
+            'assets' => $report['assets'],
+            'liabilities' => $report['liabilities'],
+            'currentProfitLoss' => $report['current_profit_loss'],
+            'totalAssets' => $report['total_assets'],
+            'totalLiabilities' => $report['total_liabilities'],
+            'difference' => $report['difference'],
+            'error' => $error,
+        ]);
+    }
+
     /**
      * Create or update the Tally mapping for a Finance Head.
      */

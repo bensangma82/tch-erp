@@ -11,21 +11,28 @@
                 </p>
             </div>
 
-            <div class="flex items-center gap-2">
-                <a
-                    href="{{ route('finance.tally.trial-balance') }}"
-                    class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-                >
-                    Trial Balance
-                </a>
+            <div class="flex flex-wrap items-center gap-2">
+    <a
+        href="{{ route('finance.tally.trial-balance') }}"
+        class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+    >
+        Trial Balance
+    </a>
 
-                <a
-                    href="{{ route('finance.tally.income-expenditure') }}"
-                    class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
-                >
-                    Income &amp; Expenditure
-                </a>
-            </div>
+    <a
+        href="{{ route('finance.tally.income-expenditure') }}"
+        class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+    >
+        Income &amp; Expenditure
+    </a>
+
+    <a
+        href="{{ route('finance.tally.balance-sheet') }}"
+        class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+    >
+        Balance Sheet
+    </a>
+</div>
         </div>
     </x-slot>
 

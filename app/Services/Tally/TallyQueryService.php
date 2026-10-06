@@ -104,6 +104,44 @@ class TallyQueryService
         );
     }
 
+    /**
+     * Retrieve the current Balance Sheet data from Tally.
+     *
+     * Ledgers are classified using the Tally group hierarchy so that
+     * custom subgroups beneath the standard asset, liability, and
+     * capital groups are handled correctly.
+     *
+     * The current Profit & Loss balance is included separately so that
+     * the Balance Sheet reflects the current-period surplus or deficit.
+     *
+     * @return array{
+     *     assets: array<int, array{
+     *         name: string,
+     *         group: ?string,
+     *         amount: float
+     *     }>,
+     *     liabilities: array<int, array{
+     *         name: string,
+     *         group: ?string,
+     *         amount: float
+     *     }>,
+     *     current_profit_loss: float,
+     *     total_assets: float,
+     *     total_liabilities: float,
+     *     difference: float
+     * }
+     */
+    public function balanceSheet(): array
+    {
+        $ledgers = $this->ledgers();
+        $groups = $this->groups();
+
+        return $this->buildBalanceSheet(
+            $ledgers,
+            $groups
+        );
+    }
+
     public function trialBalance(): array
     {
         $responseXml = $this->tallyHttpClient->postXml(
@@ -803,6 +841,203 @@ XML;
 
             if (in_array($key, $expenditureRoots, true)) {
                 return 'expenditure';
+            }
+
+            /*
+             * Protect against malformed/circular group hierarchies.
+             */
+            if (isset($visited[$key])) {
+                return null;
+            }
+
+            $visited[$key] = true;
+
+            if (! array_key_exists($key, $groupParents)) {
+                return null;
+            }
+
+            $parent = $groupParents[$key];
+
+            if ($parent === null || trim($parent) === '') {
+                return null;
+            }
+
+            $current = trim($parent);
+        }
+
+        return null;
+    }
+
+    /**
+     * Build the current Balance Sheet from Tally ledgers and groups.
+     *
+     * Asset and liability classifications are determined from the Tally
+     * group hierarchy rather than from ledger names. This allows custom
+     * subgroups to inherit the correct Balance Sheet classification.
+     *
+     * @param  array<int, array{
+     *     name: string,
+     *     parent: ?string,
+     *     closing_balance: ?float
+     * }>  $ledgers
+     * @param  array<int, array{
+     *     name: string,
+     *     parent: ?string,
+     *     reserved_name: ?string
+     * }>  $groups
+     */
+    private function buildBalanceSheet(
+        array $ledgers,
+        array $groups
+    ): array {
+        $groupParents = [];
+
+        foreach ($groups as $group) {
+            $groupParents[
+                strtolower($group['name'])
+            ] = $group['parent'];
+        }
+
+        /*
+         * Standard Tally Balance Sheet root groups.
+         *
+         * Descendant groups are classified automatically by walking
+         * upwards through the Tally group hierarchy.
+         */
+        $assetRoots = [
+            'current assets',
+            'fixed assets',
+            'investments',
+            'misc. expenses (asset)',
+        ];
+
+        $liabilityRoots = [
+            'capital account',
+            'current liabilities',
+            'loans (liability)',
+        ];
+
+        $assets = [];
+        $liabilities = [];
+        $currentProfitLoss = 0.0;
+
+        foreach ($ledgers as $ledger) {
+            $balance = $ledger['closing_balance'];
+
+            if ($balance === null || abs($balance) < 0.00001) {
+                continue;
+            }
+
+            /*
+             * Tally exposes the current-period result through its reserved
+             * Profit & Loss A/c ledger. It is handled separately because it
+             * belongs to Primary rather than to a normal Balance Sheet group.
+             */
+            if (
+                strcasecmp(
+                    $ledger['name'],
+                    'Profit & Loss A/c'
+                ) === 0
+            ) {
+                $currentProfitLoss = $balance;
+
+                continue;
+            }
+
+            $classification = $this->classifyBalanceSheetGroup(
+                $ledger['parent'],
+                $groupParents,
+                $assetRoots,
+                $liabilityRoots
+            );
+
+            if ($classification === null) {
+                continue;
+            }
+
+            /*
+             * Tally balances use:
+             *     negative = debit
+             *     positive = credit
+             *
+             * Assets are therefore presented as positive for debit balances.
+             * A credit balance in an asset ledger remains negative so that
+             * abnormal/contra balances are not silently reclassified.
+             *
+             * Liabilities and capital are presented as positive for credit
+             * balances. Debit balances remain negative.
+             */
+            $amount = $classification === 'asset'
+                ? -$balance
+                : $balance;
+
+            $row = [
+                'name' => $ledger['name'],
+                'group' => $ledger['parent'],
+                'amount' => $amount,
+            ];
+
+            if ($classification === 'asset') {
+                $assets[] = $row;
+            } else {
+                $liabilities[] = $row;
+            }
+        }
+
+        /*
+         * Current Profit & Loss is part of the liability/equity side:
+         *
+         *     positive = surplus
+         *     negative = deficit
+         */
+        $totalAssets = array_sum(
+            array_column($assets, 'amount')
+        );
+
+        $totalLiabilities = array_sum(
+            array_column($liabilities, 'amount')
+        ) + $currentProfitLoss;
+
+        return [
+            'assets' => $assets,
+            'liabilities' => $liabilities,
+            'current_profit_loss' => $currentProfitLoss,
+            'total_assets' => $totalAssets,
+            'total_liabilities' => $totalLiabilities,
+            'difference' => $totalAssets - $totalLiabilities,
+        ];
+    }
+
+    /**
+     * Determine whether a Tally group ultimately belongs to
+     * an asset or liability/equity root group.
+     *
+     * @param  array<string, string|null>  $groupParents
+     * @param  array<int, string>  $assetRoots
+     * @param  array<int, string>  $liabilityRoots
+     */
+    private function classifyBalanceSheetGroup(
+        ?string $groupName,
+        array $groupParents,
+        array $assetRoots,
+        array $liabilityRoots
+    ): ?string {
+        if ($groupName === null || trim($groupName) === '') {
+            return null;
+        }
+
+        $current = trim($groupName);
+        $visited = [];
+
+        while ($current !== '') {
+            $key = strtolower($current);
+
+            if (in_array($key, $assetRoots, true)) {
+                return 'asset';
+            }
+
+            if (in_array($key, $liabilityRoots, true)) {
+                return 'liability';
             }
 
             /*
