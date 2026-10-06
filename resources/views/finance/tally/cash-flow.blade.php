@@ -88,6 +88,108 @@
                 </div>
             </div>
 
+                        {{-- CASH RECONCILIATION --}}
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+                <div class="border-b border-gray-200 px-6 py-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                Cash & Cash Equivalents Reconciliation
+                            </h3>
+
+                            <p class="mt-1 text-sm text-gray-500">
+                                Reconciles cash flow movements against the opening and closing balances reported by Tally.
+                            </p>
+                        </div>
+
+                        @if ($cashReconciled)
+                            <span class="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-800">
+                                Reconciled
+                            </span>
+                        @else
+                            <span class="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-800">
+                                Reconciliation Difference
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-4 md:divide-x md:divide-y-0">
+                    <div class="p-5">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Opening Cash
+                        </div>
+
+                        <div class="mt-2 text-xl font-bold {{ $openingCash < 0 ? 'text-red-700' : 'text-gray-900' }}">
+                            @if ($openingCash < 0)
+                                (₹{{ number_format(abs($openingCash), 2) }})
+                            @else
+                                ₹{{ number_format($openingCash, 2) }}
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="p-5">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            + Net Cash Flow
+                        </div>
+
+                        <div class="mt-2 text-xl font-bold {{ $netCashFlow < 0 ? 'text-red-700' : 'text-gray-900' }}">
+                            @if ($netCashFlow < 0)
+                                (₹{{ number_format(abs($netCashFlow), 2) }})
+                            @else
+                                ₹{{ number_format($netCashFlow, 2) }}
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="p-5">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Expected Closing Cash
+                        </div>
+
+                        <div class="mt-2 text-xl font-bold {{ $expectedClosingCash < 0 ? 'text-red-700' : 'text-gray-900' }}">
+                            @if ($expectedClosingCash < 0)
+                                (₹{{ number_format(abs($expectedClosingCash), 2) }})
+                            @else
+                                ₹{{ number_format($expectedClosingCash, 2) }}
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="p-5">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Actual Closing Cash
+                        </div>
+
+                        <div class="mt-2 text-xl font-bold {{ $closingCash < 0 ? 'text-red-700' : 'text-gray-900' }}">
+                            @if ($closingCash < 0)
+                                (₹{{ number_format(abs($closingCash), 2) }})
+                            @else
+                                ₹{{ number_format($closingCash, 2) }}
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="{{ $cashReconciled ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800' }} border-t px-6 py-3 text-sm">
+                    @if ($cashReconciled)
+                        <span class="font-semibold">Reconciliation successful.</span>
+                        Opening Cash + Net Cash Flow agrees with the closing Cash & Cash Equivalents balance.
+                    @else
+                        <span class="font-semibold">Reconciliation difference:</span>
+
+                        @if ($reconciliationDifference < 0)
+                            (₹{{ number_format(abs($reconciliationDifference), 2) }})
+                        @else
+                            ₹{{ number_format($reconciliationDifference, 2) }}
+                        @endif
+
+                        Review cash/bank ledger grouping and voucher classification in Tally.
+                    @endif
+                </div>
+            </div>
+
             @php
                 $sections = [
                     [

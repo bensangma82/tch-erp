@@ -219,11 +219,13 @@ class TallyQueryService
         $vouchers = $this->vouchers();
         $ledgers = $this->ledgers();
         $groups = $this->groups();
+        $trialBalance = $this->trialBalance();
 
         return $this->buildCashFlow(
             $vouchers,
             $ledgers,
-            $groups
+            $groups,
+            $trialBalance
         );
     }
 
@@ -1517,7 +1519,8 @@ XML;
     private function buildCashFlow(
         array $vouchers,
         array $ledgers,
-        array $groups
+        array $groups,
+        array $trialBalance
     ): array {
         /*
         |--------------------------------------------------------------------------
@@ -1708,6 +1711,48 @@ XML;
         $totalUnclassified = array_sum(
             array_column($unclassified, 'amount')
         );
+        /*
+        |--------------------------------------------------------------------------
+        | Cash and cash-equivalent reconciliation
+        |--------------------------------------------------------------------------
+        | Trial Balance amounts follow Tally's accounting sign convention:
+        |
+        |     debit  = negative
+        |     credit = positive
+        |
+        | Cash and bank assets therefore use the inverse sign for their
+        | economic balance.
+        |--------------------------------------------------------------------------
+        */
+
+        $openingCash = 0.0;
+        $closingCash = 0.0;
+
+        foreach ($trialBalance as $row) {
+            $parentGroup = $row['parent'] ?? null;
+
+            if (
+                ! $this->isCashEquivalentGroup(
+                    $parentGroup,
+                    $groupParents
+                )
+            ) {
+                continue;
+            }
+
+            $openingCash += -1 * (float) $row['opening_balance'];
+            $closingCash += -1 * (float) $row['closing_balance'];
+        }
+
+        $netCashFlow = $totalOperating
+            + $totalInvesting
+            + $totalFinancing
+            + $totalUnclassified;
+
+        $expectedClosingCash = $openingCash + $netCashFlow;
+
+        $reconciliationDifference = $expectedClosingCash
+            - $closingCash;
 
         return [
             'operating' => $operating,
@@ -1718,10 +1763,11 @@ XML;
             'total_investing' => $totalInvesting,
             'total_financing' => $totalFinancing,
             'total_unclassified' => $totalUnclassified,
-            'net_cash_flow' => $totalOperating
-                + $totalInvesting
-                + $totalFinancing
-                + $totalUnclassified,
+            'net_cash_flow' => $netCashFlow,
+            'opening_cash' => $openingCash,
+            'closing_cash' => $closingCash,
+            'expected_closing_cash' => $expectedClosingCash,
+            'reconciliation_difference' => $reconciliationDifference,
         ];
     }
 

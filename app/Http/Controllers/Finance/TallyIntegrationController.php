@@ -157,6 +157,10 @@ class TallyIntegrationController extends Controller
             'total_financing' => 0.0,
             'total_unclassified' => 0.0,
             'net_cash_flow' => 0.0,
+            'opening_cash' => 0.0,
+            'closing_cash' => 0.0,
+            'expected_closing_cash' => 0.0,
+            'reconciliation_difference' => 0.0,
         ];
 
         $error = null;
@@ -179,6 +183,13 @@ class TallyIntegrationController extends Controller
             'totalFinancing' => $report['total_financing'],
             'totalUnclassified' => $report['total_unclassified'],
             'netCashFlow' => $report['net_cash_flow'],
+            'openingCash' => $report['opening_cash'],
+            'closingCash' => $report['closing_cash'],
+            'expectedClosingCash' => $report['expected_closing_cash'],
+            'reconciliationDifference' => $report['reconciliation_difference'],
+            'cashReconciled' => abs(
+                $report['reconciliation_difference']
+            ) < 0.01,
             'error' => $error,
         ]);
     }
