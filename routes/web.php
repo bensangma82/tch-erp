@@ -853,10 +853,17 @@ Route::middleware([
             [TallyIntegrationController::class, 'cashFlow']
         )->name('finance.tally.cash-flow');
 
-        Route::get(
+          Route::get(
     '/admin/finance/tally/reconciliation',
     [TallyReconciliationController::class, 'index']
 )->name('finance.tally.reconciliation');
+
+Route::get(
+    '/admin/finance/tally/reconciliation/erp/{financeVoucher}',
+    [TallyReconciliationController::class, 'showErp']
+)
+    ->whereNumber('financeVoucher')
+    ->name('finance.tally.reconciliation.erp');
 
         Route::put(
             '/admin/finance/tally/heads/{financeHead}',

@@ -308,15 +308,25 @@
                                         {{ $voucher->voucher_date?->format('d M Y') ?: '—' }}
                                     </td>
 
-                                    <td class="px-6 py-3 text-sm">
-                                        <div class="font-medium text-gray-900">
-                                            {{ $voucher->voucher_no }}
-                                        </div>
+                                   <td class="px-6 py-3 text-sm">
+    <a
+        href="{{ route('finance.tally.reconciliation.erp', $voucher) }}"
+        class="font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
+    >
+        {{ $voucher->voucher_no }}
+    </a>
 
-                                        <div class="mt-1 text-xs text-gray-500">
-                                            {{ ucfirst($voucher->voucher_type) }}
-                                        </div>
-                                    </td>
+    <div class="mt-1 text-xs text-gray-500">
+        {{ ucfirst($voucher->voucher_type) }}
+    </div>
+
+    <a
+        href="{{ route('finance.tally.reconciliation.erp', $voucher) }}"
+        class="mt-2 inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 hover:bg-orange-100"
+    >
+        Review candidates
+    </a>
+</td>
 
                                     <td class="max-w-xs px-6 py-3 text-sm text-gray-700">
                                         {{ $voucher->narration ?: '—' }}

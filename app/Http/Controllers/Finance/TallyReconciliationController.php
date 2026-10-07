@@ -130,4 +130,37 @@ class TallyReconciliationController extends Controller
             )
         );
     }
+
+    /**
+     * Show a read-only reconciliation review for one ERP Finance voucher.
+     */
+    public function showErp(FinanceVoucher $financeVoucher): View
+    {
+        $financeVoucher->load([
+            'financeHead',
+            'financeAccount',
+            'destinationAccount',
+            'tallyExport',
+            'tallyImportedVouchers.entries',
+        ]);
+
+        $diagnostic = $this
+            ->reconciliationService
+            ->unmatchedStatus($financeVoucher);
+
+        $candidates = $this
+            ->reconciliationService
+            ->candidatesFor($financeVoucher);
+
+        $candidates->load('entries');
+
+        return view(
+            'finance.tally.reconciliation-erp',
+            compact(
+                'financeVoucher',
+                'diagnostic',
+                'candidates'
+            )
+        );
+    }
 }

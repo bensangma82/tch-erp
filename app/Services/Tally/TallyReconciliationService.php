@@ -480,6 +480,29 @@ class TallyReconciliationService
         ];
     }
 
+    /**
+     * Return the current Tally candidates for an unmatched ERP voucher.
+     *
+     * This is read-only and uses the same conservative matching rules
+     * used by the reconciliation process.
+     */
+    public function candidatesFor(
+        FinanceVoucher $financeVoucher
+    ) {
+        $expectedLedgers = $this->expectedTallyLedgers(
+            $financeVoucher
+        );
+
+        if ($expectedLedgers === null) {
+            return collect();
+        }
+
+        return $this->secondaryCandidates(
+            $financeVoucher,
+            $expectedLedgers
+        )->values();
+    }
+
     private function secondaryConfidence(
         FinanceVoucher $financeVoucher,
         TallyImportedVoucher $candidate
