@@ -32,7 +32,125 @@
             </div>
 
         </div>
+{{-- Tally Reconciliation Health --}}
+<div class="mb-6 rounded-xl border border-slate-200 bg-white shadow-sm">
 
+    <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="font-semibold text-slate-900">
+                Tally Reconciliation Health
+            </h2>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Current ERP and Tally reconciliation status
+            </p>
+        </div>
+
+        <a
+            href="{{ route('finance.tally.reconciliation') }}"
+            class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+            Open Reconciliation
+        </a>
+    </div>
+
+    <div class="grid grid-cols-2 divide-x divide-y divide-slate-100 sm:grid-cols-3 xl:grid-cols-6">
+
+        {{-- Matched --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Matched
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-emerald-600">
+                {{ $tallyReconciliation['matched'] }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                ERP &amp; Tally linked
+            </div>
+        </div>
+
+        {{-- Tally Only --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Tally Only
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-amber-600">
+                {{ $tallyReconciliation['tally_only'] }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                No ERP link
+            </div>
+        </div>
+
+        {{-- ERP Only --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                ERP Only
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-amber-600">
+                {{ $tallyReconciliation['erp_only'] }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                No Tally match
+            </div>
+        </div>
+
+        {{-- Ambiguous --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Ambiguous
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-orange-600">
+                {{ $tallyReconciliation['ambiguous'] }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Review required
+            </div>
+        </div>
+
+        {{-- Unmapped --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Unmapped
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-purple-600">
+                {{ $tallyReconciliation['unmapped'] }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Mapping required
+            </div>
+        </div>
+
+        {{-- Differences --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Differences
+            </div>
+
+            <div class="mt-2 text-2xl font-bold
+                {{ $tallyReconciliation['difference'] > 0
+                    ? 'text-red-600'
+                    : 'text-emerald-600' }}">
+                {{ $tallyReconciliation['difference'] }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Accounting exceptions
+            </div>
+        </div>
+
+    </div>
+</div>
         {{-- Financial Health --}}
         <div class="mb-3">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">

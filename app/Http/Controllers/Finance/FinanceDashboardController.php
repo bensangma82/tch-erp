@@ -15,13 +15,15 @@ use App\Models\PharmacySale;
 use App\Models\PharmacySupplierPayment;
 use App\Services\Finance\BillingFinanceService;
 use App\Services\Finance\FinanceHealthService;
+use App\Services\Tally\TallyReconciliationService;
 use Illuminate\View\View;
 
 class FinanceDashboardController extends Controller
 {
     public function index(
         BillingFinanceService $billingFinanceService,
-        FinanceHealthService $financeHealthService
+        FinanceHealthService $financeHealthService,
+        TallyReconciliationService $tallyReconciliationService
     ): View {
         $today = now()->toDateString();
         $year = now()->year;
@@ -960,6 +962,9 @@ $monthPayments += $supplierMonthPayments;
         $dashboardCharts =
             $financeHealthService->dashboardCharts();
 
+        $tallyReconciliation =
+            $tallyReconciliationService->summary();
+
         /*
         |--------------------------------------------------------------------------
         | View
@@ -1077,6 +1082,9 @@ $monthPayments += $supplierMonthPayments;
 
             'dashboardCharts' =>
                 $dashboardCharts,
+
+            'tallyReconciliation' =>
+                $tallyReconciliation,
         ]);
     }
 }

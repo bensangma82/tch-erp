@@ -38,6 +38,76 @@ class TallyReconciliationService
      *     difference: int
      * }
      */
+    /**
+ * Return the current reconciliation health summary without modifying
+ * any ERP or Tally reconciliation state.
+ *
+ * This is safe for dashboards and management reporting.
+ *
+ * @return array{
+ *     matched: int,
+ *     tally_only: int,
+ *     erp_only: int,
+ *     ambiguous: int,
+ *     unmapped: int,
+ *     difference: int
+ * }
+ */
+public function summary(): array
+{
+    $matched = TallyImportedVoucher::query()
+        ->where('reconciliation_status', 'matched')
+        ->count();
+
+    $tallyOnly = TallyImportedVoucher::query()
+        ->whereNull('finance_voucher_id')
+        ->where('reconciliation_status', 'tally_only')
+        ->count();
+
+    $differences = TallyImportedVoucher::query()
+        ->where('reconciliation_status', 'difference')
+        ->count();
+
+    /*
+     * Posted ERP vouchers with no currently linked imported
+     * Tally voucher still need read-only classification.
+     */
+    $unmatchedErp = FinanceVoucher::query()
+        ->with([
+            'financeHead',
+            'financeAccount',
+            'destinationAccount',
+            'tallyExport',
+        ])
+        ->where('status', 'posted')
+        ->whereDoesntHave('tallyImportedVouchers')
+        ->get();
+
+    $erpOnly = 0;
+    $ambiguous = 0;
+    $unmapped = 0;
+
+    foreach ($unmatchedErp as $financeVoucher) {
+        $diagnostic = $this->unmatchedStatus(
+            $financeVoucher
+        );
+
+        match ($diagnostic['status']) {
+            'ambiguous' => $ambiguous++,
+            'unmapped' => $unmapped++,
+            default => $erpOnly++,
+        };
+    }
+
+    return [
+        'matched' => $matched,
+        'tally_only' => $tallyOnly,
+        'erp_only' => $erpOnly,
+        'ambiguous' => $ambiguous,
+        'unmapped' => $unmapped,
+        'difference' => $differences,
+    ];
+}
     public function reconcile(): array
     {
         $summary = [
