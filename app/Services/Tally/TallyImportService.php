@@ -2,7 +2,6 @@
 
 namespace App\Services\Tally;
 
-use App\Models\TallyExport;
 use App\Models\TallyImportedVoucher;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -16,15 +15,16 @@ class TallyImportService
     /**
      * Synchronize the currently available Tally vouchers into the ERP.
      *
-     * This operation is read-only with respect to Tally and does not
-     * create or modify FinanceVoucher records.
+     * This service only mirrors Tally data.
+     *
+     * It deliberately does not perform or modify reconciliation.
+     * Existing reconciliation results therefore survive subsequent
+     * Tally synchronization runs.
      *
      * @return array{
      *     received: int,
      *     imported: int,
      *     updated: int,
-     *     matched: int,
-     *     tally_only: int,
      *     skipped: int
      * }
      */
@@ -36,8 +36,6 @@ class TallyImportService
             'received' => count($vouchers),
             'imported' => 0,
             'updated' => 0,
-            'matched' => 0,
-            'tally_only' => 0,
             'skipped' => 0,
         ];
 
@@ -49,9 +47,14 @@ class TallyImportService
              * attempting an unsafe identity match from mutable fields such
              * as date, voucher number or amount.
              */
-            $guid = $voucher['guid'] ?? null;
+            $guid = trim(
+                (string) (
+                    $voucher['guid']
+                    ?? ''
+                )
+            );
 
-            if ($guid === null || trim($guid) === '') {
+            if ($guid === '') {
                 $summary['skipped']++;
 
                 continue;
@@ -62,84 +65,61 @@ class TallyImportService
                 $guid,
                 &$summary
             ): void {
-                $remoteId = $voucher['remote_id'] ?? null;
-
-                $tallyExport = null;
-
-                if (
-                    $remoteId !== null
-                    && trim($remoteId) !== ''
-                    && preg_match(
-                        '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
-                        trim($remoteId)
-                    ) === 1
-                ) {
-                    $tallyExport = TallyExport::query()
-                        ->where(
-                            'remote_id',
-                            trim($remoteId)
-                        )
-                        ->first();
-                }
-
-                $existing = TallyImportedVoucher::query()
-                    ->where('guid', $guid)
-                    ->first();
-
-                $voucherDate = $this->parseVoucherDate(
-                    $voucher['date'] ?? null
+                $remoteId = trim(
+                    (string) (
+                        $voucher['remote_id']
+                        ?? ''
+                    )
                 );
 
-                $attributes = [
+                $voucherDate = $this->parseVoucherDate(
+                    $voucher['date']
+                    ?? null
+                );
+
+                /*
+                 * These are Tally-source fields only.
+                 *
+                 * Reconciliation fields are intentionally excluded so
+                 * synchronization cannot destroy an existing automatic
+                 * or manual ERP/Tally match.
+                 */
+                $sourceAttributes = [
                     'remote_id' => $remoteId !== ''
                         ? $remoteId
                         : null,
                     'voucher_date' => $voucherDate,
-                    'voucher_type' => $voucher['voucher_type'] ?? null,
-                    'voucher_number' => $voucher['voucher_number'] ?? null,
-                    'party_ledger' => $voucher['party_ledger'] ?? null,
-                    'narration' => $voucher['narration'] ?? null,
+                    'voucher_type' => $voucher['voucher_type']
+                        ?? null,
+                    'voucher_number' => $voucher['voucher_number']
+                        ?? null,
+                    'party_ledger' => $voucher['party_ledger']
+                        ?? null,
+                    'narration' => $voucher['narration']
+                        ?? null,
                     'last_seen_at' => now(),
                 ];
 
-                if ($tallyExport !== null) {
-                    $attributes['finance_voucher_id']
-                        = $tallyExport->finance_voucher_id;
-
-                    $attributes['reconciliation_status']
-                        = 'matched';
-
-                    $attributes['match_method']
-                        = 'exact_remote_id';
-
-                    $attributes['match_confidence']
-                        = 100.00;
-
-                    $attributes['reconciliation_notes']
-                        = 'Matched automatically using the ERP-generated Tally REMOTEID.';
-                } else {
-                    $attributes['finance_voucher_id'] = null;
-                    $attributes['reconciliation_status'] = 'tally_only';
-                    $attributes['match_method'] = null;
-                    $attributes['match_confidence'] = null;
-                    $attributes['reconciliation_notes'] = null;
-                }
+                $existing = TallyImportedVoucher::query()
+                    ->where('guid', $guid)
+                    ->first();
 
                 if ($existing === null) {
                     $importedVoucher = TallyImportedVoucher::create(
                         array_merge(
                             [
                                 'guid' => $guid,
+                                'reconciliation_status' => 'tally_only',
                                 'first_seen_at' => now(),
                             ],
-                            $attributes
+                            $sourceAttributes
                         )
                     );
 
                     $summary['imported']++;
                 } else {
                     $existing->update(
-                        $attributes
+                        $sourceAttributes
                     );
 
                     $importedVoucher = $existing;
@@ -151,10 +131,13 @@ class TallyImportService
                  * Rebuild the child ledger lines from the latest Tally
                  * representation so edited Tally vouchers remain accurate.
                  */
-                $importedVoucher->entries()->delete();
+                $importedVoucher
+                    ->entries()
+                    ->delete();
 
                 foreach (
-                    $voucher['ledger_entries'] ?? [] as $index => $entry
+                    $voucher['ledger_entries']
+                        ?? [] as $index => $entry
                 ) {
                     $ledgerName = trim(
                         (string) (
@@ -167,22 +150,18 @@ class TallyImportService
                         continue;
                     }
 
-                    $importedVoucher->entries()->create([
-                        'ledger_name' => $ledgerName,
-                        'amount' => (float) (
-                            $entry['amount']
-                            ?? 0
-                        ),
-                        'is_deemed_positive' => $entry['is_deemed_positive']
-                                ?? null,
-                        'line_no' => $index + 1,
-                    ]);
-                }
-
-                if ($tallyExport !== null) {
-                    $summary['matched']++;
-                } else {
-                    $summary['tally_only']++;
+                    $importedVoucher
+                        ->entries()
+                        ->create([
+                            'ledger_name' => $ledgerName,
+                            'amount' => (float) (
+                                $entry['amount']
+                                ?? 0
+                            ),
+                            'is_deemed_positive' => $entry['is_deemed_positive']
+                                    ?? null,
+                            'line_no' => $index + 1,
+                        ]);
                 }
             });
         }
@@ -196,7 +175,10 @@ class TallyImportService
     private function parseVoucherDate(
         ?string $value
     ): ?string {
-        if ($value === null || trim($value) === '') {
+        if (
+            $value === null
+            || trim($value) === ''
+        ) {
             return null;
         }
 
@@ -211,9 +193,23 @@ class TallyImportService
             );
         }
 
-        $year = substr($value, 0, 4);
-        $month = substr($value, 4, 2);
-        $day = substr($value, 6, 2);
+        $year = substr(
+            $value,
+            0,
+            4
+        );
+
+        $month = substr(
+            $value,
+            4,
+            2
+        );
+
+        $day = substr(
+            $value,
+            6,
+            2
+        );
 
         if (
             ! checkdate(
