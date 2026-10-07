@@ -48,9 +48,6 @@ class TallyReconciliationController extends Controller
 
         /*
          * Persisted accounting differences.
-         *
-         * Difference detection will be expanded later to compare the
-         * accounting content of an identified ERP/Tally voucher pair.
          */
         $differences = TallyImportedVoucher::query()
             ->with([
@@ -135,7 +132,7 @@ class TallyReconciliationController extends Controller
     }
 
     /**
-     * Show a read-only reconciliation review for one ERP Finance voucher.
+     * Show reconciliation review for one ERP Finance voucher.
      */
     public function showErp(FinanceVoucher $financeVoucher): View
     {
@@ -147,22 +144,45 @@ class TallyReconciliationController extends Controller
             'tallyImportedVouchers.entries',
         ]);
 
-        $diagnostic = $this
-            ->reconciliationService
-            ->unmatchedStatus($financeVoucher);
+        /*
+         * If this ERP voucher already has a linked imported Tally voucher,
+         * prefer that persisted reconciliation result instead of treating
+         * the ERP voucher as unmatched.
+         */
+        $linkedTallyVoucher = $financeVoucher
+            ->tallyImportedVouchers
+            ->firstWhere('reconciliation_status', 'difference')
+            ?? $financeVoucher
+                ->tallyImportedVouchers
+                ->firstWhere('reconciliation_status', 'matched');
 
-        $candidates = $this
-            ->reconciliationService
-            ->candidatesFor($financeVoucher);
+        if ($linkedTallyVoucher !== null) {
+            $diagnostic = [
+                'status' => $linkedTallyVoucher->reconciliation_status,
+                'reason' => $linkedTallyVoucher->reconciliation_notes,
+                'candidate_count' => 0,
+            ];
 
-        $candidates->load('entries');
+            $candidates = collect();
+        } else {
+            $diagnostic = $this
+                ->reconciliationService
+                ->unmatchedStatus($financeVoucher);
+
+            $candidates = $this
+                ->reconciliationService
+                ->candidatesFor($financeVoucher);
+
+            $candidates->load('entries');
+        }
 
         return view(
             'finance.tally.reconciliation-erp',
             compact(
                 'financeVoucher',
                 'diagnostic',
-                'candidates'
+                'candidates',
+                'linkedTallyVoucher'
             )
         );
     }
