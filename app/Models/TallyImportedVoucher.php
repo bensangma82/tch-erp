@@ -24,6 +24,8 @@ class TallyImportedVoucher extends Model
         'match_method',
         'match_confidence',
         'reconciliation_notes',
+        'reconciled_by',
+        'reconciled_at',
         'first_seen_at',
         'last_seen_at',
     ];
@@ -31,6 +33,7 @@ class TallyImportedVoucher extends Model
     protected $casts = [
         'voucher_date' => 'date',
         'match_confidence' => 'decimal:2',
+        'reconciled_at' => 'datetime',
         'first_seen_at' => 'datetime',
         'last_seen_at' => 'datetime',
     ];
@@ -46,6 +49,14 @@ class TallyImportedVoucher extends Model
     {
         return $this->belongsTo(
             FinanceVoucher::class
+        );
+    }
+
+    public function reconciledBy(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'reconciled_by'
         );
     }
 }

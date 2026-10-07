@@ -7,6 +7,9 @@ use App\Models\FinanceVoucher;
 use App\Models\TallyImportedVoucher;
 use App\Services\Tally\TallyReconciliationService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use RuntimeException;
 
 class TallyReconciliationController extends Controller
 {
@@ -162,5 +165,55 @@ class TallyReconciliationController extends Controller
                 'candidates'
             )
         );
+    }
+
+    /**
+     * Manually reconcile a posted ERP Finance voucher with a selected
+     * imported Tally voucher.
+     */
+    public function manualMatch(
+        Request $request,
+        FinanceVoucher $financeVoucher,
+        TallyImportedVoucher $tallyVoucher
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'notes' => [
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        $userId = $request->user()?->id;
+
+        if ($userId === null) {
+            abort(403);
+        }
+
+        try {
+            $this->reconciliationService->manualMatch(
+                $financeVoucher,
+                $tallyVoucher,
+                $userId,
+                $validated['notes'] ?? null
+            );
+        } catch (RuntimeException $exception) {
+            return redirect()
+                ->route(
+                    'finance.tally.reconciliation.erp',
+                    $financeVoucher
+                )
+                ->with(
+                    'error',
+                    $exception->getMessage()
+                );
+        }
+
+        return redirect()
+            ->route('finance.tally.reconciliation')
+            ->with(
+                'success',
+                'ERP and Tally vouchers were manually reconciled successfully.'
+            );
     }
 }

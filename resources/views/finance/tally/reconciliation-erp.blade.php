@@ -368,6 +368,63 @@
                                     </table>
                                 </div>
                             </div>
+                                                        {{-- MANUAL RECONCILIATION --}}
+                            <div class="border-t border-gray-200 bg-indigo-50 px-6 py-5">
+                                <div class="mb-4">
+                                    <div class="text-sm font-semibold text-gray-900">
+                                        Manual reconciliation
+                                    </div>
+
+                                    <p class="mt-1 text-sm leading-5 text-gray-600">
+                                        Select this candidate only after confirming that it represents the same accounting transaction as the ERP voucher.
+                                    </p>
+                                </div>
+
+                                <form
+                                    method="POST"
+                                    action="{{ route(
+                                        'finance.tally.reconciliation.manual-match',
+                                        [
+                                            'financeVoucher' => $financeVoucher,
+                                            'tallyVoucher' => $candidate,
+                                        ]
+                                    ) }}"
+                                    onsubmit="return confirm('Confirm manual reconciliation with this Tally voucher? This decision will be recorded in the audit trail.');"
+                                >
+                                    @csrf
+
+                                    <div>
+                                        <label
+                                            for="notes-{{ $candidate->id }}"
+                                            class="block text-xs font-semibold uppercase tracking-wide text-gray-600"
+                                        >
+                                            Reconciliation note
+                                        </label>
+
+                                        <textarea
+                                            id="notes-{{ $candidate->id }}"
+                                            name="notes"
+                                            rows="2"
+                                            maxlength="1000"
+                                            placeholder="Optional reason or comment"
+                                            class="mt-2 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        >{{ old('notes') }}</textarea>
+                                    </div>
+
+                                    <div class="mt-4 flex items-center justify-between gap-4">
+                                        <div class="text-xs text-gray-500">
+                                            Your user account and reconciliation time will be recorded.
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            class="inline-flex shrink-0 items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                        >
+                                            Match this voucher
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     @empty
                         <div class="xl:col-span-2 rounded-xl border border-gray-200 bg-white px-6 py-10 text-center shadow">
@@ -386,13 +443,13 @@
             {{-- SAFETY NOTE --}}
             <div class="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
                 <div class="text-sm font-semibold text-gray-800">
-                    Read-only review
-                </div>
+    Reconciliation control
+</div>
 
-                <div class="mt-1 text-sm leading-6 text-gray-600">
-                    No reconciliation decision can be made from this page yet.
-                    Manual matching will be added only after the candidate comparison workflow has been validated.
-                </div>
+<div class="mt-1 text-sm leading-6 text-gray-600">
+    Manual matching should only be used after confirming that the ERP and Tally vouchers represent the same accounting transaction.
+    The selected match, user account, timestamp and reconciliation note are retained for audit purposes.
+</div>
             </div>
 
         </div>

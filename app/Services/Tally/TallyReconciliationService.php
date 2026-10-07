@@ -6,6 +6,8 @@ use App\Models\FinanceVoucher;
 use App\Models\TallyImportedVoucher;
 use App\Models\TallyLedgerMapping;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class TallyReconciliationService
 {
@@ -89,6 +91,27 @@ class TallyReconciliationService
 
         foreach ($financeVouchers as $financeVoucher) {
             $summary['processed']++;
+            /*
+ * A manual reconciliation is an authorised accounting decision.
+ * Never attempt to automatically reconcile the same ERP voucher
+ * again while that protected manual relationship exists.
+ */
+            $hasManualMatch = TallyImportedVoucher::query()
+                ->where(
+                    'finance_voucher_id',
+                    $financeVoucher->id
+                )
+                ->where(
+                    'match_method',
+                    'manual'
+                )
+                ->exists();
+
+            if ($hasManualMatch) {
+                $summary['matched']++;
+
+                continue;
+            }
 
             /*
              * First preference: an exact REMOTEID match.
@@ -501,6 +524,116 @@ class TallyReconciliationService
             $financeVoucher,
             $expectedLedgers
         )->values();
+    }
+
+    /**
+     * Manually reconcile one posted ERP Finance voucher with one
+     * imported Tally voucher.
+     *
+     * Manual reconciliation is deliberately restricted to candidates
+     * that satisfy the same conservative accounting rules used by the
+     * automatic reconciliation process.
+     */
+    public function manualMatch(
+        FinanceVoucher $financeVoucher,
+        TallyImportedVoucher $tallyVoucher,
+        int $userId,
+        ?string $notes = null
+    ): TallyImportedVoucher {
+        return DB::transaction(
+            function () use (
+                $financeVoucher,
+                $tallyVoucher,
+                $userId,
+                $notes
+            ): TallyImportedVoucher {
+                $lockedFinanceVoucher = FinanceVoucher::query()
+                    ->with([
+                        'financeHead',
+                        'financeAccount',
+                        'destinationAccount',
+                        'tallyExport',
+                    ])
+                    ->lockForUpdate()
+                    ->findOrFail(
+                        $financeVoucher->id
+                    );
+
+                $lockedTallyVoucher = TallyImportedVoucher::query()
+                    ->with('entries')
+                    ->lockForUpdate()
+                    ->findOrFail(
+                        $tallyVoucher->id
+                    );
+
+                if ($lockedFinanceVoucher->status !== 'posted') {
+                    throw new RuntimeException(
+                        'Only posted ERP Finance vouchers can be reconciled.'
+                    );
+                }
+
+                $erpAlreadyMatched = TallyImportedVoucher::query()
+                    ->where(
+                        'finance_voucher_id',
+                        $lockedFinanceVoucher->id
+                    )
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($erpAlreadyMatched) {
+                    throw new RuntimeException(
+                        'This ERP Finance voucher is already reconciled with a Tally voucher.'
+                    );
+                }
+
+                if ($lockedTallyVoucher->finance_voucher_id !== null) {
+                    throw new RuntimeException(
+                        'This Tally voucher is already reconciled with an ERP Finance voucher.'
+                    );
+                }
+
+                $candidateIds = $this
+                    ->candidatesFor(
+                        $lockedFinanceVoucher
+                    )
+                    ->pluck('id');
+
+                if (
+                    ! $candidateIds->contains(
+                        $lockedTallyVoucher->id
+                    )
+                ) {
+                    throw new RuntimeException(
+                        'The selected Tally voucher is not a valid reconciliation candidate for this ERP Finance voucher.'
+                    );
+                }
+
+                $auditNote = 'Manually reconciled by an authorised ERP user.';
+
+                if (
+                    $notes !== null
+                    && trim($notes) !== ''
+                ) {
+                    $auditNote .= ' '.trim($notes);
+                }
+
+                $lockedTallyVoucher->update([
+                    'finance_voucher_id' => $lockedFinanceVoucher->id,
+                    'reconciliation_status' => 'matched',
+                    'match_method' => 'manual',
+                    'match_confidence' => null,
+                    'reconciliation_notes' => $auditNote,
+                    'reconciled_by' => $userId,
+                    'reconciled_at' => now(),
+                ]);
+
+                return $lockedTallyVoucher->fresh([
+                    'entries',
+                    'financeVoucher',
+                    'reconciledBy',
+                ]);
+            }
+        );
     }
 
     private function secondaryConfidence(
