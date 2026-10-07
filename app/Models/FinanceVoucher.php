@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class FinanceVoucher extends Model
@@ -129,5 +130,17 @@ class FinanceVoucher extends Model
     public function tallyExport(): HasOne
     {
         return $this->hasOne(TallyExport::class);
+    }
+
+    /**
+     * Tally vouchers imported into ERP and reconciled against this
+     * Finance voucher.
+     */
+    public function tallyImportedVouchers(): HasMany
+    {
+        return $this->hasMany(
+            TallyImportedVoucher::class,
+            'finance_voucher_id'
+        );
     }
 }

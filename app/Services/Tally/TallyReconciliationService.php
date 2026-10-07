@@ -437,6 +437,49 @@ class TallyReconciliationService
         return $actualLedgers === $expectedLedgers;
     }
 
+    /**
+     * Determine why a posted ERP voucher is currently unmatched.
+     *
+     * This method is read-only and uses the same conservative matching
+     * rules as the reconciliation process.
+     *
+     * @return array{
+     *     status: string,
+     *     candidate_count: int
+     * }
+     */
+    public function unmatchedStatus(
+        FinanceVoucher $financeVoucher
+    ): array {
+        $expectedLedgers = $this->expectedTallyLedgers(
+            $financeVoucher
+        );
+
+        if ($expectedLedgers === null) {
+            return [
+                'status' => 'unmapped',
+                'candidate_count' => 0,
+            ];
+        }
+
+        $candidates = $this->secondaryCandidates(
+            $financeVoucher,
+            $expectedLedgers
+        );
+
+        if ($candidates->count() > 1) {
+            return [
+                'status' => 'ambiguous',
+                'candidate_count' => $candidates->count(),
+            ];
+        }
+
+        return [
+            'status' => 'erp_only',
+            'candidate_count' => $candidates->count(),
+        ];
+    }
+
     private function secondaryConfidence(
         FinanceVoucher $financeVoucher,
         TallyImportedVoucher $candidate

@@ -36,6 +36,7 @@ use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Finance\FinanceVoucherController;
 use App\Http\Controllers\Finance\TallyExportController;
 use App\Http\Controllers\Finance\TallyIntegrationController;
+use App\Http\Controllers\Finance\TallyReconciliationController;
 use App\Http\Controllers\Hr\EmployeeSalaryStructureController;
 use App\Http\Controllers\Hr\PayrollRunController;
 use App\Http\Controllers\Hr\SalaryComponentController;
@@ -851,6 +852,11 @@ Route::middleware([
             '/admin/finance/tally/cash-flow',
             [TallyIntegrationController::class, 'cashFlow']
         )->name('finance.tally.cash-flow');
+
+        Route::get(
+    '/admin/finance/tally/reconciliation',
+    [TallyReconciliationController::class, 'index']
+)->name('finance.tally.reconciliation');
 
         Route::put(
             '/admin/finance/tally/heads/{financeHead}',
