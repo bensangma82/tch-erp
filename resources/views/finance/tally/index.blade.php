@@ -11,7 +11,7 @@
                 </p>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
+           <div class="flex flex-wrap items-center gap-2">
     <a
         href="{{ route('finance.tally.trial-balance') }}"
         class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
@@ -32,12 +32,20 @@
     >
         Balance Sheet
     </a>
+
     <a
-    href="{{ route('finance.tally.cash-flow') }}"
-    class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
->
-    Cash Flow
-</a>
+        href="{{ route('finance.tally.cash-flow') }}"
+        class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700"
+    >
+        Cash Flow
+    </a>
+
+    <a
+        href="{{ route('finance.tally.reconciliation') }}"
+        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+    >
+        Reconciliation
+    </a>
 </div>
         </div>
     </x-slot>
