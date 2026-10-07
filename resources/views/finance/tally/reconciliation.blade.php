@@ -250,6 +250,152 @@
                 </div>
             </div>
 
+            {{-- DIFFERENCES --}}
+            <div class="mb-6 overflow-hidden rounded-xl border border-red-200 bg-white shadow">
+                <div class="border-b border-red-200 bg-red-50 px-6 py-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-red-900">
+                                Accounting Differences
+                            </h3>
+
+                            <p class="mt-1 text-sm text-red-700">
+                                ERP and Tally vouchers have been identified as the same transaction,
+                                but their accounting details do not agree.
+                            </p>
+                        </div>
+
+                        <div class="text-sm font-semibold text-red-800">
+                            {{ $differences->count() }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    Date
+                                </th>
+
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    ERP Voucher
+                                </th>
+
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    Tally Voucher
+                                </th>
+
+                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    ERP Amount
+                                </th>
+
+                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    Tally Amount
+                                </th>
+
+                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    Difference
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            @forelse ($differences as $voucher)
+                                @php
+                                    $tallyAmount = round(
+                                        $voucher->entries->sum(
+                                            fn ($entry) => abs((float) $entry->amount)
+                                        ) / 2,
+                                        2
+                                    );
+
+                                    $erpVoucher = $voucher->financeVoucher;
+                                @endphp
+
+                                <tr class="hover:bg-red-50/40">
+                                    <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">
+                                        {{ $voucher->voucher_date?->format('d M Y') ?: '—' }}
+                                    </td>
+
+                                    <td class="px-6 py-4 text-sm">
+                                        @if ($erpVoucher)
+                                            <a
+                                                href="{{ route('finance.tally.reconciliation.erp', $erpVoucher) }}"
+                                                class="font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
+                                            >
+                                                {{ $erpVoucher->voucher_no }}
+                                            </a>
+
+                                            <div class="mt-1 text-xs text-gray-500">
+                                                {{ ucfirst($erpVoucher->voucher_type) }}
+                                            </div>
+
+                                            <a
+                                                href="{{ route('finance.tally.reconciliation.erp', $erpVoucher) }}"
+                                                class="mt-2 inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 hover:bg-red-100"
+                                            >
+                                                Review difference
+                                            </a>
+                                        @else
+                                            <span class="text-gray-500">
+                                                —
+                                            </span>
+                                        @endif
+                                    </td>
+
+                                    <td class="px-6 py-4 text-sm">
+                                        <div class="font-medium text-gray-900">
+                                            {{ $voucher->voucher_type ?: '—' }}
+
+                                            @if ($voucher->voucher_number)
+                                                #{{ $voucher->voucher_number }}
+                                            @endif
+                                        </div>
+
+                                        <div class="mt-1 break-all text-xs text-gray-500">
+                                            {{ $voucher->guid ?: 'No GUID' }}
+                                        </div>
+                                    </td>
+
+                                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold tabular-nums text-gray-900">
+                                        @if ($erpVoucher)
+                                            ₹{{ number_format((float) $erpVoucher->amount, 2) }}
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
+
+                                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold tabular-nums text-gray-900">
+                                        ₹{{ number_format($tallyAmount, 2) }}
+                                    </td>
+
+                                    <td class="max-w-md px-6 py-4 text-sm">
+                                        <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">
+                                            {{ $voucher->reconciliation_notes ?: 'Accounting details differ.' }}
+                                        </div>
+
+                                        <div class="mt-2 text-xs text-gray-500">
+                                            Match:
+                                            {{ $voucher->match_method === 'exact_remote_id'
+                                                ? 'Exact REMOTEID'
+                                                : ($voucher->match_method ?: '—') }}
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">
+                                        No accounting differences detected.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             {{-- AMBIGUOUS --}}
             <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
                 <div class="border-b border-orange-200 bg-orange-50 px-6 py-4">
@@ -308,25 +454,25 @@
                                         {{ $voucher->voucher_date?->format('d M Y') ?: '—' }}
                                     </td>
 
-                                   <td class="px-6 py-3 text-sm">
-    <a
-        href="{{ route('finance.tally.reconciliation.erp', $voucher) }}"
-        class="font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
-    >
-        {{ $voucher->voucher_no }}
-    </a>
+                                    <td class="px-6 py-3 text-sm">
+                                        <a
+                                            href="{{ route('finance.tally.reconciliation.erp', $voucher) }}"
+                                            class="font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
+                                        >
+                                            {{ $voucher->voucher_no }}
+                                        </a>
 
-    <div class="mt-1 text-xs text-gray-500">
-        {{ ucfirst($voucher->voucher_type) }}
-    </div>
+                                        <div class="mt-1 text-xs text-gray-500">
+                                            {{ ucfirst($voucher->voucher_type) }}
+                                        </div>
 
-    <a
-        href="{{ route('finance.tally.reconciliation.erp', $voucher) }}"
-        class="mt-2 inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 hover:bg-orange-100"
-    >
-        Review candidates
-    </a>
-</td>
+                                        <a
+                                            href="{{ route('finance.tally.reconciliation.erp', $voucher) }}"
+                                            class="mt-2 inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800 hover:bg-orange-100"
+                                        >
+                                            Review candidates
+                                        </a>
+                                    </td>
 
                                     <td class="max-w-xs px-6 py-3 text-sm text-gray-700">
                                         {{ $voucher->narration ?: '—' }}
@@ -566,61 +712,6 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            {{-- DIFFERENCES --}}
-            <div class="overflow-hidden rounded-xl bg-white shadow">
-                <div class="border-b border-red-200 bg-red-50 px-6 py-4">
-                    <div class="flex items-center justify-between gap-4">
-                        <div>
-                            <h3 class="text-lg font-semibold text-red-900">
-                                Accounting Differences
-                            </h3>
-
-                            <p class="mt-1 text-sm text-red-700">
-                                Identified ERP/Tally voucher pairs whose accounting content differs.
-                            </p>
-                        </div>
-
-                        <div class="text-sm font-semibold text-red-800">
-                            {{ $differences->count() }}
-                        </div>
-                    </div>
-                </div>
-
-                @forelse ($differences as $voucher)
-                    <div class="border-b border-gray-100 px-6 py-4 last:border-b-0">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <div class="font-medium text-gray-900">
-                                    {{ $voucher->financeVoucher?->voucher_no ?: 'ERP voucher unavailable' }}
-                                </div>
-
-                                <div class="mt-1 text-sm text-gray-600">
-                                    Tally:
-                                    {{ $voucher->voucher_type ?: '—' }}
-                                    {{ $voucher->voucher_number ? '#'.$voucher->voucher_number : '' }}
-                                </div>
-
-                                @if ($voucher->reconciliation_notes)
-                                    <div class="mt-2 text-sm text-red-700">
-                                        {{ $voucher->reconciliation_notes }}
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                @empty
-                    <div class="px-6 py-8 text-center">
-                        <div class="text-sm font-medium text-green-700">
-                            No accounting differences currently recorded.
-                        </div>
-
-                        <div class="mt-1 text-xs text-gray-500">
-                            Detailed content-difference detection will be expanded in the next reconciliation stage.
-                        </div>
-                    </div>
-                @endforelse
             </div>
 
         </div>
