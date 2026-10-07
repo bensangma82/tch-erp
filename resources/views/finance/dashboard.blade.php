@@ -32,6 +32,120 @@
             </div>
 
         </div>
+        {{-- EXECUTIVE SNAPSHOT --}}
+<div class="mb-6">
+
+    <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Executive Snapshot
+            </h2>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Key cash, collection and working-capital indicators
+            </p>
+        </div>
+
+        <div class="text-xs font-medium text-slate-500">
+            {{ now()->format('d M Y') }}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+
+        {{-- Cash & Bank --}}
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Cash &amp; Bank
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-slate-900">
+                ₹{{ number_format((float) $liquidity['cash_and_bank'], 2) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Current ERP balance
+            </div>
+        </div>
+
+        {{-- Today Receipts --}}
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Today Receipts
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-emerald-600">
+                ₹{{ number_format((float) $todayReceipts, 2) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Total collections today
+            </div>
+        </div>
+
+        {{-- Today Payments --}}
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Today Payments
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-slate-900">
+                ₹{{ number_format((float) $todayPayments, 2) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Cash &amp; bank outflow
+            </div>
+        </div>
+
+        {{-- Month Net Cash Flow --}}
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Month Net Cash Flow
+            </div>
+
+            <div class="mt-2 text-2xl font-bold
+                {{ $monthNet >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
+                ₹{{ number_format((float) $monthNet, 2) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Receipts less payments
+            </div>
+        </div>
+
+        {{-- MHIS Receivable --}}
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                MHIS Receivable
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-sky-600">
+                ₹{{ number_format((float) $liquidity['mhis_receivables'], 2) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Outstanding MHIS claims
+            </div>
+        </div>
+
+        {{-- Supplier Payables --}}
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Supplier Payables
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-amber-600">
+                ₹{{ number_format((float) $liquidity['supplier_payables'], 2) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Outstanding supplier liability
+            </div>
+        </div>
+
+    </div>
+</div>
 {{-- Tally Reconciliation Health --}}
 <div class="mb-6 rounded-xl border border-slate-200 bg-white shadow-sm">
 
