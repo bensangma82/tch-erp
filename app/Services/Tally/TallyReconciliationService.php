@@ -35,6 +35,7 @@ class TallyReconciliationService
      *     erp_only: int,
      *     ambiguous: int,
      *     unmapped: int
+     *     difference: int
      * }
      */
     public function reconcile(): array
@@ -47,6 +48,7 @@ class TallyReconciliationService
             'erp_only' => 0,
             'ambiguous' => 0,
             'unmapped' => 0,
+            'difference' => 0,
         ];
 
         /*
@@ -124,12 +126,36 @@ class TallyReconciliationService
             );
 
             if ($exactMatch !== null) {
+                $exactMatch->loadMissing('entries');
+
+                $differences = $this->accountingDifferences(
+                    $financeVoucher,
+                    $exactMatch
+                );
+
+                if ($differences !== []) {
+                    $exactMatch->update([
+                        'finance_voucher_id' => $financeVoucher->id,
+                        'reconciliation_status' => 'difference',
+                        'match_method' => 'exact_remote_id',
+                        'match_confidence' => 100.00,
+                        'reconciliation_notes' => implode(
+                            ' ',
+                            $differences
+                        ),
+                    ]);
+
+                    $summary['difference']++;
+
+                    continue;
+                }
+
                 $this->markMatched(
                     $exactMatch,
                     $financeVoucher,
                     'exact_remote_id',
                     100.00,
-                    'Matched automatically using the exact ERP/Tally REMOTEID.'
+                    'Matched automatically using the exact ERP/Tally REMOTEID; accounting content agrees.'
                 );
 
                 $summary['matched']++;
@@ -401,6 +427,126 @@ class TallyReconciliationService
                 }
             )
             ->values();
+    }
+
+    /**
+     * Compare the accounting content of an ERP voucher with an imported
+     * Tally voucher whose identity has already been established.
+     *
+     * @return array<int, string>
+     */
+    private function accountingDifferences(
+        FinanceVoucher $financeVoucher,
+        TallyImportedVoucher $tallyVoucher
+    ): array {
+        $differences = [];
+
+        /*
+         * Date
+         */
+        $erpDate = $financeVoucher->voucher_date?->format('Y-m-d');
+        $tallyDate = $tallyVoucher->voucher_date?->format('Y-m-d');
+
+        if ($erpDate !== $tallyDate) {
+            $differences[] = sprintf(
+                'Date differs: ERP %s; Tally %s.',
+                $erpDate ?? 'blank',
+                $tallyDate ?? 'blank'
+            );
+        }
+
+        /*
+         * Voucher type
+         */
+        $expectedType = $this->expectedTallyVoucherType(
+            (string) $financeVoucher->voucher_type
+        );
+
+        $actualType = strtolower(
+            trim(
+                (string) $tallyVoucher->voucher_type
+            )
+        );
+
+        if ($expectedType !== $actualType) {
+            $differences[] = sprintf(
+                'Voucher type differs: ERP expects %s; Tally has %s.',
+                $expectedType,
+                $actualType !== '' ? $actualType : 'blank'
+            );
+        }
+
+        /*
+         * Amount
+         */
+        if (! $this->amountMatches(
+            $financeVoucher,
+            $tallyVoucher
+        )) {
+            $erpAmount = round(
+                abs((float) $financeVoucher->amount),
+                2
+            );
+
+            $tallyAmount = round(
+                $tallyVoucher->entries->sum(
+                    fn ($entry) => abs(
+                        (float) $entry->amount
+                    )
+                ) / 2,
+                2
+            );
+
+            $differences[] = sprintf(
+                'Amount differs: ERP %.2f; Tally %.2f.',
+                $erpAmount,
+                $tallyAmount
+            );
+        }
+
+        /*
+         * Ledger allocation.
+         *
+         * If ERP ledger mappings are incomplete, that itself is a
+         * reconciliation difference for an identified voucher pair.
+         */
+        $expectedLedgers = $this->expectedTallyLedgers(
+            $financeVoucher
+        );
+
+        if ($expectedLedgers === null) {
+            $differences[] =
+                'ERP ledger mapping is incomplete for this voucher.';
+        } elseif (! $this->ledgerSetMatches(
+            $tallyVoucher,
+            $expectedLedgers
+        )) {
+            $actualLedgers = $tallyVoucher
+                ->entries
+                ->pluck('ledger_name')
+                ->map(
+                    fn ($name) => trim(
+                        (string) $name
+                    )
+                )
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            sort(
+                $actualLedgers,
+                SORT_NATURAL | SORT_FLAG_CASE
+            );
+
+            $differences[] = sprintf(
+                'Ledger allocation differs: ERP expects [%s]; Tally has [%s].',
+                implode(', ', $expectedLedgers),
+                implode(', ', $actualLedgers)
+            );
+        }
+
+        return $differences;
     }
 
     private function amountMatches(
