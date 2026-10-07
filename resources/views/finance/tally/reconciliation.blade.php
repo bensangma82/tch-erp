@@ -109,6 +109,7 @@
                         Accounting differences
                     </div>
                 </div>
+
             </div>
 
             {{-- STATUS EXPLANATION --}}
@@ -170,6 +171,10 @@
 
                                 <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                                     Match
+                                </th>
+
+                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    Action
                                 </th>
                             </tr>
                         </thead>
@@ -237,10 +242,28 @@
                                             </div>
                                         @endif
                                     </td>
+
+                                    <td class="whitespace-nowrap px-6 py-3 text-right text-sm">
+                                        @if ($voucher->financeVoucher)
+                                            <a
+                                                href="{{ route(
+                                                    'finance.tally.reconciliation.erp',
+                                                    $voucher->financeVoucher
+                                                ) }}"
+                                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                            >
+                                                Review
+                                            </a>
+                                        @else
+                                            <span class="text-xs text-gray-400">
+                                                —
+                                            </span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">
+                                    <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">
                                         No reconciled vouchers found.
                                     </td>
                                 </tr>
@@ -609,6 +632,7 @@
                         @endforelse
                     </div>
                 </div>
+
             </div>
 
             {{-- TALLY ONLY --}}
