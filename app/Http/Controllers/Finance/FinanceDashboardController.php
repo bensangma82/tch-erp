@@ -61,33 +61,32 @@ class FinanceDashboardController extends Controller
             ->whereMonth('voucher_date', $month)
             ->sum('amount');
 
-            /*
-|--------------------------------------------------------------------------
-| Pharmacy Supplier Payments
-|--------------------------------------------------------------------------
-|
-| Supplier payments are real cash/bank outflows from the selected
-| Finance Account. They are included in dashboard payment totals,
-| but are not automatically classified as operating expenses.
-|
-*/
+        /*
+        |--------------------------------------------------------------------------
+        | Pharmacy Supplier Payments
+        |--------------------------------------------------------------------------
+        |
+        | Supplier payments are real cash/bank outflows from the selected
+        | Finance Account. They are included in dashboard payment totals,
+        | but are not automatically classified as operating expenses.
+        |
+        */
 
-$supplierTodayPayments =
-    (float) PharmacySupplierPayment::query()
-        ->whereNotNull('finance_account_id')
-        ->whereDate('payment_date', $today)
-        ->sum('amount');
+        $supplierTodayPayments =
+            (float) PharmacySupplierPayment::query()
+                ->whereNotNull('finance_account_id')
+                ->whereDate('payment_date', $today)
+                ->sum('amount');
 
-$supplierMonthPayments =
-    (float) PharmacySupplierPayment::query()
-        ->whereNotNull('finance_account_id')
-        ->whereYear('payment_date', $year)
-        ->whereMonth('payment_date', $month)
-        ->sum('amount');
+        $supplierMonthPayments =
+            (float) PharmacySupplierPayment::query()
+                ->whereNotNull('finance_account_id')
+                ->whereYear('payment_date', $year)
+                ->whereMonth('payment_date', $month)
+                ->sum('amount');
 
-$todayPayments += $supplierTodayPayments;
-
-$monthPayments += $supplierMonthPayments;
+        $todayPayments += $supplierTodayPayments;
+        $monthPayments += $supplierMonthPayments;
 
         /*
         |--------------------------------------------------------------------------
@@ -379,9 +378,35 @@ $monthPayments += $supplierMonthPayments;
         |--------------------------------------------------------------------------
         | Monthly Revenue by Finance Head
         |--------------------------------------------------------------------------
+        |
+        | Start with every active income head so important hospital services
+        | remain visible even when there has been no collection during the
+        | current month. Actual operational collections are then added below.
+        |
         */
 
         $billingMonthRevenueByHead = [];
+
+        $monthlyIncomeHeads = FinanceHead::query()
+            ->where('head_type', 'income')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        foreach ($monthlyIncomeHeads as $incomeHead) {
+            $billingMonthRevenueByHead[$incomeHead->code] = [
+                'id' => $incomeHead->id,
+                'code' => $incomeHead->code,
+                'name' => $incomeHead->name,
+                'amount' => 0.0,
+            ];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | OPD / Investigation Revenue
+        |--------------------------------------------------------------------------
+        */
 
         foreach ($billingMonthPayments as $payment) {
             $allocations =
@@ -389,32 +414,24 @@ $monthPayments += $supplierMonthPayments;
                     ->allocateRevenue($payment);
 
             foreach ($allocations as $allocation) {
-                $code =
-                    $allocation['finance_head_code'];
+                $code = $allocation['finance_head_code'];
 
-                if (
-                    !isset(
-                        $billingMonthRevenueByHead[$code]
-                    )
-                ) {
+                if (! isset($billingMonthRevenueByHead[$code])) {
+                    $incomeHead = FinanceHead::query()
+                        ->where('code', $code)
+                        ->first();
+
                     $billingMonthRevenueByHead[$code] = [
+                        'id' => $incomeHead?->id,
                         'code' =>
-                            $allocation[
-                                'finance_head_code'
-                            ],
-
+                            $allocation['finance_head_code'],
                         'name' =>
-                            $allocation[
-                                'finance_head_name'
-                            ],
-
+                            $allocation['finance_head_name'],
                         'amount' => 0.0,
                     ];
                 }
 
-                $billingMonthRevenueByHead[
-                    $code
-                ]['amount'] +=
+                $billingMonthRevenueByHead[$code]['amount'] +=
                     (float) $allocation['amount'];
             }
         }
@@ -431,26 +448,7 @@ $monthPayments += $supplierMonthPayments;
             ->where('is_active', true)
             ->first();
 
-        if (
-            $pharmacyIncomeHead
-            && $pharmacyMonthNetTotal != 0
-        ) {
-            if (
-                !isset(
-                    $billingMonthRevenueByHead[
-                        'INC-PHARM'
-                    ]
-                )
-            ) {
-                $billingMonthRevenueByHead[
-                    'INC-PHARM'
-                ] = [
-                    'code' => 'INC-PHARM',
-                    'name' => $pharmacyIncomeHead->name,
-                    'amount' => 0.0,
-                ];
-            }
-
+        if ($pharmacyIncomeHead) {
             $billingMonthRevenueByHead[
                 'INC-PHARM'
             ]['amount'] +=
@@ -469,26 +467,7 @@ $monthPayments += $supplierMonthPayments;
             ->where('is_active', true)
             ->first();
 
-        if (
-            $ipIncomeHead
-            && $ipMonthCollectionTotal > 0
-        ) {
-            if (
-                !isset(
-                    $billingMonthRevenueByHead[
-                        'INC-IPD'
-                    ]
-                )
-            ) {
-                $billingMonthRevenueByHead[
-                    'INC-IPD'
-                ] = [
-                    'code' => 'INC-IPD',
-                    'name' => $ipIncomeHead->name,
-                    'amount' => 0.0,
-                ];
-            }
-
+        if ($ipIncomeHead) {
             $billingMonthRevenueByHead[
                 'INC-IPD'
             ]['amount'] +=
@@ -507,26 +486,7 @@ $monthPayments += $supplierMonthPayments;
             ->where('is_active', true)
             ->first();
 
-        if (
-            $mhisIncomeHead
-            && $mhisMonthReceiptTotal > 0
-        ) {
-            if (
-                !isset(
-                    $billingMonthRevenueByHead[
-                        'INC-MHIS'
-                    ]
-                )
-            ) {
-                $billingMonthRevenueByHead[
-                    'INC-MHIS'
-                ] = [
-                    'code' => 'INC-MHIS',
-                    'name' => $mhisIncomeHead->name,
-                    'amount' => 0.0,
-                ];
-            }
-
+        if ($mhisIncomeHead) {
             $billingMonthRevenueByHead[
                 'INC-MHIS'
             ]['amount'] +=
@@ -1086,5 +1046,262 @@ $monthPayments += $supplierMonthPayments;
             'tallyReconciliation' =>
                 $tallyReconciliation,
         ]);
+    }
+
+    public function revenueDetail(
+        FinanceHead $financeHead,
+        BillingFinanceService $billingFinanceService
+    ): View {
+        $year = now()->year;
+        $month = now()->month;
+
+        $transactions = collect();
+
+        /*
+        |--------------------------------------------------------------------------
+        | OPD / Investigation Billing Revenue
+        |--------------------------------------------------------------------------
+        |
+        | Use the same BillingFinanceService allocation logic as the
+        | Finance Dashboard so the drill-down total agrees with the
+        | dashboard revenue-by-head figure.
+        |
+        */
+
+        $billingPayments = Payment::query()
+            ->with([
+                'invoice.items.service',
+            ])
+            ->whereYear('payment_date', $year)
+            ->whereMonth('payment_date', $month)
+            ->get();
+
+        foreach ($billingPayments as $payment) {
+            $allocations =
+                $billingFinanceService
+                    ->allocateRevenue($payment);
+
+            foreach ($allocations as $allocation) {
+                if (
+                    ($allocation['finance_head_code'] ?? null)
+                    !== $financeHead->code
+                ) {
+                    continue;
+                }
+
+                $transactions->push([
+                    'date' => $payment->payment_date,
+                    'source' => 'Billing',
+                    'reference' =>
+                        $payment->receipt_no
+                        ?: 'Payment #'.$payment->id,
+                    'description' =>
+                        $allocation['finance_head_name']
+                        ?? $financeHead->name,
+                    'payment_mode' =>
+                        $payment->payment_mode,
+                    'amount' =>
+                        (float) $allocation['amount'],
+                ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Direct Pharmacy Revenue
+        |--------------------------------------------------------------------------
+        */
+
+        if ($financeHead->code === 'INC-PHARM') {
+            $pharmacySales = PharmacySale::query()
+                ->where('status', 'completed')
+                ->whereNull('admission_id')
+                ->where(function ($query) {
+                    $query
+                        ->whereNull('payment_mode')
+                        ->orWhere(
+                            'payment_mode',
+                            '!=',
+                            'ip_billing'
+                        );
+                })
+                ->where('paid_amount', '>', 0)
+                ->whereYear('sale_at', $year)
+                ->whereMonth('sale_at', $month)
+                ->get();
+
+            foreach ($pharmacySales as $sale) {
+                $transactions->push([
+                    'date' => $sale->sale_at,
+                    'source' => 'Pharmacy Sale',
+                    'reference' =>
+                        $sale->sale_no
+                        ?: 'Sale #'.$sale->id,
+                    'description' =>
+                        $sale->remarks
+                        ?: 'Direct pharmacy sale',
+                    'payment_mode' =>
+                        $sale->payment_mode,
+                    'amount' =>
+                        (float) $sale->paid_amount,
+                ]);
+            }
+
+            /*
+             * Pharmacy returns reduce the net pharmacy revenue shown on
+             * the Finance Dashboard, so they appear as negative amounts.
+             */
+
+            $pharmacyReturns = PharmacyReturn::query()
+                ->with('sale')
+                ->where('status', 'completed')
+                ->whereHas('sale', function ($query) {
+                    $query
+                        ->whereNull('admission_id')
+                        ->where(function ($query) {
+                            $query
+                                ->whereNull('payment_mode')
+                                ->orWhere(
+                                    'payment_mode',
+                                    '!=',
+                                    'ip_billing'
+                                );
+                        });
+                })
+                ->whereYear('returned_at', $year)
+                ->whereMonth('returned_at', $month)
+                ->get();
+
+            foreach ($pharmacyReturns as $return) {
+                $transactions->push([
+                    'date' => $return->returned_at,
+                    'source' => 'Pharmacy Return',
+                    'reference' =>
+                        $return->sale?->sale_no
+                        ?: 'Return #'.$return->id,
+                    'description' =>
+                        'Refund / pharmacy return',
+                    'payment_mode' =>
+                        $return->refund_mode,
+                    'amount' =>
+                        -1 * (float) $return->refund_amount,
+                ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Inpatient Revenue
+        |--------------------------------------------------------------------------
+        */
+
+        if ($financeHead->code === 'INC-IPD') {
+            $advances = IpBillingAdvance::query()
+                ->where('status', 'active')
+                ->whereYear('payment_date', $year)
+                ->whereMonth('payment_date', $month)
+                ->get();
+
+            foreach ($advances as $advance) {
+                $transactions->push([
+                    'date' => $advance->payment_date,
+                    'source' => 'IP Advance',
+                    'reference' =>
+                        $advance->receipt_no
+                        ?: 'Advance #'.$advance->id,
+                    'description' =>
+                        $advance->remarks
+                        ?: 'Inpatient advance',
+                    'payment_mode' =>
+                        $advance->payment_mode,
+                    'amount' =>
+                        (float) $advance->amount,
+                ]);
+            }
+
+            $ipPayments = IpBillingPayment::query()
+                ->where('status', 'active')
+                ->whereYear('payment_date', $year)
+                ->whereMonth('payment_date', $month)
+                ->get();
+
+            foreach ($ipPayments as $payment) {
+                $transactions->push([
+                    'date' => $payment->payment_date,
+                    'source' => 'IP Payment',
+                    'reference' =>
+                        $payment->receipt_no
+                        ?: 'Payment #'.$payment->id,
+                    'description' =>
+                        $payment->remarks
+                        ?: 'Finalized inpatient payment',
+                    'payment_mode' =>
+                        $payment->payment_mode,
+                    'amount' =>
+                        (float) $payment->amount,
+                ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MHIS Revenue
+        |--------------------------------------------------------------------------
+        */
+
+        if ($financeHead->code === 'INC-MHIS') {
+            $mhisReceipts = IpBillingMhisReceipt::query()
+                ->where('status', 'active')
+                ->whereYear('receipt_date', $year)
+                ->whereMonth('receipt_date', $month)
+                ->get();
+
+            foreach ($mhisReceipts as $receipt) {
+                $transactions->push([
+                    'date' => $receipt->receipt_date,
+                    'source' => 'MHIS Receipt',
+                    'reference' =>
+                        $receipt->payment_reference
+                        ?: $receipt->transaction_reference
+                        ?: $receipt->bank_reference
+                        ?: 'MHIS #'.$receipt->id,
+                    'description' =>
+                        $receipt->remarks
+                        ?: 'MHIS receipt',
+                    'payment_mode' =>
+                        'MHIS',
+                    'amount' =>
+                        (float) $receipt->amount,
+                ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Sort and Total
+        |--------------------------------------------------------------------------
+        */
+
+        $transactions = $transactions
+            ->sortByDesc(
+                fn (array $transaction) =>
+                    $transaction['date']
+            )
+            ->values();
+
+        $totalRevenue = round(
+            (float) $transactions->sum('amount'),
+            2
+        );
+
+        return view(
+            'finance.revenue-detail',
+            [
+                'financeHead' => $financeHead,
+                'transactions' => $transactions,
+                'totalRevenue' => $totalRevenue,
+                'period' => now()->format('F Y'),
+            ]
+        );
     }
 }

@@ -52,77 +52,92 @@ class FinanceMasterSeeder extends Seeder
         |--------------------------------------------------------------------------
         */
 
-        $incomeHeads = [
-            [
-                'code' => 'INC-OPD',
-                'name' => 'OPD / Consultation',
-                'category' => 'Clinical Services',
-            ],
-            [
-                'code' => 'INC-IPD',
-                'name' => 'Inpatient Services',
-                'category' => 'Clinical Services',
-            ],
-            [
-                'code' => 'INC-DIALYSIS',
-                'name' => 'Dialysis',
-                'category' => 'Clinical Services',
-            ],
-            [
-                'code' => 'INC-PROCEDURE',
-                'name' => 'Procedures',
-                'category' => 'Clinical Services',
-            ],
+       $incomeHeads = [
+    [
+        'code' => 'INC-OPD',
+        'name' => 'OPD / Consultation',
+        'category' => 'Clinical Services',
+    ],
+    [
+        'code' => 'INC-IPD',
+        'name' => 'Inpatient Services',
+        'category' => 'Clinical Services',
+    ],
+    [
+        'code' => 'INC-EMERGENCY',
+        'name' => 'Emergency',
+        'category' => 'Clinical Services',
+    ],
+    [
+        'code' => 'INC-ICU',
+        'name' => 'ICU',
+        'category' => 'Clinical Services',
+    ],
+    [
+        'code' => 'INC-OT',
+        'name' => 'Operation Theatre / OT',
+        'category' => 'Clinical Services',
+    ],
+    [
+        'code' => 'INC-DIALYSIS',
+        'name' => 'Dialysis',
+        'category' => 'Clinical Services',
+    ],
+    [
+        'code' => 'INC-PROCEDURE',
+        'name' => 'Procedures',
+        'category' => 'Clinical Services',
+    ],
 
-            [
-                'code' => 'INC-LAB',
-                'name' => 'Laboratory',
-                'category' => 'Diagnostics',
-            ],
-            [
-                'code' => 'INC-RAD',
-                'name' => 'Radiology / Imaging',
-                'category' => 'Diagnostics',
-            ],
-            [
-                'code' => 'INC-ECG',
-                'name' => 'ECG',
-                'category' => 'Diagnostics',
-            ],
-            [
-                'code' => 'INC-ECHO',
-                'name' => 'Echo',
-                'category' => 'Diagnostics',
-            ],
-            [
-                'code' => 'INC-ENDO',
-                'name' => 'Endoscopy',
-                'category' => 'Diagnostics',
-            ],
+    [
+        'code' => 'INC-LAB',
+        'name' => 'Laboratory',
+        'category' => 'Diagnostics',
+    ],
+    [
+        'code' => 'INC-RAD',
+        'name' => 'Radiology / Imaging',
+        'category' => 'Diagnostics',
+    ],
+    [
+        'code' => 'INC-ECG',
+        'name' => 'ECG',
+        'category' => 'Diagnostics',
+    ],
+    [
+        'code' => 'INC-ECHO',
+        'name' => 'Echo',
+        'category' => 'Diagnostics',
+    ],
+    [
+        'code' => 'INC-ENDO',
+        'name' => 'Endoscopy',
+        'category' => 'Diagnostics',
+    ],
 
-            [
-                'code' => 'INC-PHARM',
-                'name' => 'Pharmacy Sales',
-                'category' => 'Pharmacy',
-            ],
+    [
+        'code' => 'INC-PHARM',
+        'name' => 'Pharmacy Sales',
+        'category' => 'Pharmacy',
+    ],
 
-            [
-                'code' => 'INC-MHIS',
-                'name' => 'MHIS Receipts',
-                'category' => 'Government Schemes',
-            ],
+    [
+        'code' => 'INC-MHIS',
+        'name' => 'MHIS Receipts',
+        'category' => 'Government Schemes',
+    ],
 
-            [
-                'code' => 'INC-DONATION',
-                'name' => 'Donations',
-                'category' => 'Other Income',
-            ],
-            [
-                'code' => 'INC-OTHER',
-                'name' => 'Other Income',
-                'category' => 'Other Income',
-            ],
-        ];
+    [
+        'code' => 'INC-DONATION',
+        'name' => 'Donations',
+        'category' => 'Other Income',
+    ],
+    [
+        'code' => 'INC-OTHER',
+        'name' => 'Other Income',
+        'category' => 'Other Income',
+    ],
+];
 
         foreach ($incomeHeads as $head) {
             FinanceHead::updateOrCreate(

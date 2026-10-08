@@ -265,6 +265,115 @@
 
     </div>
 </div>
+{{-- FINANCIAL HEALTH SUMMARY --}}
+@php
+    $healthStatus = $financialRisk['status'] ?? 'unknown';
+
+    $healthPanelClass = match ($healthStatus) {
+        'critical' => 'border-red-200 bg-red-50',
+        'warning' => 'border-amber-200 bg-amber-50',
+        'stable' => 'border-emerald-200 bg-emerald-50',
+        default => 'border-slate-200 bg-slate-50',
+    };
+
+    $healthTextClass = match ($healthStatus) {
+        'critical' => 'text-red-700',
+        'warning' => 'text-amber-700',
+        'stable' => 'text-emerald-700',
+        default => 'text-slate-700',
+    };
+
+    $healthBadgeClass = match ($healthStatus) {
+        'critical' => 'bg-red-100 text-red-700',
+        'warning' => 'bg-amber-100 text-amber-700',
+        'stable' => 'bg-emerald-100 text-emerald-700',
+        default => 'bg-slate-200 text-slate-700',
+    };
+@endphp
+
+<div class="mb-6 rounded-xl border p-5 shadow-sm {{ $healthPanelClass }}">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
+        <div>
+            <div class="flex flex-wrap items-center gap-3">
+                <h2 class="text-lg font-semibold text-slate-900">
+                    Financial Health Summary
+                </h2>
+
+                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $healthBadgeClass }}">
+                    {{ strtoupper(str_replace('_', ' ', $healthStatus)) }}
+                </span>
+            </div>
+
+            <div class="mt-2 text-sm {{ $healthTextClass }}">
+                {{ $financialRisk['label'] ?? 'Financial status unavailable' }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                {{ $financialRisk['period'] ?? '' }}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Current Ratio
+                </div>
+
+                <div class="mt-1 text-lg font-bold text-slate-900">
+                    @if($liquidity['current_ratio'] !== null)
+                        {{ number_format((float) $liquidity['current_ratio'], 2) }}
+                    @else
+                        —
+                    @endif
+                </div>
+            </div>
+
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Quick Ratio
+                </div>
+
+                <div class="mt-1 text-lg font-bold text-slate-900">
+                    @if($liquidity['quick_ratio'] !== null)
+                        {{ number_format((float) $liquidity['quick_ratio'], 2) }}
+                    @else
+                        —
+                    @endif
+                </div>
+            </div>
+
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Break-even
+                </div>
+
+                <div class="mt-1 text-lg font-bold
+                    {{ $breakEven['ready'] ? 'text-slate-900' : 'text-amber-700' }}">
+                    @if($breakEven['ready'])
+                        ₹{{ number_format((float) $breakEven['break_even_revenue'], 2) }}
+                    @else
+                        Pending
+                    @endif
+                </div>
+            </div>
+
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    MTD Net Cash Flow
+                </div>
+
+                <div class="mt-1 text-lg font-bold
+                    {{ $monthNet >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
+                    ₹{{ number_format((float) $monthNet, 2) }}
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
         {{-- Financial Health --}}
         <div class="mb-3">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -574,6 +683,285 @@
             </div>
 
         </div>
+        {{-- MONTHLY REVENUE BY SERVICE --}}
+@php
+    $monthlyRevenueTotal =
+        (float) $billingMonthRevenueByHead->sum('amount');
+
+    $revenueHeadsWithActivity =
+        $billingMonthRevenueByHead
+            ->filter(
+                fn ($revenue) =>
+                    abs((float) $revenue['amount']) > 0.0001
+            )
+            ->values();
+
+    $zeroRevenueHeads =
+        $billingMonthRevenueByHead
+            ->filter(
+                fn ($revenue) =>
+                    abs((float) $revenue['amount']) <= 0.0001
+            )
+            ->values();
+@endphp
+
+<div
+    class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+    x-data="{ showZeroHeads: false }"
+>
+
+    {{-- Header --}}
+    <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+        <div>
+            <h3 class="font-semibold text-slate-900">
+                Monthly Revenue by Service
+            </h3>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Revenue collected this month, grouped by Finance Head
+            </p>
+        </div>
+
+        <div class="text-left sm:text-right">
+            <div class="text-lg font-bold text-slate-900">
+                ₹{{ number_format($monthlyRevenueTotal, 2) }}
+            </div>
+
+            <div class="mt-0.5 text-xs text-slate-500">
+                {{ now()->format('F Y') }}
+            </div>
+        </div>
+
+    </div>
+
+
+    {{-- Revenue heads with activity --}}
+    @if($revenueHeadsWithActivity->isEmpty())
+
+        <div class="px-5 py-8 text-center text-sm text-slate-500">
+            No revenue collections have been classified this month.
+        </div>
+
+    @else
+
+        <div class="divide-y divide-slate-100">
+
+            @foreach($revenueHeadsWithActivity as $revenue)
+
+                @php
+                    $amount = (float) $revenue['amount'];
+
+                    $percentage =
+                        $monthlyRevenueTotal > 0
+                            ? ($amount / $monthlyRevenueTotal) * 100
+                            : 0;
+                @endphp
+
+                <div class="px-5 py-4">
+
+                    <div class="flex items-center gap-4">
+
+                        {{-- Service --}}
+                        <div class="min-w-0 flex-1">
+
+                            <div class="flex flex-wrap items-center gap-2">
+
+                                @if(!empty($revenue['id']))
+                                    <a
+                                        href="{{ route(
+                                            'finance.revenue.detail',
+                                            $revenue['id']
+                                        ) }}"
+                                        class="inline-flex items-center gap-1 font-medium text-indigo-700 hover:text-indigo-900 hover:underline"
+                                    >
+                                        {{ $revenue['name'] }}
+
+                                        <span class="text-xs text-slate-400">
+                                            ↗
+                                        </span>
+                                    </a>
+                                @else
+                                    <span class="font-medium text-slate-900">
+                                        {{ $revenue['name'] }}
+                                    </span>
+                                @endif
+
+                                <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                                    {{ $revenue['code'] }}
+                                </span>
+
+                            </div>
+
+                            {{-- Revenue bar --}}
+                            <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+
+                                <div
+                                    class="h-full rounded-full bg-indigo-500"
+                                    style="width: {{ min(
+                                        100,
+                                        max(0, $percentage)
+                                    ) }}%"
+                                ></div>
+
+                            </div>
+
+                            <div class="mt-1 text-xs text-slate-500">
+                                {{ number_format($percentage, 1) }}%
+                                of classified monthly revenue
+                            </div>
+
+                        </div>
+
+
+                        {{-- Amount --}}
+                        <div class="w-32 shrink-0 text-right">
+
+                            <div class="text-lg font-bold text-slate-900">
+                                ₹{{ number_format($amount, 2) }}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            @endforeach
+
+        </div>
+
+    @endif
+
+
+    {{-- Zero Revenue Heads --}}
+    @if($zeroRevenueHeads->isNotEmpty())
+
+        <div class="border-t border-slate-200 bg-slate-50">
+
+            {{-- Toggle --}}
+            <button
+                type="button"
+                @click="showZeroHeads = !showZeroHeads"
+                class="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-slate-100"
+            >
+
+                <div>
+                    <span class="text-sm font-semibold text-slate-700">
+                        Zero revenue heads
+                    </span>
+
+                    <span class="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                        {{ $zeroRevenueHeads->count() }}
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs font-medium text-slate-500">
+
+                    <span x-text="showZeroHeads ? 'Hide' : 'Show'">
+                        Show
+                    </span>
+
+                    <svg
+                        class="h-4 w-4 transition-transform duration-200"
+                        :class="{ 'rotate-180': showZeroHeads }"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                    >
+                        <path
+                            fill-rule="evenodd"
+                            d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                            clip-rule="evenodd"
+                        />
+                    </svg>
+
+                </div>
+
+            </button>
+
+
+            {{-- Compact zero-head grid --}}
+            <div
+                x-show="showZeroHeads"
+                x-collapse
+                class="border-t border-slate-200 bg-white"
+            >
+
+                <div class="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+                    @foreach($zeroRevenueHeads as $revenue)
+
+                        @if(!empty($revenue['id']))
+
+                            <a
+                                href="{{ route(
+                                    'finance.revenue.detail',
+                                    $revenue['id']
+                                ) }}"
+                                class="group bg-white px-4 py-3 transition hover:bg-slate-50"
+                            >
+
+                                <div class="flex items-center justify-between gap-3">
+
+                                    <div class="min-w-0">
+
+                                        <div class="truncate text-sm font-medium text-slate-700 group-hover:text-indigo-700">
+                                            {{ $revenue['name'] }}
+                                        </div>
+
+                                        <div class="mt-0.5 text-xs text-slate-400">
+                                            {{ $revenue['code'] }}
+                                        </div>
+
+                                    </div>
+
+                                    <div class="shrink-0 text-sm font-semibold text-slate-500">
+                                        ₹0
+                                    </div>
+
+                                </div>
+
+                            </a>
+
+                        @else
+
+                            <div class="bg-white px-4 py-3">
+
+                                <div class="flex items-center justify-between gap-3">
+
+                                    <div class="min-w-0">
+
+                                        <div class="truncate text-sm font-medium text-slate-700">
+                                            {{ $revenue['name'] }}
+                                        </div>
+
+                                        <div class="mt-0.5 text-xs text-slate-400">
+                                            {{ $revenue['code'] }}
+                                        </div>
+
+                                    </div>
+
+                                    <div class="shrink-0 text-sm font-semibold text-slate-500">
+                                        ₹0
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        @endif
+
+                    @endforeach
+
+                </div>
+
+            </div>
+
+        </div>
+
+    @endif
+
+</div>
         {{-- Liquidity Composition --}}
         <div class="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
 
@@ -705,6 +1093,142 @@
 
 
         <div class="mt-8"></div>
+
+        {{-- WORKING CAPITAL & OBLIGATIONS --}}
+<div class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
+    <div class="border-b border-slate-200 px-5 py-4">
+        <h3 class="font-semibold text-slate-900">
+            Working Capital &amp; Obligations
+        </h3>
+
+        <p class="mt-1 text-sm text-slate-500">
+            Receivables, payables and short-term financial position
+        </p>
+    </div>
+
+    @php
+        $workingCapital =
+            (float) $liquidity['current_assets']
+            - (float) $liquidity['current_liabilities'];
+
+        $netReceivablePosition =
+            (float) $liquidity['mhis_receivables']
+            - (float) $liquidity['supplier_payables'];
+    @endphp
+
+    <div class="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+
+        {{-- MHIS Receivable --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                MHIS Receivable
+            </div>
+
+            <div class="mt-2 text-2xl font-bold text-sky-600">
+                ₹{{ number_format(
+                    (float) $liquidity['mhis_receivables'],
+                    2
+                ) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Amount awaiting realization
+            </div>
+        </div>
+
+        {{-- Supplier Payables --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Supplier Payables
+            </div>
+
+            <div class="mt-2 text-2xl font-bold
+                {{ (float) $liquidity['supplier_payables'] > 0
+                    ? 'text-amber-600'
+                    : 'text-slate-900' }}">
+                ₹{{ number_format(
+                    (float) $liquidity['supplier_payables'],
+                    2
+                ) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Outstanding supplier liability
+            </div>
+        </div>
+
+        {{-- Net Receivable Position --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Net Receivable Position
+            </div>
+
+            <div class="mt-2 text-2xl font-bold
+                {{ $netReceivablePosition >= 0
+                    ? 'text-emerald-600'
+                    : 'text-red-600' }}">
+                ₹{{ number_format(
+                    $netReceivablePosition,
+                    2
+                ) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                MHIS less supplier payables
+            </div>
+        </div>
+
+        {{-- Working Capital --}}
+        <div class="p-5">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Working Capital
+            </div>
+
+            <div class="mt-2 text-2xl font-bold
+                {{ $workingCapital >= 0
+                    ? 'text-emerald-600'
+                    : 'text-red-600' }}">
+                ₹{{ number_format(
+                    $workingCapital,
+                    2
+                ) }}
+            </div>
+
+            <div class="mt-1 text-xs text-slate-500">
+                Current assets less current liabilities
+            </div>
+        </div>
+
+    </div>
+
+    <div class="border-t border-slate-100 bg-slate-50 px-5 py-3">
+        <div class="flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+
+            <div>
+                Current assets:
+                <span class="font-semibold text-slate-700">
+                    ₹{{ number_format(
+                        (float) $liquidity['current_assets'],
+                        2
+                    ) }}
+                </span>
+            </div>
+
+            <div>
+                Current liabilities:
+                <span class="font-semibold text-slate-700">
+                    ₹{{ number_format(
+                        (float) $liquidity['current_liabilities'],
+                        2
+                    ) }}
+                </span>
+            </div>
+
+        </div>
+    </div>
+
+</div>
        
         {{-- Today's Summary --}}
         <div class="mb-3">

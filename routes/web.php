@@ -794,6 +794,13 @@ Route::middleware([
         )->name('finance.dashboard');
 
         Route::get(
+    '/admin/finance/revenue/{financeHead}',
+    [FinanceDashboardController::class, 'revenueDetail']
+)
+    ->whereNumber('financeHead')
+    ->name('finance.revenue.detail');
+
+        Route::get(
             '/admin/finance/master',
             [FinanceMasterController::class, 'index']
         )->name('finance.master.index');
