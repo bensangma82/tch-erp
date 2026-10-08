@@ -37,6 +37,7 @@ use App\Http\Controllers\Finance\FinanceVoucherController;
 use App\Http\Controllers\Finance\TallyExportController;
 use App\Http\Controllers\Finance\TallyIntegrationController;
 use App\Http\Controllers\Finance\TallyReconciliationController;
+use App\Http\Controllers\Finance\TallyImportController;
 use App\Http\Controllers\Hr\EmployeeSalaryStructureController;
 use App\Http\Controllers\Hr\PayrollRunController;
 use App\Http\Controllers\Hr\SalaryComponentController;
@@ -839,6 +840,11 @@ Route::middleware([
             '/admin/finance/tally',
             [TallyIntegrationController::class, 'index']
         )->name('finance.tally.index');
+
+        Route::post(
+    '/admin/finance/tally/import/sync',
+    [TallyImportController::class, 'sync']
+)->name('finance.tally.import.sync');
 
         Route::get(
             '/admin/finance/tally/trial-balance',

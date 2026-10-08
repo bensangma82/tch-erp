@@ -12,6 +12,7 @@ class TallyImportedVoucher extends Model
     use HasFactory;
 
     protected $fillable = [
+        'tally_company',
         'guid',
         'remote_id',
         'voucher_date',

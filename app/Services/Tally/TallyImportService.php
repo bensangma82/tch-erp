@@ -30,8 +30,36 @@ class TallyImportService
      */
     public function sync(): array
     {
-        $vouchers = $this->tallyQueryService->vouchers();
+        $company = trim((string) config('tally.company', ''));
 
+        if ($company === '') {
+            throw new RuntimeException(
+                'Tally company is not configured. Synchronization cancelled.'
+            );
+        }
+
+        $vouchers = $this->tallyQueryService->vouchers();
+        /*
+ * Reject duplicate GUIDs in the incoming Tally batch.
+ * Voucher identity is company + GUID.
+ */
+$seenGuids = [];
+
+foreach ($vouchers as $voucher) {
+    $guid = trim((string) ($voucher['guid'] ?? ''));
+
+    if ($guid === '') {
+        continue;
+    }
+
+    if (isset($seenGuids[$guid])) {
+        throw new RuntimeException(
+            'Duplicate Tally voucher GUID detected: '.$guid
+        );
+    }
+
+    $seenGuids[$guid] = true;
+}
         $summary = [
             'received' => count($vouchers),
             'imported' => 0,
@@ -39,32 +67,74 @@ class TallyImportService
             'skipped' => 0,
         ];
 
-        foreach ($vouchers as $voucher) {
-            /*
-             * GUID is our durable inbound Tally identifier.
-             *
-             * We deliberately skip vouchers without a GUID rather than
-             * attempting an unsafe identity match from mutable fields such
-             * as date, voucher number or amount.
-             */
-            $guid = trim(
-                (string) (
-                    $voucher['guid']
-                    ?? ''
-                )
-            );
+        DB::transaction(function () use (
+            $vouchers,
+            $company,
+            &$summary
+        ): void {
+            foreach ($vouchers as $voucher) {
+                /*
+                 * GUID is our durable inbound Tally identifier.
+                 *
+                 * We deliberately skip vouchers without a GUID rather than
+                 * attempting an unsafe identity match from mutable fields such
+                 * as date, voucher number or amount.
+                 */
+                $guid = trim(
+                    (string) (
+                        $voucher['guid']
+                        ?? ''
+                    )
+                );
 
-            if ($guid === '') {
-                $summary['skipped']++;
+                if ($guid === '') {
+                    $summary['skipped']++;
 
-                continue;
-            }
+                    continue;
+                }
 
-            DB::transaction(function () use (
-                $voucher,
-                $guid,
-                &$summary
-            ): void {
+                // Process this voucher within the batch transaction.
+                /*
+ * Validate the incoming ledger entries before modifying
+ * any existing voucher or ledger records.
+ */
+                $ledgerEntries = $voucher['ledger_entries'] ?? null;
+
+                if (! is_array($ledgerEntries) || count($ledgerEntries) < 2) {
+                    throw new RuntimeException(
+                        'Tally voucher '.$guid.' has incomplete ledger entries. '
+                        .'Synchronization cancelled.'
+                    );
+                }
+
+                foreach ($ledgerEntries as $entry) {
+                    if (
+                        ! is_array($entry)
+                        || trim((string) ($entry['ledger_name'] ?? '')) === ''
+                        || ! isset($entry['amount'])
+                        || ! is_numeric($entry['amount'])
+                        || ! is_finite((float) $entry['amount'])
+                    ) {
+                        throw new RuntimeException(
+                            'Tally voucher '.$guid.' contains an invalid ledger entry. '
+                            .'Synchronization cancelled.'
+                        );
+                    }
+                }
+
+                $totalAmount = array_sum(
+                    array_map(
+                        fn ($entry) => (float) $entry['amount'],
+                        $ledgerEntries
+                    )
+                );
+
+                if (abs($totalAmount) > 0.01) {
+                    throw new RuntimeException(
+                        'Tally voucher '.$guid.' has unbalanced ledger entries. '
+                        .'Synchronization cancelled.'
+                    );
+                }
                 $remoteId = trim(
                     (string) (
                         $voucher['remote_id']
@@ -101,13 +171,15 @@ class TallyImportService
                 ];
 
                 $existing = TallyImportedVoucher::query()
+                    ->where('tally_company', $company)
                     ->where('guid', $guid)
+                    ->lockForUpdate()
                     ->first();
-
                 if ($existing === null) {
                     $importedVoucher = TallyImportedVoucher::create(
                         array_merge(
                             [
+                                'tally_company' => $company,
                                 'guid' => $guid,
                                 'reconciliation_status' => 'tally_only',
                                 'first_seen_at' => now(),
@@ -163,8 +235,8 @@ class TallyImportService
                             'line_no' => $index + 1,
                         ]);
                 }
-            });
-        }
+            }
+        });
 
         return $summary;
     }

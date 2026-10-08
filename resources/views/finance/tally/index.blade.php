@@ -59,6 +59,12 @@
                 </div>
             @endif
 
+            @if (session('error'))
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        {{ session('error') }}
+    </div>
+@endif
+
             @if ($errors->any())
                 <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                     <div class="font-semibold">
@@ -73,6 +79,42 @@
                 </div>
             @endif
 
+
+{{-- Tally Voucher Synchronization --}}
+<div class="mb-6 rounded-xl bg-white p-6 shadow">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h3 class="text-lg font-semibold text-gray-800">
+                Tally Voucher Synchronization
+            </h3>
+
+            <p class="mt-1 text-sm text-gray-600">
+                Import accounting vouchers from Tally into ERP
+                for reconciliation. Existing ERP finance vouchers
+                will not be modified.
+            </p>
+
+            <p class="mt-2 text-xs text-green-700">
+                Synchronization is available for controlled testing
+                with the configured Tally company.
+            </p>
+        </div>
+
+        <form
+            method="POST"
+            action="{{ route('finance.tally.import.sync') }}"
+        >
+            @csrf
+
+            <button
+                type="submit"
+                class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+                Sync Vouchers from Tally
+            </button>
+        </form>
+    </div>
+</div>
             {{-- Finance Heads --}}
             <div class="overflow-hidden rounded-xl bg-white shadow">
                 <div class="border-b border-gray-200 px-6 py-4">
