@@ -1722,27 +1722,31 @@ class IpBillingController extends Controller
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Normal IP Advance Redirect
-        |--------------------------------------------------------------------------
-        */
+       /*
+|--------------------------------------------------------------------------
+| Normal IP Advance Redirect
+|--------------------------------------------------------------------------
+*/
 
-        return redirect()
-            ->route(
-                'ip-billing.show',
-                $admission
-            )
-            ->with(
-                'success',
-                'Advance of ₹'
-                . number_format(
-                    (float) $advance->amount,
-                    2
-                )
-                . ' received successfully. Receipt: '
-                . $advance->receipt_no
-            );
+return redirect()
+    ->route(
+        'ip-billing.show',
+        $admission
+    )
+    ->with(
+        'success',
+        'Advance of ₹'
+        . number_format(
+            (float) $advance->amount,
+            2
+        )
+        . ' received successfully. Receipt: '
+        . $advance->receipt_no
+    )
+    ->with(
+        'advance_receipt_id',
+        $advance->id
+    );
     }
         /*
     |--------------------------------------------------------------------------

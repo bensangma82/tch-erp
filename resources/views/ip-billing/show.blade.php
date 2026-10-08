@@ -268,6 +268,26 @@ $refundDue =
 
             @endif
 
+            @if (session('advance_receipt_id'))
+
+    <div class="mb-6 flex justify-end">
+
+        <a
+            href="{{ route(
+                'ip-billing.advance.receipt',
+                session('advance_receipt_id')
+            ) }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+        >
+            Print Advance Receipt
+        </a>
+
+    </div>
+
+@endif
+
 
             @if ($errors->any())
 

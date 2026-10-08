@@ -1074,6 +1074,13 @@ Route::middleware([
         )
             ->whereNumber('patient')
             ->name('patients.card');
+
+            Route::get(
+    '/patients/{patient}/sticker',
+    [PatientController::class, 'sticker']
+)
+    ->whereNumber('patient')
+    ->name('patients.sticker');
     });
 
     /*

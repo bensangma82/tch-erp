@@ -105,7 +105,16 @@ class PatientController extends Controller
         );
     }
 
-
+/**
+ * Printable patient identification sticker.
+ */
+public function sticker(Patient $patient)
+{
+    return view(
+        'patients.sticker',
+        compact('patient')
+    );
+}
     /**
      * Show patient registration form
      * and check for possible duplicates.

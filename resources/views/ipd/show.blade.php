@@ -345,7 +345,18 @@
                             </a>
 
                         @endif
+                            {{-- ========================================================= --}}
+{{-- PATIENT STICKER --}}
+{{-- ========================================================= --}}
 
+<a
+    href="{{ route('patients.sticker', $patient) }}"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="inline-flex items-center rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
+>
+    Print Patient Sticker
+</a>
                     </div>
 
                 </div>
