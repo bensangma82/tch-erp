@@ -846,6 +846,26 @@ Route::middleware([
     [TallyImportController::class, 'sync']
 )->name('finance.tally.import.sync');
 
+/*
+|--------------------------------------------------------------------------
+| Tally Voucher Review & ERP Draft Creation
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/admin/finance/tally/import/{tallyVoucher}/review',
+    [TallyImportController::class, 'review']
+)
+    ->whereNumber('tallyVoucher')
+    ->name('finance.tally.import.review');
+
+Route::post(
+    '/admin/finance/tally/import/{tallyVoucher}/create-draft',
+    [TallyImportController::class, 'createDraft']
+)
+    ->whereNumber('tallyVoucher')
+    ->name('finance.tally.import.create-draft');
+
         Route::get(
             '/admin/finance/tally/trial-balance',
             [TallyIntegrationController::class, 'trialBalance']
