@@ -65,11 +65,24 @@ class BillingFinanceService
         | Therefore the actual payment is allocated directly to INC-OPD.
         |
         */
+        /*
+|--------------------------------------------------------------------------
+| OPD / Consultation Collections
+|--------------------------------------------------------------------------
+|
+| Allocate all OPD payments to INC-OPD.
+|
+| Supports historical OPD invoices without invoice items
+| and newer invoices containing OPD-CONS and OPD-REG.
+|
+| Department-wise consultation reporting will use invoice items
+| separately, without changing this consolidated income head.
+|
+*/
 
         if (
-            strtoupper((string) $invoice->invoice_type) === 'OPD'
-            && $invoice->items->isEmpty()
-        ) {
+    strtoupper((string) $invoice->invoice_type) === 'OPD'
+) {
             $head = $this->findIncomeHead('INC-OPD');
 
             return collect([

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\FinanceAccount;
 use App\Models\FinanceHead;
 use App\Models\TallyLedgerMapping;
+use App\Models\TallyLedgerMaster;
+use App\Models\Department;
 use App\Services\Tally\TallyQueryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,8 +18,19 @@ class TallyIntegrationController extends Controller
     /**
      * Display ERP Finance → Tally ledger mappings.
      */
+
+
+    /**
+     * Display ERP Finance mappings, synchronized Tally ledgers,
+     * and department classifications.
+     */
     public function index(): View
     {
+        /*
+        |--------------------------------------------------------------------------
+        | ERP Finance Heads
+        |--------------------------------------------------------------------------
+        */
         $financeHeads = FinanceHead::query()
             ->with('tallyMapping')
             ->orderBy('head_type')
@@ -25,17 +38,76 @@ class TallyIntegrationController extends Controller
             ->orderBy('name')
             ->get();
 
+        /*
+        |--------------------------------------------------------------------------
+        | ERP Finance Accounts
+        |--------------------------------------------------------------------------
+        */
         $financeAccounts = FinanceAccount::query()
             ->with('tallyMapping')
             ->orderBy('account_type')
             ->orderBy('name')
             ->get();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Configured Tally Company
+        |--------------------------------------------------------------------------
+        */
+        $company = trim((string) config('tally.company'));
+
+        /*
+        |--------------------------------------------------------------------------
+        | Synchronized Tally Ledger Master
+        |--------------------------------------------------------------------------
+        | Load the assigned ERP department, if any.
+        */
+        $ledgerMasters = TallyLedgerMaster::query()
+            ->with('department')
+            ->where('tally_company', $company)
+            ->orderBy('ledger_name')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Existing Active Ledger Mappings
+        |--------------------------------------------------------------------------
+        */
+        $activeMappings = TallyLedgerMapping::query()
+            ->where('is_active', true)
+            ->with([
+                'financeHead',
+                'financeAccount',
+            ])
+            ->get()
+            ->groupBy('tally_ledger_name');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active ERP Departments
+        |--------------------------------------------------------------------------
+        */
+        $departments = Department::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Render Tally Integration Dashboard
+        |--------------------------------------------------------------------------
+        */
         return view('finance.tally.index', [
             'financeHeads' => $financeHeads,
             'financeAccounts' => $financeAccounts,
+            'ledgerMasters' => $ledgerMasters,
+            'activeMappings' => $activeMappings,
+            'tallyCompany' => $company,
+            'departments' => $departments,
         ]);
     }
+
+
 
     /**
      * Display the current Trial Balance retrieved from Tally.
@@ -299,4 +371,51 @@ class TallyIntegrationController extends Controller
             'Tally account mapping saved successfully.'
         );
     }
+
+    /**
+     * Assign an ERP department to a synchronized Tally ledger.
+     */
+    public function saveLedgerDepartment(
+        Request $request,
+        TallyLedgerMaster $tallyLedgerMaster
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'department_id' => [
+                'nullable',
+                'integer',
+                'exists:departments,id',
+            ],
+        ]);
+
+        // Only allow ledgers from the configured Tally company.
+        abort_unless(
+            $tallyLedgerMaster->tally_company ===
+                trim((string) config('tally.company')),
+            403
+        );
+
+        $departmentId = $validated['department_id'] ?? null;
+
+        if ($departmentId !== null) {
+            $department = Department::query()
+                ->whereKey($departmentId)
+                ->where('is_active', true)
+                ->first();
+
+            if (! $department) {
+                return back()->withErrors([
+                    'department_id' => 'Select an active ERP department.',
+                ]);
+            }
+        }
+
+        $tallyLedgerMaster->department_id = $departmentId;
+        $tallyLedgerMaster->save();
+
+        return back()->with(
+            'success',
+            'Tally ledger department mapping saved successfully.'
+        );
+    }
+
 }

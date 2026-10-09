@@ -389,11 +389,13 @@ class OpdController extends Controller
         | screen. No payment or receipt is generated during registration.
         |
         */
-        $result = DB::transaction(
-            function () use (
-                $validated,
-                $totalAmount
-            ) {
+             $result = DB::transaction(
+    function () use (
+        $validated,
+        $totalAmount,
+        $consultationFee,
+        $registrationFee
+    ) {
                 $queueNumber =
                     $this->generateQueueNumber(
                         (int) $validated['department_id']
@@ -482,6 +484,42 @@ class OpdController extends Controller
                     'created_by' =>
                         auth()->id(),
                 ]);
+
+                /*
+                |--------------------------------------------------------------------------
+                | OPD Consultation Invoice Item
+                |--------------------------------------------------------------------------
+                */
+                if ($consultationFee > 0) {
+                    \App\Models\InvoiceItem::create([
+                        'invoice_id' => $invoice->id,
+                        'service_id' => null,
+                        'code' => 'OPD-CONS',
+                        'description' => 'OPD Consultation',
+                        'quantity' => 1,
+                        'unit_price' => $consultationFee,
+                        'discount' => 0,
+                        'amount' => $consultationFee,
+                    ]);
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | OPD Registration Invoice Item
+                |--------------------------------------------------------------------------
+                */
+                if ($registrationFee > 0) {
+                    \App\Models\InvoiceItem::create([
+                        'invoice_id' => $invoice->id,
+                        'service_id' => null,
+                        'code' => 'OPD-REG',
+                        'description' => 'OPD Registration',
+                        'quantity' => 1,
+                        'unit_price' => $registrationFee,
+                        'discount' => 0,
+                        'amount' => $registrationFee,
+                    ]);
+                }
 
                 return [
                     'encounter' => $encounter,

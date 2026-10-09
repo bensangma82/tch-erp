@@ -845,6 +845,16 @@ Route::middleware([
     '/admin/finance/tally/import/sync',
     [TallyImportController::class, 'sync']
 )->name('finance.tally.import.sync');
+Route::post(
+    '/admin/finance/tally/ledgers/sync',
+    [TallyImportController::class, 'syncLedgers']
+)->name('finance.tally.ledgers.sync');
+Route::put(
+    '/admin/finance/tally/ledger-masters/{tallyLedgerMaster}/department',
+    [TallyIntegrationController::class, 'saveLedgerDepartment']
+)
+    ->whereNumber('tallyLedgerMaster')
+    ->name('finance.tally.ledger-masters.department.update');
 
 /*
 |--------------------------------------------------------------------------
@@ -1013,6 +1023,14 @@ Route::post(
             '/admin/finance/reports',
             [FinanceReportController::class, 'index']
         )->name('finance.reports.index');
+
+        Route::get(
+    '/admin/finance/reports/opd-department',
+    [
+        \App\Http\Controllers\Finance\OpdDepartmentRevenueController::class,
+        'index'
+    ]
+)->name('finance.reports.opd-department');
 
     });
     /*

@@ -78,6 +78,56 @@ class TallyImportController extends Controller
     }
 
     /**
+     * Synchronize Tally Ledger Master into ERP.
+     * Does not modify existing ledger mappings.
+     */
+    public function syncLedgers(
+        \App\Services\Tally\TallyLedgerSyncService $syncService
+    ): RedirectResponse {
+        $lock = Cache::lock('tch:tally:ledger-sync', 600);
+
+        if (! $lock->get()) {
+            return redirect()
+                ->route('finance.tally.index')
+                ->with('error', 'A ledger synchronization is already running.');
+        }
+
+        try {
+            $result = $syncService->sync();
+
+            Log::info('Tally Ledger Master synchronized', [
+                'user_id' => auth()->id(),
+                'summary' => $result,
+            ]);
+
+            return redirect()
+                ->route('finance.tally.index')
+                ->with(
+                    'success',
+                    'Ledger synchronization completed. '
+                    . 'Received: ' . $result['received']
+                    . ', Created: ' . $result['created']
+                    . ', Updated: ' . $result['updated']
+                );
+        } catch (Throwable $exception) {
+            Log::error('Tally Ledger Master synchronization failed', [
+                'user_id' => auth()->id(),
+                'exception' => $exception,
+            ]);
+
+            return redirect()
+                ->route('finance.tally.index')
+                ->with(
+                    'error',
+                    'Ledger synchronization failed. Check the Tally connection and Laravel logs.'
+                );
+        } finally {
+            $lock->release();
+        }
+    }
+
+
+    /**
      * Review an unlinked imported Tally voucher.
      */
     public function review(
