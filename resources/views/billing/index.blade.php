@@ -296,14 +296,29 @@
                                                 Add Investigations
                                             </a>
 
-
+{{-- OUTSTANDING INVESTIGATION BALANCE --}}
+@if (
+    $latestInvestigationInvoice &&
+    (float) $latestInvestigationInvoice->balance_amount > 0 &&
+    $latestInvestigationPayment
+)
+    <a
+        href="{{ route('billing.invoice.payment', $latestInvestigationInvoice) }}"
+        class="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-100"
+    >
+        Collect Balance:
+        ₹{{ number_format((float) $latestInvestigationInvoice->balance_amount, 2) }}
+    </a>
+@endif
                                             {{-- RECEIPT REPRINT --}}
                                             @if ($latestInvestigationPayment)
 
                                                 <div class="mt-2 flex flex-col items-end">
                                                     <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700">
                                                         <span class="inline-block h-2 w-2 rounded-full bg-green-500"></span>
-                                                        Payment completed
+                                                        {{ (float) $latestInvestigationInvoice?->balance_amount > 0
+    ? 'Partial Payment Received'
+    : 'Payment Completed' }}
                                                     </div>
 
                                                     <div class="mt-1 whitespace-nowrap text-xs font-medium text-gray-500">

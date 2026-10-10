@@ -521,6 +521,21 @@ class OpdController extends Controller
                     ]);
                 }
 
+                                /*
+                |--------------------------------------------------------------------------
+                | Automatic OPD Accounting
+                |--------------------------------------------------------------------------
+                | Post the invoice journal within the existing transaction.
+                | Zero-value follow-up invoices do not generate a journal.
+                |--------------------------------------------------------------------------
+                */
+
+                if ($totalAmount > 0) {
+                    app(
+                        \App\Services\Accounting\InvoiceAccountingService::class
+                    )->postOpdInvoice($invoice);
+                }
+
                 return [
                     'encounter' => $encounter,
                     'invoice' => $invoice,
