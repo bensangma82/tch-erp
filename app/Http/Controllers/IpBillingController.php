@@ -17,6 +17,9 @@ use App\Models\Service;
 use App\Models\ServiceOrder;
 use App\Models\ServiceOrderItem;
 use App\Services\Accounting\IpAdvanceAccountingService;
+use App\Services\Accounting\IpAdvanceApplicationAccountingService;
+use App\Services\Accounting\IpBillingAccountingService;
+use App\Services\Accounting\IpPaymentAccountingService;
 use App\Services\StaffMedicalBenefitService;
 use App\Services\StaffMedicalBenefitUtilizationService;
 use Carbon\Carbon;
@@ -2268,6 +2271,9 @@ return redirect()
                         auth()->id(),
                 ]);
 
+                app(IpPaymentAccountingService::class)
+                    ->postReceipt($payment);
+
 
                 /*
                 |--------------------------------------------------------------------------
@@ -4489,6 +4495,39 @@ return redirect()
 
 
                 $lockedAccount->save();
+
+                app(IpBillingAccountingService::class)
+                    ->postFinalBill($lockedAccount);
+
+                $lockedAccount->load([
+                    'advances',
+                    'payments',
+                    'refunds',
+                    'mhisClaims',
+                    'mhisReceipts',
+                    'mhisAdjustments',
+                    'staffMedicalBenefitTransactions',
+                    'charityAdjustments',
+                ]);
+
+                $hasComplexTransactions =
+                    $lockedAccount->payments->isNotEmpty()
+                    || $lockedAccount->refunds->isNotEmpty()
+                    || $lockedAccount->mhisClaims->isNotEmpty()
+                    || $lockedAccount->mhisReceipts->isNotEmpty()
+                    || $lockedAccount->mhisAdjustments->isNotEmpty()
+                    || $lockedAccount->staffMedicalBenefitTransactions->isNotEmpty()
+                    || $lockedAccount->charityAdjustments->isNotEmpty();
+
+                if (
+                    ! $hasComplexTransactions
+                    && $lockedAccount->advances
+                        ->where('status', 'active')
+                        ->isNotEmpty()
+                ) {
+                    app(IpAdvanceApplicationAccountingService::class)
+                        ->apply($lockedAccount);
+                }
             }
         );
 
