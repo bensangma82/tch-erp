@@ -16,6 +16,7 @@ use App\Models\PharmacySale;
 use App\Models\Service;
 use App\Models\ServiceOrder;
 use App\Models\ServiceOrderItem;
+use App\Services\Accounting\IpAdvanceAccountingService;
 use App\Services\StaffMedicalBenefitService;
 use App\Services\StaffMedicalBenefitUtilizationService;
 use Carbon\Carbon;
@@ -1620,7 +1621,7 @@ class IpBillingController extends Controller
                 }
 
 
-                return IpBillingAdvance::create([
+                $advance = IpBillingAdvance::create([
                     'ip_billing_account_id' =>
                         $lockedAccount->id,
 
@@ -1686,6 +1687,15 @@ class IpBillingController extends Controller
                     'received_by' =>
                         auth()->id(),
                 ]);
+                // Journalize ordinary IPD advances.
+                // Pharmacy-linked advances retain their existing workflow.
+                if ($advance->source_type === null) {
+                    app(
+                        IpAdvanceAccountingService::class
+                    )->postAdvance($advance);
+                }
+
+                return $advance;
             }
         );
 
