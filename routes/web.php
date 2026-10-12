@@ -32,6 +32,9 @@ use App\Http\Controllers\EmergencyTriageController;
 use App\Http\Controllers\EmergencyVisitController;
 use App\Http\Controllers\Finance\FinanceDashboardController;
 use App\Http\Controllers\Finance\FinanceMasterController;
+use App\Http\Controllers\Finance\GeneralLedgerAccountController;
+use App\Http\Controllers\Finance\JournalEntryController;
+use App\Http\Controllers\Finance\AccountingReportController;
 use App\Http\Controllers\Finance\FinanceReportController;
 use App\Http\Controllers\Finance\FinanceVoucherController;
 use App\Http\Controllers\Finance\TallyExportController;
@@ -830,7 +833,87 @@ Route::middleware([
             ->whereNumber('financeHead')
             ->name('finance.master.heads.update');
 
-        /*
+
+            /*
+|--------------------------------------------------------------------------
+| General Ledger Account Master
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/admin/finance/gl-accounts',
+    [GeneralLedgerAccountController::class, 'index']
+)->name('finance.gl-accounts.index');
+
+Route::get(
+    '/admin/finance/gl-accounts/create',
+    [GeneralLedgerAccountController::class, 'create']
+)->name('finance.gl-accounts.create');
+
+Route::post(
+    '/admin/finance/gl-accounts',
+    [GeneralLedgerAccountController::class, 'store']
+)->name('finance.gl-accounts.store');
+
+Route::get(
+    '/admin/finance/gl-accounts/{generalLedgerAccount}/edit',
+    [GeneralLedgerAccountController::class, 'edit']
+)->name('finance.gl-accounts.edit');
+
+Route::put(
+    '/admin/finance/gl-accounts/{generalLedgerAccount}',
+    [GeneralLedgerAccountController::class, 'update']
+)->name('finance.gl-accounts.update');
+
+/*
+|--------------------------------------------------------------------------
+| Journal Entries
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/admin/finance/journals',
+    [JournalEntryController::class, 'index']
+)->name('finance.journals.index');
+
+Route::get(
+    '/admin/finance/journals/{journalEntry}',
+    [JournalEntryController::class, 'show']
+)->whereNumber('journalEntry')
+  ->name('finance.journals.show');
+
+/*
+|--------------------------------------------------------------------------
+| ERP Accounting Reports
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/admin/finance/accounting-reports',
+    [AccountingReportController::class, 'index']
+)->name('finance.accounting-reports.index');
+
+Route::get(
+    '/admin/finance/accounting-reports/general-ledger',
+    [AccountingReportController::class, 'generalLedger']
+)->name('finance.accounting-reports.general-ledger');
+
+Route::get(
+    '/admin/finance/accounting-reports/trial-balance',
+    [AccountingReportController::class, 'trialBalance']
+)->name('finance.accounting-reports.trial-balance');
+
+Route::get(
+    '/admin/finance/accounting-reports/income-expenditure',
+    [AccountingReportController::class, 'incomeExpenditure']
+)->name('finance.accounting-reports.income-expenditure');
+
+Route::get(
+    '/admin/finance/accounting-reports/balance-sheet',
+    [AccountingReportController::class, 'balanceSheet']
+)->name('finance.accounting-reports.balance-sheet');
+
+/*
 |--------------------------------------------------------------------------
 | Tally Integration
 |--------------------------------------------------------------------------

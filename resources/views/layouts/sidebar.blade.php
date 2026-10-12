@@ -1630,7 +1630,39 @@
                                 >
                                     Finance Master
                                 </a>
-
+                                <a
+    href="{{ route('finance.gl-accounts.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+        {{
+            request()->routeIs('finance.gl-accounts.*')
+                ? 'bg-slate-800/90 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+        }}"
+>
+    Chart of Accounts
+</a>
+<a
+    href="{{ route('finance.journals.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+        {{
+            request()->routeIs('finance.journals.*')
+                ? 'bg-slate-800/90 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+        }}"
+>
+    Journal Entries
+</a>
+<a
+    href="{{ route('finance.accounting-reports.index') }}"
+    class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+        {{
+            request()->routeIs('finance.accounting-reports.*')
+                ? 'bg-slate-800/90 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+        }}"
+>
+    Accounting Reports
+</a>
 
                                 <a
                                     href="{{ route('finance.tally.index') }}"

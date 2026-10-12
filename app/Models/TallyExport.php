@@ -12,6 +12,7 @@ class TallyExport extends Model
 
     protected $fillable = [
         'finance_voucher_id',
+        'journal_entry_id',
         'status',
         'export_reference',
         'remote_id',
@@ -33,6 +34,11 @@ class TallyExport extends Model
     {
         return $this->belongsTo(FinanceVoucher::class);
     }
+
+    public function journalEntry(): BelongsTo
+{
+    return $this->belongsTo(JournalEntry::class);
+}
 
     public function exportedBy(): BelongsTo
     {
