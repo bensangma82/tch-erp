@@ -1054,6 +1054,28 @@ Route::post(
             [TallyExportController::class, 'retryDirect']
         )->name('finance.tally.exports.retry-direct');
 
+                /*
+        |--------------------------------------------------------------------------
+        | Tally Journal Export Dashboard (Read-only)
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/admin/finance/tally/journals',
+            [
+                \App\Http\Controllers\Finance\TallyJournalExportController::class,
+                'index'
+            ]
+        )->name('finance.tally.journals.index');
+        Route::get(
+    '/admin/finance/tally/journals/{journalEntry}/preview',
+    [
+        \App\Http\Controllers\Finance\TallyJournalExportController::class,
+        'preview'
+    ]
+)
+    ->whereNumber('journalEntry')
+    ->name('finance.tally.journals.preview');
         /*
         |--------------------------------------------------------------------------
         | Finance Vouchers

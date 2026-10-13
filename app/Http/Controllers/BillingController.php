@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Encounter;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\IpBillingCharge;
 use App\Models\Payment;
 use App\Models\Service;
 use App\Models\ServiceOrder;
@@ -247,6 +248,20 @@ class BillingController extends Controller
             'items',
         ]);
 
+        /*
+|--------------------------------------------------------------------------
+| Prevent Separate Billing of IPD Investigation Orders
+|--------------------------------------------------------------------------
+*/
+
+if ($serviceOrder->admission_id !== null) {
+    throw ValidationException::withMessages([
+        'payment_mode' =>
+            'This investigation belongs to an inpatient admission. '
+            . 'Payment and billing must be processed through IPD billing.',
+    ]);
+}
+
         $total = round(
             (float) $serviceOrder->items->sum('amount'),
             2
@@ -316,6 +331,44 @@ class BillingController extends Controller
                     'This investigation order has already been billed.'
                 );
         }
+
+        /*
+|--------------------------------------------------------------------------
+| Block IPD Investigation Orders from Separate Invoicing
+|--------------------------------------------------------------------------
+*/
+
+if ($serviceOrder->admission_id !== null) {
+    throw ValidationException::withMessages([
+        'payment_mode' =>
+            'This investigation belongs to an inpatient admission. '
+            . 'Billing must be processed through IPD billing.',
+    ]);
+}
+        /*
+|--------------------------------------------------------------------------
+| Prevent Duplicate IPD Investigation Billing
+|--------------------------------------------------------------------------
+| An investigation already included in an active IPD charge
+| must not be invoiced again through the investigation counter.
+|--------------------------------------------------------------------------
+*/
+
+$alreadyChargedToIpd = IpBillingCharge::query()
+    ->whereIn(
+        'service_order_item_id',
+        $serviceOrder->items->pluck('id')
+    )
+    ->where('status', 'active')
+    ->exists();
+
+if ($alreadyChargedToIpd) {
+    throw ValidationException::withMessages([
+        'payment_mode' =>
+            'This investigation is already included in IPD billing. '
+            . 'Separate investigation invoicing is not permitted.',
+    ]);
+}
 
         $validated = $request->validate([
             'payment_mode' => [

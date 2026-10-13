@@ -16,6 +16,7 @@ class FinanceVoucher extends Model
         'voucher_no',
         'voucher_type',
         'voucher_date',
+        'origin',
         'finance_head_id',
         'finance_account_id',
         'payroll_run_id',

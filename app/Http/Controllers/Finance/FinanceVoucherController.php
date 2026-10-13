@@ -296,6 +296,7 @@ class FinanceVoucherController extends Controller
 
         $voucher = DB::transaction(function () use ($validated) {
             $voucher = new FinanceVoucher;
+            $voucher->origin = 'erp_manual';
 
             $voucher->voucher_no =
     $this->voucherNumberService->generate(

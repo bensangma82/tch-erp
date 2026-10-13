@@ -1416,6 +1416,7 @@ class PayrollRunController extends Controller
                     );
 
                     FinanceVoucher::create([
+                        'origin' => 'erp_payroll',
                         'voucher_no' => $voucherNo,
                         'voucher_type' => 'payment',
                         'voucher_date' => $voucherDate->toDateString(),

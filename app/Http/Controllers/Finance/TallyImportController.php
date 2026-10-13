@@ -540,6 +540,7 @@ class TallyImportController extends Controller
             }
 
             $voucher = FinanceVoucher::create([
+                'origin' => 'tally_import',
                 'voucher_no' => $voucherNumberService->generate(
                     $type,
                     $date

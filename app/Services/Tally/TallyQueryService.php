@@ -688,10 +688,20 @@ XML;
 
             $vouchers = [];
 
-            foreach ($voucherNodes as $voucher) {
-                $date = trim(
-                    (string) $voucher->DATE
-                );
+foreach ($voucherNodes as $voucher) {
+
+    // Ignore empty voucher placeholders returned by Tally.
+    if (
+        trim((string) $voucher->GUID) === ''
+        && trim((string) $voucher->VOUCHERNUMBER) === ''
+        && trim((string) $voucher->VOUCHERTYPENAME) === ''
+    ) {
+        continue;
+    }
+
+    $date = trim(
+        (string) $voucher->DATE
+    );
 
                 $voucherType = trim(
                     (string) $voucher->VOUCHERTYPENAME

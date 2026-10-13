@@ -24,6 +24,19 @@ class TallyExportService
         ]);
 
         $errors = [];
+        /*
+|--------------------------------------------------------------------------
+| Transaction Origin Validation
+|--------------------------------------------------------------------------
+*/
+
+        if ($voucher->origin === 'tally_import') {
+            $errors[] = 'Tally-imported vouchers cannot be exported back to Tally.';
+        }
+
+        if (blank($voucher->origin)) {
+            $errors[] = 'Voucher origin is unknown. Classify it before Tally export.';
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -41,16 +54,9 @@ class TallyExportService
         |--------------------------------------------------------------------------
         */
 
-        if (
-            $voucher->tallyExport !== null
-            && (
-                $voucher->tallyExport->status === 'exported'
-                || $voucher->tallyExport->confirmed_at !== null
-            )
-        ) {
-            $errors[] = 'This Finance voucher has already been exported to Tally.';
+        if ($voucher->tallyExport !== null) {
+            $errors[] = 'This Finance voucher already has a Tally export record. Reconciliation is required before another export.';
         }
-
         /*
         |--------------------------------------------------------------------------
         | Receipt / Payment

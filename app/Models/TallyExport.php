@@ -23,11 +23,14 @@ class TallyExport extends Model
         'confirmed_at',
         'error_message',
         'remarks',
+        'tally_accounting_date',
+        'date_override_reason',
     ];
 
     protected $casts = [
         'exported_at' => 'datetime',
         'confirmed_at' => 'datetime',
+        'tally_accounting_date' => 'date',
     ];
 
     public function financeVoucher(): BelongsTo
