@@ -3,6 +3,7 @@
 namespace App\Services\Tally;
 
 use App\Models\JournalEntry;
+use App\Models\FinanceVoucher;
 use App\Models\TallyExport;
 use App\Models\TallyLedgerMaster;
 
@@ -97,6 +98,32 @@ class TallyJournalExportService
         }
 
         /*
+|--------------------------------------------------------------------------
+| Cross-Workflow Duplicate Export Protection
+|--------------------------------------------------------------------------
+| Prevent a GL Journal from being exported if a Finance Voucher
+| with the same source transaction has already entered the
+| Tally export workflow.
+|--------------------------------------------------------------------------
+*/
+
+$matchingFinanceVoucher = FinanceVoucher::query()
+    ->where('source_type', $journal->source_type)
+    ->where('source_id', $journal->source_id)
+    ->where('source_event', $journal->source_event)
+    ->whereNotNull('source_type')
+    ->whereNotNull('source_id')
+    ->whereNotNull('source_event')
+    ->whereHas('tallyExport')
+    ->exists();
+
+if ($matchingFinanceVoucher) {
+    $errors[] = 'A Finance Voucher for this accounting event '
+        .'already has a Tally export record. '
+        .'Journal export is blocked to prevent duplication.';
+}
+
+        /*
         |--------------------------------------------------------------------------
         | Journal Lines
         |--------------------------------------------------------------------------
@@ -138,12 +165,6 @@ if (blank($account->tally_ledger_name)) {
     ->whereRaw(
         'LOWER(TRIM(ledger_name)) = LOWER(?)',
         [$ledgerName]
-    )
-    ->where(
-        'last_synced_at',
-        TallyLedgerMaster::query()
-            ->where('tally_company', $company)
-            ->selectRaw('MAX(last_synced_at)')
     )
     ->exists();
 

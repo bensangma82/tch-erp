@@ -1076,6 +1076,26 @@ Route::post(
 )
     ->whereNumber('journalEntry')
     ->name('finance.tally.journals.preview');
+
+    Route::get(
+    '/admin/finance/tally/journals/{journalEntry}/view',
+    [
+        \App\Http\Controllers\Finance\TallyJournalExportController::class,
+        'showPreview',
+    ]
+)
+    ->whereNumber('journalEntry')
+    ->name('finance.tally.journals.view');
+
+    Route::post(
+    '/admin/finance/tally/journals/{journalEntry}/send',
+    [
+        \App\Http\Controllers\Finance\TallyJournalExportController::class,
+        'send',
+    ]
+)
+    ->whereNumber('journalEntry')
+    ->name('finance.tally.journals.send');
         /*
         |--------------------------------------------------------------------------
         | Finance Vouchers

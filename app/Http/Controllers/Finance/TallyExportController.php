@@ -7,6 +7,7 @@ use App\Models\FinanceVoucher;
 use App\Models\TallyExport;
 use App\Services\Tally\TallyExportService;
 use App\Services\Tally\TallyHttpClient;
+use App\Services\Tally\TallyExportLock;
 use App\Services\Tally\TallyResponseParser;
 use App\Services\Tally\TallyXmlBuilder;
 use Illuminate\Http\RedirectResponse;
@@ -110,6 +111,16 @@ class TallyExportController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+                /*
+|--------------------------------------------------------------------------
+| Cross-Workflow Export Lock
+|--------------------------------------------------------------------------
+| Coordinate manual XML downloads with GL Journal exports.
+|--------------------------------------------------------------------------
+*/
+
+TallyExportLock::acquireForFinanceVoucher($voucher);
+
             $voucher->load([
                 'financeHead.tallyMapping',
                 'financeAccount.tallyMapping',
@@ -127,8 +138,8 @@ class TallyExportController extends Controller
                 ];
             }
 
-            $eligibility = $tallyExportService
-                ->checkEligibility($voucher);
+           $eligibility = $tallyExportService
+    ->checkEligibility($voucher);
 
             if (! $eligibility['eligible']) {
                 return [
@@ -205,6 +216,17 @@ class TallyExportController extends Controller
                 ->whereKey($financeVoucher->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
+
+                /*
+|--------------------------------------------------------------------------
+| Cross-Workflow Export Lock
+|--------------------------------------------------------------------------
+| Coordinate Finance Voucher and GL Journal exports
+| representing the same accounting event.
+|--------------------------------------------------------------------------
+*/
+
+TallyExportLock::acquireForFinanceVoucher($voucher);
 
             $voucher->load([
                 'financeHead.tallyMapping',
@@ -514,6 +536,17 @@ class TallyExportController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+                /*
+|--------------------------------------------------------------------------
+| Cross-Workflow Export Lock
+|--------------------------------------------------------------------------
+| Prevent a Finance Voucher XML re-export from
+| conflicting with a GL Journal export.
+|--------------------------------------------------------------------------
+*/
+
+TallyExportLock::acquireForFinanceVoucher($voucher);
+
             $voucher->load([
                 'financeHead.tallyMapping',
                 'financeAccount.tallyMapping',
@@ -540,7 +573,7 @@ class TallyExportController extends Controller
             }
 
             $eligibility = $tallyExportService
-                ->checkEligibility($voucher);
+    ->checkEligibility($voucher, true);
 
             if (! $eligibility['eligible']) {
                 return [
@@ -626,6 +659,17 @@ class TallyExportController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+                /*
+|--------------------------------------------------------------------------
+| Cross-Workflow Export Lock
+|--------------------------------------------------------------------------
+| Coordinate retries with GL Journal exports for
+| the same underlying accounting event.
+|--------------------------------------------------------------------------
+*/
+
+TallyExportLock::acquireForFinanceVoucher($voucher);
+
             $voucher->load([
                 'financeHead.tallyMapping',
                 'financeAccount.tallyMapping',
@@ -647,8 +691,8 @@ class TallyExportController extends Controller
                 ];
             }
 
-            $eligibility = $tallyExportService
-                ->checkEligibility($voucher);
+           $eligibility = $tallyExportService
+    ->checkEligibility($voucher, true);
 
             if (! $eligibility['eligible']) {
                 return [
@@ -842,4 +886,6 @@ class TallyExportController extends Controller
 
         return 'tally-'.$voucherNumber.'.xml';
     }
+
+
 }

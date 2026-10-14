@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\FinanceVoucher;
+use App\Models\JournalEntry;
 use App\Models\TallyImportedVoucher;
 use App\Services\Tally\TallyReconciliationService;
+use App\Services\Tally\TallyJournalReconciliationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -108,6 +110,55 @@ class TallyReconciliationController extends Controller
             ->where('status', 'erp_only')
             ->values();
 
+            /*
+|--------------------------------------------------------------------------
+| GL Journal Reconciliation
+|--------------------------------------------------------------------------
+| Read-only comparison of ERP journals against imported Tally vouchers.
+|--------------------------------------------------------------------------
+*/
+
+$journalReconciliationService = app(
+    TallyJournalReconciliationService::class
+);
+
+$journalReconciliations = JournalEntry::query()
+    ->whereHas('tallyExport')
+    ->with([
+        'lines.generalLedgerAccount',
+        'tallyExport',
+    ])
+    ->orderByDesc('journal_date')
+    ->orderByDesc('id')
+    ->get()
+    ->map(function (JournalEntry $journal) use (
+        $journalReconciliationService
+    ): array {
+        return [
+            'journal' => $journal,
+            'reconciliation' => $journalReconciliationService
+                ->reconcile($journal),
+        ];
+    });
+
+$journalSummary = [
+    'matched' => $journalReconciliations
+        ->where('reconciliation.status', 'matched')
+        ->count(),
+
+    'difference' => $journalReconciliations
+        ->where('reconciliation.status', 'difference')
+        ->count(),
+
+    'missing' => $journalReconciliations
+        ->where('reconciliation.status', 'missing')
+        ->count(),
+
+    'ambiguous' => $journalReconciliations
+        ->where('reconciliation.status', 'ambiguous')
+        ->count(),
+];
+
         $summary = [
             'matched' => $matched->count(),
             'tally_only' => $tallyOnly->count(),
@@ -126,7 +177,9 @@ class TallyReconciliationController extends Controller
                 'erpOnly',
                 'ambiguous',
                 'unmapped',
-                'differences'
+                'differences',
+                'journalReconciliations',
+                'journalSummary'
             )
         );
     }

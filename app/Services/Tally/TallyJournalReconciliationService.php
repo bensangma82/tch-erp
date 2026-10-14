@@ -3,230 +3,240 @@
 namespace App\Services\Tally;
 
 use App\Models\JournalEntry;
-use App\Models\TallyExport;
 use App\Models\TallyImportedVoucher;
+use Illuminate\Support\Collection;
 
 class TallyJournalReconciliationService
 {
     /**
-     * Compare a posted ERP journal with its
-     * corresponding synchronized Tally voucher.
+     * Read-only reconciliation of one ERP GL journal
+     * against previously imported Tally vouchers.
      *
-     * Read-only: does not modify reconciliation
-     * statuses or accounting records.
-     *
-     * @return array{
-     *     matched: bool,
-     *     journal: string,
-     *     tally_voucher: string|null,
-     *     errors: array<int, string>
-     * }
+     * This does not query TallyPrime live.
      */
     public function reconcile(JournalEntry $journal): array
     {
-        $errors = [];
-        $voucherNumber = null;
+        $journal->loadMissing([
+            'lines.generalLedgerAccount',
+            'tallyExport',
+        ]);
 
-        $journal->loadMissing('lines.generalLedgerAccount');
+        $export = $journal->tallyExport;
 
-        if ($journal->status !== 'posted') {
-            $errors[] = 'Journal is not posted.';
+        if ($export === null) {
+            return $this->result(
+                'missing',
+                'The journal has no Tally export record.'
+            );
         }
 
-        $export = TallyExport::query()
-            ->where('journal_entry_id', $journal->id)
-            ->first();
-
-        if (! $export) {
-            $errors[] = 'Journal has no Tally export record.';
-
-            return $this->result($journal, null, $errors);
-        }
-
-        $company = trim((string) config('tally.company'));
-
-        if ($company === '') {
-            $errors[] = 'Tally company is not configured.';
-
-            return $this->result($journal, null, $errors);
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Find the matching Tally voucher.
-        |--------------------------------------------------------------------------
-        | Historical manually imported records may store
-        | the Tally GUID in the remote_id field.
-        |--------------------------------------------------------------------------
-        */
-
-        $remoteId = trim((string) $export->remote_id);
-
-        if ($remoteId === '') {
-            $errors[] = 'Tally export has no remote ID.';
-
-            return $this->result($journal, null, $errors);
-        }
+        $company = trim(
+            (string) config('tally.company')
+        );
 
         $candidates = TallyImportedVoucher::query()
             ->where('tally_company', $company)
-            ->where(function ($query) use ($remoteId) {
-                $query->where('remote_id', $remoteId)
-                    ->orWhere('guid', $remoteId);
+            ->whereRaw(
+                'LOWER(voucher_type) = ?',
+                ['journal']
+            )
+            ->with('entries')
+            ->get()
+            ->filter(function ($voucher) use (
+                $journal,
+                $export
+            ) {
+                $identityMatch =
+                    filled($export->remote_id)
+                    && (
+                        $voucher->remote_id === $export->remote_id
+                        || $voucher->guid === $export->remote_id
+                    );
+
+                $narrationMatch = preg_match(
+                    '/(?:^|\s)ERP\s+'
+                    .preg_quote($journal->journal_no, '/')
+                    .'(?=\s|\||$)/i',
+                    (string) $voucher->narration
+                ) === 1;
+
+                return $identityMatch || $narrationMatch;
             })
-            ->limit(2)
-            ->get();
+            ->values();
 
-        if ($candidates->count() !== 1) {
-            $errors[] = $candidates->isEmpty()
-                ? 'Matching Tally voucher not found in synchronized registry.'
-                : 'Multiple Tally vouchers match the export identity.';
+        if ($candidates->isEmpty()) {
+            return $this->result(
+                'missing',
+                'No matching journal found in the imported Tally vouchers.'
+            );
+        }
 
-            return $this->result($journal, null, $errors);
+        if ($candidates->count() > 1) {
+            return $this->result(
+                'ambiguous',
+                'Multiple Tally vouchers match this ERP journal.',
+                $candidates
+            );
         }
 
         $voucher = $candidates->first();
-        $voucherNumber = $voucher->voucher_number;
 
-        if (strcasecmp(
-            trim((string) $voucher->voucher_type),
-            'Journal'
-        ) !== 0) {
-            $errors[] = 'Matched Tally voucher is not a Journal.';
-        }
-        /*
-|--------------------------------------------------------------------------
-| Accounting Date Verification
-|--------------------------------------------------------------------------
-*/
-
-$erpDate = $journal->journal_date?->format('Y-m-d');
-$tallyDate = $voucher->voucher_date?->format('Y-m-d');
-$recordedDate = $export->tally_accounting_date?->format('Y-m-d');
-
-if (! $erpDate || ! $tallyDate) {
-    $errors[] = 'ERP or Tally accounting date is missing.';
-} elseif ($recordedDate !== null && $recordedDate !== $tallyDate) {
-    $errors[] = 'Recorded export date does not match the Tally voucher date.';
-} elseif ($erpDate !== $tallyDate) {
-    $historicalEduException =
-        $company === 'Tura Christian Hospital ERP -Test'
-        && in_array($journal->id, [38, 39, 40, 41], true)
-        && $export->status === 'confirmed'
-        && $recordedDate === '2026-10-01'
-        && $tallyDate === '2026-10-01'
-        && filled($export->date_override_reason);
-
-    if (! $historicalEduException) {
-        $errors[] = 'ERP and Tally accounting dates do not match.';
-    }
-}
+        $errors = [];
 
         /*
         |--------------------------------------------------------------------------
-        | Normalize ERP ledger entries.
-        |--------------------------------------------------------------------------
-        | Debit = positive paise; credit = negative paise.
+        | Export Identity
         |--------------------------------------------------------------------------
         */
 
-        $erpEntries = [];
-
-        foreach ($journal->lines as $line) {
-            $ledger = trim(
-                (string) $line->generalLedgerAccount?->tally_ledger_name
-            );
-
-            if ($ledger === '') {
-                $errors[] = 'ERP journal line has no Tally ledger mapping.';
-
-                continue;
-            }
-
-            $debit = $this->paise($line->debit);
-            $credit = $this->paise($line->credit);
-
-            if (
-                $debit < 0 ||
-                $credit < 0 ||
-                ($debit > 0 && $credit > 0) ||
-                ($debit === 0 && $credit === 0)
-            ) {
-                $errors[] = 'Invalid ERP debit/credit amounts.';
-
-                continue;
-            }
-
-            $key = mb_strtolower($ledger);
-
-            $erpEntries[$key] = ($erpEntries[$key] ?? 0)
-                + $debit - $credit;
+        if (
+            $export->status !== 'confirmed'
+        ) {
+            $errors[] = 'ERP export status is not confirmed.';
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Normalize Tally ledger entries.
+        | Accounting Date
         |--------------------------------------------------------------------------
         */
 
-        $tallyEntries = [];
+        $expectedDate = $export->tally_accounting_date
+            ? $export->tally_accounting_date->format('Y-m-d')
+            : $journal->journal_date->format('Y-m-d');
 
-        foreach ($voucher->entries as $entry) {
-            $ledger = trim((string) $entry->ledger_name);
+        $actualDate = $voucher->voucher_date
+            ? $voucher->voucher_date->format('Y-m-d')
+            : null;
 
-            if ($ledger === '') {
-                $errors[] = 'Tally voucher contains an unnamed ledger.';
-
-                continue;
-            }
-
-            $amount = $this->paise($entry->amount);
-
-            if (
-                ($entry->is_deemed_positive === true && $amount >= 0)
-                || ($entry->is_deemed_positive === false && $amount <= 0)
-                || $entry->is_deemed_positive === null
-            ) {
-                $errors[] = 'Tally amount sign disagrees with its debit/credit flag.';
-
-                continue;
-            }
-
-            $key = mb_strtolower($ledger);
-
-            $tallyEntries[$key] = ($tallyEntries[$key] ?? 0)
-                - $amount;
+        if ($expectedDate !== $actualDate) {
+            $errors[] = 'Tally accounting date differs from the ERP export date.';
         }
 
-        ksort($erpEntries);
-        ksort($tallyEntries);
+        /*
+        |--------------------------------------------------------------------------
+        | Ledger-Level Reconciliation
+        |--------------------------------------------------------------------------
+        */
+
+        $erpEntries = $this->erpEntries($journal);
+        $tallyEntries = $this->tallyEntries($voucher);
 
         if ($erpEntries !== $tallyEntries) {
-            $errors[] = 'ERP and Tally ledger amounts do not match.';
+            $errors[] = 'Debit, credit, or ledger entries differ.';
+        }
+
+        if ($errors !== []) {
+            return $this->result(
+                'difference',
+                implode(' ', $errors),
+                collect([$voucher])
+            );
         }
 
         return $this->result(
-            $journal,
-            $voucherNumber,
-            $errors
+            'matched',
+            'Journal identity, accounting date, and ledger entries match.',
+            collect([$voucher])
         );
     }
 
-    private function paise(mixed $amount): int
+    /**
+     * Normalize ERP journal lines to ledger-side-amount keys.
+     * Amounts are converted to integer paise.
+     */
+    private function erpEntries(JournalEntry $journal): array
     {
-        return (int) round((float) $amount * 100);
+        $entries = [];
+
+        foreach ($journal->lines as $line) {
+            $ledger = trim(
+                (string) $line
+                    ->generalLedgerAccount
+                    ?->tally_ledger_name
+            );
+
+            $debit = (int) round(
+                (float) $line->debit * 100
+            );
+
+            $credit = (int) round(
+                (float) $line->credit * 100
+            );
+
+            if ($debit > 0) {
+                $key = mb_strtolower($ledger).'|debit';
+
+                $entries[$key] = (
+                    $entries[$key] ?? 0
+                ) + $debit;
+            }
+
+            if ($credit > 0) {
+                $key = mb_strtolower($ledger).'|credit';
+
+                $entries[$key] = (
+                    $entries[$key] ?? 0
+                ) + $credit;
+            }
+        }
+
+        ksort($entries);
+
+        return $entries;
+    }
+
+    /**
+     * Normalize imported Tally voucher entries.
+     *
+     * is_deemed_positive=true means debit.
+     * is_deemed_positive=false means credit.
+     */
+    private function tallyEntries(
+        TallyImportedVoucher $voucher
+    ): array {
+        $entries = [];
+
+        foreach ($voucher->entries as $line) {
+            $ledger = trim(
+                (string) $line->ledger_name
+            );
+
+            $side = $line->is_deemed_positive
+                ? 'debit'
+                : 'credit';
+
+            $amount = (int) round(
+                abs((float) $line->amount) * 100
+            );
+
+            $key = mb_strtolower($ledger).'|'.$side;
+
+            $entries[$key] = (
+                $entries[$key] ?? 0
+            ) + $amount;
+        }
+
+        ksort($entries);
+
+        return $entries;
     }
 
     private function result(
-        JournalEntry $journal,
-        ?string $voucherNumber,
-        array $errors
+        string $status,
+        string $reason,
+        ?Collection $candidates = null
     ): array {
         return [
-            'matched' => $errors === [],
-            'journal' => $journal->journal_no,
-            'tally_voucher' => $voucherNumber,
-            'errors' => $errors,
+            'status' => $status,
+            'reason' => $reason,
+            'candidate_count' => $candidates?->count() ?? 0,
+            'tally_voucher' => (
+                $candidates !== null
+                && $candidates->count() === 1
+            )
+                ? $candidates->first()
+                : null,
         ];
     }
 }

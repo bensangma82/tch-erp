@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class JournalEntry extends Model
 {
@@ -44,6 +45,14 @@ class JournalEntry extends Model
             'finance_voucher_id'
         );
     }
+
+    public function tallyExport(): HasOne
+{
+    return $this->hasOne(
+        TallyExport::class,
+        'journal_entry_id'
+    );
+}
 
     public function reversalOf(): BelongsTo
     {

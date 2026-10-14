@@ -3,6 +3,7 @@
 namespace App\Services\Tally;
 
 use App\Models\FinanceVoucher;
+use App\Models\JournalEntry;
 
 class TallyExportService
 {
@@ -14,7 +15,10 @@ class TallyExportService
      *     errors: array<int, string>
      * }
      */
-    public function checkEligibility(FinanceVoucher $voucher): array
+   public function checkEligibility(
+    FinanceVoucher $voucher,
+    bool $forRetry = false
+): array
     {
         $voucher->loadMissing([
             'financeHead.tallyMapping',
@@ -53,10 +57,44 @@ class TallyExportService
         | Duplicate export protection
         |--------------------------------------------------------------------------
         */
+if ($forRetry) {
+    if (
+        $voucher->tallyExport === null
+        || $voucher->tallyExport->status !== 'failed'
+    ) {
+        $errors[] = 'Only Finance vouchers with a failed Tally export can be retried.';
+    }
+} elseif ($voucher->tallyExport !== null) {
+    $errors[] = 'This Finance voucher already has a Tally export record. Reconciliation is required before another export.';
+}
 
-        if ($voucher->tallyExport !== null) {
-            $errors[] = 'This Finance voucher already has a Tally export record. Reconciliation is required before another export.';
-        }
+        /*
+|--------------------------------------------------------------------------
+| Cross-Workflow Duplicate Export Protection
+|--------------------------------------------------------------------------
+| Prevent a Finance Voucher from being exported if its source
+| accounting event already has a GL Journal export record.
+|--------------------------------------------------------------------------
+*/
+
+if (
+    filled($voucher->source_type)
+    && filled($voucher->source_id)
+    && filled($voucher->source_event)
+) {
+    $matchingJournalExport = JournalEntry::query()
+        ->where('source_type', $voucher->source_type)
+        ->where('source_id', $voucher->source_id)
+        ->where('source_event', $voucher->source_event)
+        ->whereHas('tallyExport')
+        ->exists();
+
+    if ($matchingJournalExport) {
+        $errors[] = 'A GL Journal for this accounting event already '
+            .'has a Tally export record. Finance Voucher export '
+            .'is blocked to prevent duplicate accounting.';
+    }
+}
         /*
         |--------------------------------------------------------------------------
         | Receipt / Payment
