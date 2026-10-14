@@ -12,6 +12,7 @@ use App\Models\IpBillingMhisClaim;
 use App\Models\IpBillingMhisReceipt;
 use App\Models\IpBillingPayment;
 use App\Models\IpBillingRefund;
+use App\Models\JournalEntry;
 use App\Models\PharmacySale;
 use App\Models\Service;
 use App\Models\ServiceOrder;
@@ -20,6 +21,7 @@ use App\Services\Accounting\IpAdvanceAccountingService;
 use App\Services\Accounting\IpAdvanceApplicationAccountingService;
 use App\Services\Accounting\IpBillingAccountingService;
 use App\Services\Accounting\IpPaymentAccountingService;
+use App\Services\Accounting\MhisReceiptAccountingService;
 use App\Services\Accounting\MhisReceivableAccountingService;
 use App\Services\StaffMedicalBenefitService;
 use App\Services\StaffMedicalBenefitUtilizationService;
@@ -741,7 +743,6 @@ class IpBillingController extends Controller
 | Prevent IPD Billing of Previously Invoiced Investigations
 |--------------------------------------------------------------------------
 */
-
 
                     $alreadyPosted =
                         IpBillingCharge::query()
@@ -1987,14 +1988,14 @@ class IpBillingController extends Controller
 
                     'received_by' => auth()->id(),
                 ]);
-                 /*
+                /*
 |--------------------------------------------------------------------------
 |                   Post IPD Patient Payment Accounting
 |--------------------------------------------------------------------------
 */
 
-app(IpPaymentAccountingService::class)
-    ->postReceipt($payment);
+                app(IpPaymentAccountingService::class)
+                    ->postReceipt($payment);
                 /*
                 |--------------------------------------------------------------------------
                 | Recalculate Account
@@ -3209,24 +3210,24 @@ app(IpPaymentAccountingService::class)
         }
 
         if (
-            $validated["status"] === "submitted"
-            && (float) ($validated["expected_amount"] ?? 0) <= 0
+            $validated['status'] === 'submitted'
+            && (float) ($validated['expected_amount'] ?? 0) <= 0
         ) {
             throw ValidationException::withMessages([
-                "expected_amount" => "Expected MHIS coverage is required for submitted claims.",
+                'expected_amount' => 'Expected MHIS coverage is required for submitted claims.',
             ]);
         }
 
         if (
-            in_array($validated["status"], ["approved", "settled"], true)
-            && empty($validated["approval_date"])
+            in_array($validated['status'], ['approved', 'settled'], true)
+            && empty($validated['approval_date'])
         ) {
             throw ValidationException::withMessages([
-                "approval_date" => "Formal MHIS approval date is required.",
+                'approval_date' => 'Formal MHIS approval date is required.',
             ]);
         }
 
-        if (in_array($validated["status"], ["pending", "submitted", "rejected"], true)) {
+        if (in_array($validated['status'], ['pending', 'submitted', 'rejected'], true)) {
             $approvedAmount = 0.00;
         }
 
@@ -3251,7 +3252,7 @@ app(IpPaymentAccountingService::class)
                     in_array($validated['status'], ['approved', 'settled'], true)
                     && $lockedAccount->status !== 'finalized'
                 ) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'status' => 'Formal MHIS approval requires a finalized IPD bill.',
                     ]);
                 }
@@ -3303,18 +3304,18 @@ app(IpPaymentAccountingService::class)
                 if (
                     $existingReceived > 0
                     && in_array(
-                        $validated["status"],
-                        ["pending", "submitted", "rejected"],
+                        $validated['status'],
+                        ['pending', 'submitted', 'rejected'],
                         true
                     )
                 ) {
                     throw ValidationException::withMessages([
-                        "status" => "A claim with MHIS receipts cannot return to an unapproved status.",
+                        'status' => 'A claim with MHIS receipts cannot return to an unapproved status.',
                     ]);
                 }
 
                 if ($validated['status'] === 'settled') {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'status' => 'Approve the MHIS claim before recording settlement.',
                     ]);
                 }
@@ -3402,7 +3403,7 @@ app(IpPaymentAccountingService::class)
 
                 if ($existingClaim) {
 
-                    $alreadyRecognized = \App\Models\JournalEntry::query()
+                    $alreadyRecognized = JournalEntry::query()
                         ->where('source_type', 'ip_billing_mhis_claim')
                         ->where('source_id', (string) $existingClaim->id)
                         ->where('source_event', 'approved')
@@ -3732,17 +3733,14 @@ app(IpPaymentAccountingService::class)
                 }
 
                 if (
-                    in_array(
+                    ! in_array(
                         $claim->status,
-                        [
-                            'pending',
-                            'rejected',
-                        ],
+                        ['approved', 'settled'],
                         true
                     )
                 ) {
                     throw ValidationException::withMessages([
-                        'amount' => 'MHIS payment can only be recorded after the claim has been approved or submitted.',
+                        'amount' => 'MHIS reimbursement requires a formally approved claim.',
                     ]);
                 }
 
@@ -3870,6 +3868,10 @@ app(IpPaymentAccountingService::class)
 
                     'updated_by' => auth()->id(),
                 ]);
+
+                app(
+                    MhisReceiptAccountingService::class
+                )->record($receipt);
 
                 return $receipt;
             }
@@ -4025,37 +4027,37 @@ app(IpPaymentAccountingService::class)
                 $lockedAccount->save();
 
                 app(IpBillingAccountingService::class)
-    ->postFinalBill($lockedAccount);
+                    ->postFinalBill($lockedAccount);
 
-$lockedAccount->load([
-    'advances',
-    'payments',
-    'refunds',
-    'mhisClaims',
-    'mhisReceipts',
-    'mhisAdjustments',
-    'staffMedicalBenefitTransactions',
-    'charityAdjustments',
-]);
+                $lockedAccount->load([
+                    'advances',
+                    'payments',
+                    'refunds',
+                    'mhisClaims',
+                    'mhisReceipts',
+                    'mhisAdjustments',
+                    'staffMedicalBenefitTransactions',
+                    'charityAdjustments',
+                ]);
 
-$hasComplexTransactions =
-    $lockedAccount->payments->isNotEmpty()
-    || $lockedAccount->refunds->isNotEmpty()
-    || $lockedAccount->mhisClaims->isNotEmpty()
-    || $lockedAccount->mhisReceipts->isNotEmpty()
-    || $lockedAccount->mhisAdjustments->isNotEmpty()
-    || $lockedAccount->staffMedicalBenefitTransactions->isNotEmpty()
-    || $lockedAccount->charityAdjustments->isNotEmpty();
+                $hasComplexTransactions =
+                    $lockedAccount->payments->isNotEmpty()
+                    || $lockedAccount->refunds->isNotEmpty()
+                    || $lockedAccount->mhisClaims->isNotEmpty()
+                    || $lockedAccount->mhisReceipts->isNotEmpty()
+                    || $lockedAccount->mhisAdjustments->isNotEmpty()
+                    || $lockedAccount->staffMedicalBenefitTransactions->isNotEmpty()
+                    || $lockedAccount->charityAdjustments->isNotEmpty();
 
-if (
-    ! $hasComplexTransactions
-    && $lockedAccount->advances
-        ->where('status', 'active')
-        ->isNotEmpty()
-) {
-    app(IpAdvanceApplicationAccountingService::class)
-        ->apply($lockedAccount);
-}
+                if (
+                    ! $hasComplexTransactions
+                    && $lockedAccount->advances
+                        ->where('status', 'active')
+                        ->isNotEmpty()
+                ) {
+                    app(IpAdvanceApplicationAccountingService::class)
+                        ->apply($lockedAccount);
+                }
             }
         );
 
