@@ -15,6 +15,7 @@ class IpBillingAccount extends Model
         'admission_id',
         'patient_id',
         'account_no',
+        'mhis_category',
         'final_bill_no',
         'opened_at',
         'status',

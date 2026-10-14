@@ -2746,6 +2746,30 @@ style="background-color: #dc2626;"
                 <div class="grid gap-4 sm:grid-cols-2">
 
                     <div>
+                        <label for="mhis_category" class="block text-sm font-semibold text-slate-700">
+                            MHIS Category
+                        </label>
+                        <select
+                            id="mhis_category"
+                            name="mhis_category"
+                            required
+                            class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        >
+                            <option value="">Select MHIS category</option>
+                            @foreach ([
+                                'free' => 'MHIS Free',
+                                'semi_private' => 'MHIS Semi-private',
+                                'private' => 'MHIS Private',
+                            ] as $value => $label)
+                                <option value="{{ $value }}"
+                                    @selected(old('mhis_category', $account->mhis_category ?? '') === $value)>
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
                         <label for="mhis_claim_no" class="block text-sm font-semibold text-slate-700">
                             Claim No.
                         </label>
@@ -2831,6 +2855,22 @@ style="background-color: #dc2626;"
                         >
                     </div>
 
+
+                    <div>
+                        <label for="mhis_expected_amount" class="block text-sm font-semibold text-slate-700">
+                            Expected MHIS Coverage
+                        </label>
+                        <input
+                            id="mhis_expected_amount"
+                            type="number"
+                            name="expected_amount"
+                            value="{{ old('expected_amount', $mhisClaim?->expected_amount) }}"
+                            min="0"
+                            max="99999999.99"
+                            step="0.01"
+                            class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        >
+                    </div>
 
                     <div>
                         <label for="mhis_approved_amount" class="block text-sm font-semibold text-slate-700">

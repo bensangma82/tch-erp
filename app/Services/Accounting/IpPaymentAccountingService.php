@@ -71,7 +71,7 @@ class IpPaymentAccountingService
             |--------------------------------------------------------------------------
             */
 
-            $account = $payment->billingAccount;
+            $account = $payment->billingAccount()->lockForUpdate()->first();
 
             if (! $account) {
                 throw new RuntimeException(
@@ -105,6 +105,7 @@ class IpPaymentAccountingService
             */
 
             $account->load([
+                'advances',
                 'mhisClaims',
                 'mhisReceipts',
                 'mhisAdjustments',
@@ -113,16 +114,26 @@ class IpPaymentAccountingService
                 'refunds',
             ]);
 
+            $hasMhis = $account->mhisClaims->isNotEmpty();
+
+            $mhisEligible = ! $hasMhis || (
+                in_array($account->mhis_category, ["semi_private", "private"], true)
+                && $account->mhisClaims->count() === 1
+                && $account->mhisClaims->first()->status === "submitted"
+                && (float) $account->mhisClaims->first()->expected_amount > 0
+            );
+
             if (
-                $account->mhisClaims->isNotEmpty()
-                || $account->mhisReceipts->isNotEmpty()
-                || $account->mhisAdjustments->isNotEmpty()
-                || $account->staffMedicalBenefitTransactions->isNotEmpty()
-                || $account->charityAdjustments->isNotEmpty()
-                || $account->refunds->isNotEmpty()
+                ! $mhisEligible
+                || ($hasMhis && $account->advances->where("status", "active")->isNotEmpty())
+                || $account->mhisReceipts->where("status", "active")->isNotEmpty()
+                || $account->mhisAdjustments->where("status", "active")->isNotEmpty()
+                || $account->staffMedicalBenefitTransactions->where("status", "active")->isNotEmpty()
+                || $account->charityAdjustments->where("status", "applied")->isNotEmpty()
+                || $account->refunds->where("status", "active")->isNotEmpty()
             ) {
                 throw new RuntimeException(
-                    'This IPD bill requires an extended accounting workflow.'
+                    "This IPD bill requires an extended accounting workflow."
                 );
             }
 
@@ -215,6 +226,69 @@ class IpPaymentAccountingService
                         'GL account '.$code.' is unavailable.'
                     );
                 }
+            }
+
+            if ($hasMhis) {
+                $expectedCoverage = (float) $account->mhisClaims->first()->expected_amount;
+                $patientSharePaise = max(
+                    0,
+                    (int) round(((float) $account->net_amount - $expectedCoverage) * 100)
+                );
+
+                $previousPaymentsPaise = (int) round(
+                    (float) $account->payments()
+                        ->where('status', 'active')
+                        ->whereKeyNot($payment->id)
+                        ->sum('amount') * 100
+                );
+
+                if ($amountPaise + $previousPaymentsPaise > $patientSharePaise) {
+                    throw new RuntimeException(
+                        'Payment exceeds the provisional MHIS patient contribution.'
+                    );
+                }
+            }
+
+            // GL 1200 receivable reconciliation
+            $paymentIds = $account->payments()->pluck('id');
+            $claimIds = $account->mhisClaims->pluck('id');
+
+            $receivablePaise = 0;
+
+            $journals = JournalEntry::query()
+                ->where('status', 'posted')
+                ->where(function ($query) use ($account, $paymentIds, $claimIds) {
+                    $query->where(function ($q) use ($account) {
+                        $q->where('source_type', 'ip_billing_account')
+                            ->where('source_id', $account->id);
+                    })->orWhere(function ($q) use ($paymentIds) {
+                        $q->where('source_type', 'ip_billing_payment')
+                            ->whereIn('source_id', $paymentIds);
+                    })->orWhere(function ($q) use ($claimIds) {
+                        $q->where('source_type', 'ip_billing_mhis_claim')
+                            ->whereIn('source_id', $claimIds);
+                    });
+                })
+                ->with(['lines' => function ($query) use ($accounts) {
+                    $query->where(
+                        'general_ledger_account_id',
+                        $accounts['1200']->id
+                    );
+                }])
+                ->get();
+
+            foreach ($journals as $postedJournal) {
+                foreach ($postedJournal->lines as $line) {
+                    $receivablePaise += (int) round(
+                        ((float) $line->debit - (float) $line->credit) * 100
+                    );
+                }
+            }
+
+            if ($amountPaise > $receivablePaise) {
+                throw new RuntimeException(
+                    'Payment exceeds the posted GL 1200 patient receivable balance.'
+                );
             }
 
             /*

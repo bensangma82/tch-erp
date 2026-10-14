@@ -22,6 +22,7 @@ class IpBillingMhisClaim extends Model
         'package_code',
         'package_name',
         'claim_amount',
+        'expected_amount',
         'approved_amount',
         'settlement_amount',
         'status',
@@ -36,6 +37,8 @@ class IpBillingMhisClaim extends Model
     protected $casts = [
         'claim_amount' =>
             'decimal:2',
+
+        'expected_amount' => 'decimal:2',
 
         'approved_amount' =>
             'decimal:2',
