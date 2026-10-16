@@ -45,6 +45,7 @@ use App\Http\Controllers\Hr\EmployeeSalaryStructureController;
 use App\Http\Controllers\Hr\PayrollRunController;
 use App\Http\Controllers\Hr\SalaryComponentController;
 use App\Http\Controllers\Hr\StaffMedicalBenefitController;
+use App\Http\Controllers\Finance\HospitalExpenseController;
 use App\Http\Controllers\InpatientMasterController;
 use App\Http\Controllers\IpBillingController;
 use App\Http\Controllers\LaboratoryTestParameterController;
@@ -70,6 +71,7 @@ use App\Http\Controllers\Pharmacy\StockBatchController;
 use App\Http\Controllers\Pharmacy\StockMovementController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\Finance\HospitalExpensePaymentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -797,6 +799,69 @@ Route::middleware([
             [FinanceDashboardController::class, 'index']
         )->name('finance.dashboard');
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Hospital Expense Register
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/admin/finance/hospital-expenses',
+            [HospitalExpenseController::class, 'index']
+        )->name('finance.hospital-expenses.index');
+
+        Route::get(
+            '/admin/finance/hospital-expenses/create',
+            [HospitalExpenseController::class, 'create']
+        )->name('finance.hospital-expenses.create');
+
+        Route::post(
+            '/admin/finance/hospital-expenses',
+            [HospitalExpenseController::class, 'store']
+        )->name('finance.hospital-expenses.store');
+
+
+Route::post(
+    '/admin/finance/hospital-expenses/{hospitalExpense}/submit',
+    [HospitalExpenseController::class, 'submit']
+)
+    ->whereNumber('hospitalExpense')
+    ->name('finance.hospital-expenses.submit');
+
+
+Route::post(
+    '/admin/finance/hospital-expenses/{hospitalExpense}/approve',
+    [HospitalExpenseController::class, 'approve']
+)
+    ->whereNumber('hospitalExpense')
+    ->name('finance.hospital-expenses.approve');
+
+Route::post(
+    '/admin/finance/hospital-expenses/{hospitalExpense}/return',
+    [HospitalExpenseController::class, 'returnForCorrection']
+)
+    ->whereNumber('hospitalExpense')
+    ->name('finance.hospital-expenses.return');
+
+Route::post(
+    '/admin/finance/hospital-expenses/{hospitalExpense}/post',
+    [HospitalExpenseController::class, 'post']
+)
+    ->whereNumber('hospitalExpense')
+    ->name('finance.hospital-expenses.post');
+
+    // Hospital Expense — Supplier Payments
+Route::get(
+    '/admin/finance/hospital-expenses/{hospitalExpense}/payments/create',
+    [HospitalExpensePaymentController::class, 'create']
+)->name('finance.hospital-expenses.payments.create');
+
+Route::post(
+    '/admin/finance/hospital-expenses/{hospitalExpense}/payments',
+    [HospitalExpensePaymentController::class, 'store']
+)->name('finance.hospital-expenses.payments.store');
+
         Route::get(
     '/admin/finance/revenue/{financeHead}',
     [FinanceDashboardController::class, 'revenueDetail']
@@ -832,6 +897,11 @@ Route::middleware([
         )
             ->whereNumber('financeHead')
             ->name('finance.master.heads.update');
+
+            Route::get(
+    '/admin/finance/supplier-payments',
+    [HospitalExpensePaymentController::class, 'index']
+)->name('finance.supplier-payments.index');
 
 
             /*
@@ -3150,6 +3220,33 @@ Route::middleware([
         )
             ->name('my-work.index');
     });
+
+
+/*
+|--------------------------------------------------------------------------
+| Management Information System (MIS)
+|--------------------------------------------------------------------------
+|
+| Read-only hospital management reporting.
+| Restricted to Admin and Management roles.
+|
+*/
+
+Route::middleware([
+    'auth',
+    'role:admin,management',
+])->prefix('admin/mis')->name('mis.')->group(function () {
+
+    Route::get(
+        '/',
+        [
+            \App\Http\Controllers\Mis\MisDashboardController::class,
+            'index',
+        ]
+    )->name('dashboard');
+
+});
+
 
 /*
 |--------------------------------------------------------------------------

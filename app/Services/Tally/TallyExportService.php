@@ -28,6 +28,23 @@ class TallyExportService
         ]);
 
         $errors = [];
+
+        /*
+|--------------------------------------------------------------------------
+| Hospital Supplier Payment Export Policy
+|--------------------------------------------------------------------------
+| Supplier payments must be exported through their GL journals,
+| never through the linked Finance Voucher.
+|--------------------------------------------------------------------------
+*/
+
+if (
+    $voucher->source_type === 'hospital_expense_payment'
+    && $voucher->source_event === 'supplier_payment'
+) {
+    $errors[] = 'Supplier payment Finance Vouchers cannot be '
+        .'exported to Tally. Export the linked GL Journal instead.';
+}
         /*
 |--------------------------------------------------------------------------
 | Transaction Origin Validation

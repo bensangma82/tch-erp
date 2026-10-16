@@ -216,7 +216,25 @@ TallyExportLock::acquireForFinanceVoucher($voucher);
                 ->whereKey($financeVoucher->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
+/*
+|--------------------------------------------------------------------------
+| Prevent Duplicate Supplier Payment Exports
+|--------------------------------------------------------------------------
+| Supplier payment Finance Vouchers must not be exported
+| separately from their General Ledger journals.
+|--------------------------------------------------------------------------
+*/
 
+if (
+    $voucher->source_type === 'hospital_expense_payment'
+    && $voucher->source_event === 'supplier_payment'
+) {
+    return [
+        'ok' => false,
+        'message' => 'Supplier payments must be exported through '
+            .'the General Ledger Journal Export workflow.',
+    ];
+}
                 /*
 |--------------------------------------------------------------------------
 | Cross-Workflow Export Lock

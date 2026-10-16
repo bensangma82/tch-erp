@@ -81,6 +81,23 @@ class TallyJournalExportService
             $errors[] = 'This journal already has a Tally export record.';
         }
 
+
+        /*
+|--------------------------------------------------------------------------
+| Supplier Payment Export Policy
+|--------------------------------------------------------------------------
+| Supplier payments are exported through the GL journal only.
+| Their linked Finance Vouchers must not be exported separately.
+|--------------------------------------------------------------------------
+*/
+
+if (
+    $journal->source_type === 'hospital_expense_payment'
+    && $journal->source_event === 'supplier_payment'
+    && $journal->finance_voucher_id === null
+) {
+    $errors[] = 'Supplier payment journal is missing its Finance Voucher link.';
+}
         /*
         |--------------------------------------------------------------------------
         | Linked Finance Voucher

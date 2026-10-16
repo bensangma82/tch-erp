@@ -1503,6 +1503,24 @@
                     @endif
 
 
+                    {{-- Management Information System --}}
+                    @if (
+                        auth()->user()->hasRole('admin')
+                        || auth()->user()->hasRole('finance')
+                    )
+                        <a
+                            href="{{ url('/admin/mis') }}"
+                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+                                {{
+                                    request()->is('admin/mis')
+                                        ? 'bg-slate-800/90 text-white'
+                                        : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+                                }}"
+                        >
+                            MIS Dashboard
+                        </a>
+                    @endif
+
 
                     @if ($canFinance)
 
@@ -1641,6 +1659,41 @@
 >
     Chart of Accounts
 </a>
+
+
+@if (
+    auth()->user()->hasPermission('hospital_expenses.view')
+)
+    <a
+       href="{{ route('finance.hospital-expenses.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+            {{
+                request()->routeIs('finance.hospital-expenses.*')
+    && ! request()->routeIs('finance.hospital-expenses.payments.*')
+                    ? 'bg-slate-800/90 text-white'
+                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+            }}"
+    >
+        Hospital Expenses
+    </a>
+@endif
+{{-- Supplier Payments --}}
+@if (
+    auth()->user()->hasPermission('hospital_expenses.pay')
+)
+    <a
+        href="{{ route('finance.supplier-payments.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+            {{
+                request()->routeIs('finance.supplier-payments.*')
+    || request()->routeIs('finance.hospital-expenses.payments.*')
+                    ? 'bg-slate-800/90 text-white'
+                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+            }}"
+    >
+        Supplier Payments
+    </a>
+@endif
 <a
     href="{{ route('finance.journals.index') }}"
     class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150

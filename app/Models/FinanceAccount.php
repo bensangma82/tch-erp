@@ -24,6 +24,7 @@ class FinanceAccount extends Model
         'is_active',
         'remarks',
         'created_by',
+        'general_ledger_account_id',
     ];
 
     protected $casts = [
@@ -72,6 +73,16 @@ public function tallyMapping()
     return $this->hasOne(
         TallyLedgerMapping::class,
         'finance_account_id'
+    );
+}
+/**
+ * General Ledger account linked to this cash/bank account.
+ */
+public function generalLedgerAccount(): BelongsTo
+{
+    return $this->belongsTo(
+        GeneralLedgerAccount::class,
+        'general_ledger_account_id'
     );
 }
 }
