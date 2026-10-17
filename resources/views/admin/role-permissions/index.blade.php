@@ -29,6 +29,31 @@
             @endif
 
 
+
+            {{-- ACCESS CONTROL SUMMARY --}}
+            @php
+                $roleCount = count($roles);
+                $assignedCount = count($assignedPermissionIds);
+                $permissionCount = $permissionsByModule->flatten(1)->count();
+            @endphp
+
+            <div class="mb-6 grid gap-4 sm:grid-cols-3">
+                @foreach ([
+                    ['ERP Roles', $roleCount, 'users'],
+                    ['Assigned Permissions', $assignedCount, 'shield-check'],
+                    ['Available Permissions', $permissionCount, 'key-round'],
+                ] as [$label, $value, $icon])
+                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <p class="text-sm font-medium text-slate-500">
+                            {{ $label }}
+                        </p>
+                        <p class="mt-2 text-2xl font-bold text-slate-900">
+                            {{ $value }}
+                        </p>
+                    </div>
+                @endforeach
+            </div>
+
             {{-- ========================================================= --}}
             {{-- ROLE SELECTOR --}}
             {{-- ========================================================= --}}
@@ -63,7 +88,7 @@
                     >
                 </div>
 
-                <div id="roleGrid" class="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div id="roleGrid" class="grid max-h-[310px] gap-2 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
                     @foreach ($roles as $roleValue => $roleLabel)
 
@@ -80,8 +105,8 @@
                             class="group flex items-center justify-between rounded-xl border px-4 py-3 transition
                                 {{
                                     $isSelected
-                                        ? 'border-slate-950 bg-slate-900 text-white shadow-md ring-1 ring-slate-900/10'
-                                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white hover:shadow-sm'
+                                        ? 'border-blue-700 bg-blue-700 text-white shadow-md ring-2 ring-blue-100'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-md'
                                 }}"
                         >
                             <div class="min-w-0">
@@ -226,7 +251,7 @@
 
                                 <button
                                     type="submit"
-                                    class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                                    class="rounded-lg bg-blue-700 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-800"
                                 >
                                     Save Permissions
                                 </button>
@@ -238,7 +263,7 @@
                     </div>
 
 
-                    <div class="grid gap-5 p-6 xl:grid-cols-2">
+                    <div class="grid gap-4 p-4 sm:p-6 xl:grid-cols-2">
 
                         @foreach ($permissionsByModule as $module => $permissions)
 
