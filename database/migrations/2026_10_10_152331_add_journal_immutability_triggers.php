@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         DB::unprepared(<<<'SQL'
-            CREATE FUNCTION protect_journal_entry()
+            CREATE OR REPLACE FUNCTION protect_journal_entry()
             RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -44,12 +44,16 @@ return new class extends Migration
             END;
             $$;
 
+            DROP TRIGGER IF EXISTS trg_protect_journal_entry
+                ON journal_entries;
+
             CREATE TRIGGER trg_protect_journal_entry
             BEFORE UPDATE OR DELETE ON journal_entries
             FOR EACH ROW
             EXECUTE FUNCTION protect_journal_entry();
 
-            CREATE FUNCTION protect_journal_entry_line()
+
+            CREATE OR REPLACE FUNCTION protect_journal_entry_line()
             RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -62,7 +66,7 @@ return new class extends Migration
                         'Journal lines cannot be moved between journals';
                 END IF;
 
-                    IF TG_OP = 'DELETE' THEN
+                IF TG_OP = 'DELETE' THEN
                     SELECT status
                     INTO parent_status
                     FROM journal_entries
@@ -75,6 +79,7 @@ return new class extends Migration
                     WHERE id = NEW.journal_entry_id
                     FOR UPDATE;
                 END IF;
+
                 IF parent_status IS DISTINCT FROM 'draft' THEN
                     RAISE EXCEPTION
                         'Only draft journal lines can be modified';
@@ -87,6 +92,9 @@ return new class extends Migration
                 RETURN NEW;
             END;
             $$;
+
+            DROP TRIGGER IF EXISTS trg_protect_journal_entry_line
+                ON journal_entry_lines;
 
             CREATE TRIGGER trg_protect_journal_entry_line
             BEFORE INSERT OR UPDATE OR DELETE ON journal_entry_lines
