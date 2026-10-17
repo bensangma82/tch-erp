@@ -54,7 +54,16 @@
                 </div>
 
 
-                <div class="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div class="px-4 pt-4">
+                    <input
+                        id="roleSearch"
+                        type="search"
+                        placeholder="Search hospital roles..."
+                        class="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500 sm:max-w-sm"
+                    >
+                </div>
+
+                <div id="roleGrid" class="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
                     @foreach ($roles as $roleValue => $roleLabel)
 
@@ -63,6 +72,7 @@
                         @endphp
 
                         <a
+                            data-role-search="{{ strtolower($roleLabel.' '.$roleValue) }}"
                             href="{{ route(
                                 'admin.role-permissions.index',
                                 ['role' => $roleValue]
@@ -158,6 +168,32 @@
                                 <p class="mt-1 text-sm text-slate-500">
                                     Tick the functions this role is allowed to use.
                                 </p>
+
+                                @php
+                                    $totalPermissions = $permissionsByModule
+                                        ->flatten(1)
+                                        ->count();
+
+                                    $assignedCount = count($assignedPermissionIds);
+
+                                    $assignedPercentage = $totalPermissions > 0
+                                        ? round(($assignedCount / $totalPermissions) * 100)
+                                        : 0;
+                                @endphp
+
+                                <div class="mt-3 max-w-sm">
+                                    <div class="mb-1 flex justify-between text-xs text-slate-500">
+                                        <span>Permission coverage</span>
+                                        <span>{{ $assignedCount }} / {{ $totalPermissions }} ({{ $assignedPercentage }}%)</span>
+                                    </div>
+
+                                    <div class="h-2 overflow-hidden rounded-full bg-slate-100">
+                                        <div
+                                            class="h-full rounded-full bg-blue-600"
+                                            style="width: {{ $assignedPercentage }}%"
+                                        ></div>
+                                    </div>
+                                </div>
                             </div>
 
 
@@ -284,6 +320,36 @@
 
                                                 </span>
 
+
+                                                @php
+                                                    $sensitiveKeywords = [
+                                                        'refund',
+                                                        'cancel',
+                                                        'tally',
+                                                        'journal',
+                                                        'voucher',
+                                                        'permission',
+                                                        'user.manage',
+                                                        'approve',
+                                                        'delete',
+                                                    ];
+
+                                                    $permissionName = strtolower(
+                                                        $permission->name
+                                                    );
+
+                                                    $isSensitive = collect($sensitiveKeywords)
+                                                        ->contains(
+                                                            fn ($keyword) =>
+                                                                str_contains($permissionName, $keyword)
+                                                        );
+                                                @endphp
+
+                                                @if ($isSensitive)
+                                                    <span class="mt-2 inline-flex rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                                        Sensitive permission
+                                                    </span>
+                                                @endif
 
                                                 @if ($permission->description)
 
@@ -549,6 +615,27 @@
             updateSelectedCount();
             updateModuleSelectedCounts();
 
+        });
+    </script>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const search = document.getElementById('roleSearch');
+
+            if (!search) return;
+
+            search.addEventListener('input', function () {
+                const query = search.value.toLowerCase().trim();
+
+                document.querySelectorAll('[data-role-search]')
+                    .forEach(function (role) {
+                        role.classList.toggle(
+                            'hidden',
+                            !role.dataset.roleSearch.includes(query)
+                        );
+                    });
+            });
         });
     </script>
 

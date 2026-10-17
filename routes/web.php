@@ -791,7 +791,7 @@ Route::middleware([
     */
 
     Route::middleware(
-        'role:admin,finance'
+        'role:admin,finance,finance_manager'
     )->group(function () {
 
         Route::get(
@@ -1199,14 +1199,16 @@ Route::post(
             [FinanceVoucherController::class, 'post']
         )
             ->whereNumber('financeVoucher')
-            ->name('finance.vouchers.post');
+            ->name('finance.vouchers.post')
+            ->middleware('permission:finance.vouchers.post');
 
         Route::patch(
             '/admin/finance/vouchers/{financeVoucher}/cancel',
             [FinanceVoucherController::class, 'cancel']
         )
             ->whereNumber('financeVoucher')
-            ->name('finance.vouchers.cancel');
+            ->name('finance.vouchers.cancel')
+            ->middleware('permission:finance.vouchers.cancel');
 
         /*
 |--------------------------------------------------------------------------
