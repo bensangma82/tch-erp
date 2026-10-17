@@ -2423,8 +2423,27 @@ class IpBillingController extends Controller
                 | Create Refund
                 |--------------------------------------------------------------------------
                 */
+/*
+|--------------------------------------------------------------------------
+| Accounting Integrity Safeguard
+|--------------------------------------------------------------------------
+|
+| Do not complete an IPD refund until the corresponding
+| General Ledger posting is implemented and verified.
+|
+| This prevents unaccounted cash / UPI / card refunds.
+|
+*/
 
-                return IpBillingRefund::create([
+throw ValidationException::withMessages([
+    'amount' => (
+        'IPD refund processing is temporarily restricted '
+        .'because automatic General Ledger refund posting '
+        .'has not yet been enabled. '
+        .'Please contact Finance for an approved refund workflow.'
+    ),
+]);
+                $refund = IpBillingRefund::create([
                     'ip_billing_account_id' => $lockedAccount->id,
 
                     'admission_id' => $admission->id,
@@ -2453,6 +2472,11 @@ class IpBillingController extends Controller
 
                     'refunded_by' => auth()->id(),
                 ]);
+
+                app(\App\Services\Accounting\IpBillingRefundAccountingService::class)
+                    ->post($refund);
+
+                return $refund;
             }
         );
 
@@ -2502,9 +2526,7 @@ class IpBillingController extends Controller
         $admission->load('patient');
 
         if (! $admission->patient) {
-            throw ValidationException::withMessages([
-                'staff_medical_benefit' => 'The admission is not linked to a patient.',
-            ]);
+    
         }
 
         $account = $this->getOrCreateAccount(

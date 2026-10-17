@@ -436,10 +436,47 @@ class FinanceVoucherController extends Controller
                     ->firstOrFail();
 
                 if ($voucher->status !== 'posted') {
-                    return;
-                }
+    return;
+}
 
-                $voucher->status = 'cancelled';
+// Prevent cancellation of source-linked vouchers.
+if (
+    filled($voucher->source_type)
+    || filled($voucher->source_id)
+    || filled($voucher->source_event)
+) {
+    throw \Illuminate\Validation\ValidationException::withMessages([
+        'voucher' => 'Source-linked vouchers cannot be cancelled without accounting reversal.',
+    ]);
+}
+
+// Prevent cancellation after Tally export.
+if ($voucher->tallyExport()->exists()) {
+    throw \Illuminate\Validation\ValidationException::withMessages([
+        'voucher' => 'This voucher has a Tally export record and cannot be cancelled.',
+    ]);
+}
+
+// Prevent cancellation of vouchers linked to GL journals.
+if (
+    \App\Models\JournalEntry::query()
+        ->where('finance_voucher_id', $voucher->id)
+        ->exists()
+) {
+    throw \Illuminate\Validation\ValidationException::withMessages([
+        'voucher' => 'This voucher has an accounting journal and cannot be cancelled.',
+    ]);
+}
+
+// Prevent cancellation of reconciled Tally vouchers.
+if ($voucher->tallyImportedVouchers()->exists()) {
+    throw \Illuminate\Validation\ValidationException::withMessages([
+        'voucher' => 'This voucher is linked to imported Tally records.',
+    ]);
+}
+
+$voucher->status = 'cancelled';
+
                 $voucher->cancelled_by = auth()->id();
                 $voucher->cancelled_at = now();
                 $voucher->cancellation_reason =
