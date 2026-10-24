@@ -445,16 +445,11 @@ class IpBillingController extends Controller
                 'is_active',
                 true
             )
-            ->whereIn(
+            ->whereNotIn(
                 'category',
                 [
-                    'procedure',
-                    'consultation',
-                    'nursing',
-                    'equipment',
-                    'consumable',
-                    'facility',
-                    'other',
+                    'laboratory',
+                    'radiology',
                 ]
             )
             ->orderBy('category')
@@ -2885,16 +2880,11 @@ throw ValidationException::withMessages([
                 'is_active',
                 true
             )
-            ->whereIn(
+            ->whereNotIn(
                 'category',
                 [
-                    'procedure',
-                    'consultation',
-                    'nursing',
-                    'equipment',
-                    'consumable',
-                    'facility',
-                    'other',
+                    'laboratory',
+                    'radiology',
                 ]
             )
             ->first();

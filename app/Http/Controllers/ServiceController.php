@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Department;
 use App\Models\FinanceHead;
 use App\Models\Service;
+use App\Models\ServiceCategory;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -25,65 +26,27 @@ class ServiceController extends Controller
         |--------------------------------------------------------------------------
         | Charge Master Scope
         |--------------------------------------------------------------------------
-        |
-        | Charge Master shows only services that can be added directly to an
-        | inpatient running bill.
-        |
-        | Laboratory and Radiology remain under the diagnostic workflow.
-        |
         */
 
         if ($scope === 'charges') {
-
-            $query->whereIn(
-                'category',
-                [
-                    'procedure',
-                    'consultation',
-                    'nursing',
-                    'equipment',
-                    'consumable',
-                    'facility',
-                    'other',
-                ]
-            );
+            $query->whereNotIn('category', [
+                'laboratory',
+                'radiology',
+            ]);
         }
 
         if ($request->filled('search')) {
+            $search = trim($request->search);
 
-            $search = trim(
-                $request->search
-            );
-
-            $query->where(
-                function ($q) use ($search) {
-
-                    $q->where(
-                        'code',
-                        'ilike',
-                        "%{$search}%"
-                    )
-                        ->orWhere(
-                            'name',
-                            'ilike',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'category',
-                            'ilike',
-                            "%{$search}%"
-                        );
-
-                }
-            );
+            $query->where(function ($q) use ($search) {
+                $q->where('code', 'ilike', "%{$search}%")
+                    ->orWhere('name', 'ilike', "%{$search}%")
+                    ->orWhere('category', 'ilike', "%{$search}%");
+            });
         }
 
         if ($request->filled('category')) {
-
-            $query->where(
-                'category',
-                $request->category
-            );
+            $query->where('category', $request->category);
         }
 
         $services = $query
@@ -94,10 +57,7 @@ class ServiceController extends Controller
 
         return view(
             'services.index',
-            compact(
-                'services',
-                'scope'
-            )
+            compact('services', 'scope')
         );
     }
 
@@ -118,11 +78,18 @@ class ServiceController extends Controller
             ->orderBy('name')
             ->get();
 
+        $categories = ServiceCategory::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         return view(
             'services.create',
             compact(
                 'departments',
-                'financeHeads'
+                'financeHeads',
+                'categories'
             )
         );
     }
@@ -133,7 +100,6 @@ class ServiceController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-
             'code' => [
                 'required',
                 'string',
@@ -149,7 +115,20 @@ class ServiceController extends Controller
 
             'category' => [
                 'required',
-                'in:laboratory,radiology,procedure,consultation,nursing,equipment,consumable,facility,other',
+                'string',
+                'exists:service_categories,code',
+                function ($attribute, $value, $fail) {
+                    $active = ServiceCategory::query()
+                        ->where('code', $value)
+                        ->where('is_active', true)
+                        ->exists();
+
+                    if (! $active) {
+                        $fail(
+                            'Please select an active service category.'
+                        );
+                    }
+                },
             ],
 
             'department_id' => [
@@ -192,16 +171,16 @@ class ServiceController extends Controller
             ],
 
             'default_specimen_type' => [
-    'nullable',
-    'string',
-    'max:100',
-],
+                'nullable',
+                'string',
+                'max:100',
+            ],
 
-'sample_container' => [
-    'nullable',
-    'string',
-    'max:150',
-],
+            'sample_container' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
 
             'requires_report' => [
                 'nullable',
@@ -214,26 +193,26 @@ class ServiceController extends Controller
             ],
         ]);
 
-        $validated['code'] =
-            strtoupper(
-                trim($validated['code'])
-            );
+        $validated['code'] = strtoupper(
+            trim($validated['code'])
+        );
 
-        $validated['name'] =
-            trim($validated['name']);
+        $validated['name'] = trim(
+            $validated['name']
+        );
 
         $validated['requires_sample'] =
             $request->boolean('requires_sample');
 
-            $validated['default_specimen_type'] =
-    $validated['requires_sample']
-        ? ($validated['default_specimen_type'] ?? null)
-        : null;
+        $validated['default_specimen_type'] =
+            $validated['requires_sample']
+                ? ($validated['default_specimen_type'] ?? null)
+                : null;
 
-$validated['sample_container'] =
-    $validated['requires_sample']
-        ? ($validated['sample_container'] ?? null)
-        : null;
+        $validated['sample_container'] =
+            $validated['requires_sample']
+                ? ($validated['sample_container'] ?? null)
+                : null;
 
         $validated['requires_report'] =
             $request->boolean('requires_report');
@@ -241,9 +220,7 @@ $validated['sample_container'] =
         $validated['is_active'] =
             $request->boolean('is_active');
 
-        Service::create(
-            $validated
-        );
+        Service::create($validated);
 
         return redirect()
             ->route('services.index')
@@ -270,12 +247,22 @@ $validated['sample_container'] =
             ->orderBy('name')
             ->get();
 
+        $categories = ServiceCategory::query()
+            ->where(function ($query) use ($service) {
+                $query->where('is_active', true)
+                    ->orWhere('code', $service->category);
+            })
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         return view(
             'services.edit',
             compact(
                 'service',
                 'departments',
-                'financeHeads'
+                'financeHeads',
+                'categories'
             )
         );
     }
@@ -288,7 +275,6 @@ $validated['sample_container'] =
         Service $service
     ) {
         $validated = $request->validate([
-
             'code' => [
                 'required',
                 'string',
@@ -304,7 +290,24 @@ $validated['sample_container'] =
 
             'category' => [
                 'required',
-                'in:laboratory,radiology,procedure,consultation,nursing,equipment,consumable,facility,other',
+                'string',
+                'exists:service_categories,code',
+                function ($attribute, $value, $fail) use ($service) {
+                    if ($value === $service->category) {
+                        return;
+                    }
+
+                    $active = ServiceCategory::query()
+                        ->where('code', $value)
+                        ->where('is_active', true)
+                        ->exists();
+
+                    if (! $active) {
+                        $fail(
+                            'Please select an active service category.'
+                        );
+                    }
+                },
             ],
 
             'department_id' => [
@@ -342,38 +345,38 @@ $validated['sample_container'] =
             ],
 
             'default_specimen_type' => [
-    'nullable',
-    'string',
-    'max:100',
-],
+                'nullable',
+                'string',
+                'max:100',
+            ],
 
-'sample_container' => [
-    'nullable',
-    'string',
-    'max:150',
-],
+            'sample_container' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
         ]);
 
-        $validated['code'] =
-            strtoupper(
-                trim($validated['code'])
-            );
+        $validated['code'] = strtoupper(
+            trim($validated['code'])
+        );
 
-        $validated['name'] =
-            trim($validated['name']);
+        $validated['name'] = trim(
+            $validated['name']
+        );
 
         $validated['requires_sample'] =
             $request->boolean('requires_sample');
 
-            $validated['default_specimen_type'] =
-    $validated['requires_sample']
-        ? ($validated['default_specimen_type'] ?? null)
-        : null;
+        $validated['default_specimen_type'] =
+            $validated['requires_sample']
+                ? ($validated['default_specimen_type'] ?? null)
+                : null;
 
-$validated['sample_container'] =
-    $validated['requires_sample']
-        ? ($validated['sample_container'] ?? null)
-        : null;
+        $validated['sample_container'] =
+            $validated['requires_sample']
+                ? ($validated['sample_container'] ?? null)
+                : null;
 
         $validated['requires_report'] =
             $request->boolean('requires_report');
@@ -381,9 +384,7 @@ $validated['sample_container'] =
         $validated['is_active'] =
             $request->boolean('is_active');
 
-        $service->update(
-            $validated
-        );
+        $service->update($validated);
 
         return redirect()
             ->route('services.index')

@@ -42,6 +42,7 @@ use App\Http\Controllers\Finance\TallyIntegrationController;
 use App\Http\Controllers\Finance\TallyReconciliationController;
 use App\Http\Controllers\Finance\TallyImportController;
 use App\Http\Controllers\Hr\EmployeeSalaryStructureController;
+use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\Hr\PayrollRunController;
 use App\Http\Controllers\Hr\SalaryComponentController;
 use App\Http\Controllers\Hr\StaffMedicalBenefitController;
@@ -1762,20 +1763,38 @@ Route::post(
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'permission:system.services'
-    )->group(function () {
-        Route::resource(
-            'services',
-            ServiceController::class
-        )->only([
-            'index',
-            'create',
-            'store',
-            'edit',
-            'update',
-        ]);
-    });
+
+Route::middleware(
+    'permission:system.services'
+)->group(function () {
+    Route::resource(
+        'services',
+        ServiceController::class
+    )->only([
+        'index',
+        'create',
+        'store',
+        'edit',
+        'update',
+    ]);
+
+    Route::resource(
+        'service-categories',
+        ServiceCategoryController::class
+    )->only([
+        'index',
+        'create',
+        'store',
+        'edit',
+        'update',
+    ]);
+
+    Route::patch(
+        'service-categories/{serviceCategory}/toggle-active',
+        [ServiceCategoryController::class, 'toggleActive']
+    )->name('service-categories.toggle-active');
+});
+
 
     /*
     |--------------------------------------------------------------------------

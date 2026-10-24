@@ -148,74 +148,16 @@
                                     required
                                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-slate-500 focus:ring-slate-500"
                                 >
+                                    <option value="">Select Category</option>
 
-                                    <option value="">
-                                        Select Category
-                                    </option>
-
-                                    <option
-                                        value="laboratory"
-                                        @selected(old('category') === 'laboratory')
-                                    >
-                                        Laboratory
-                                    </option>
-
-                                    <option
-                                        value="radiology"
-                                        @selected(old('category') === 'radiology')
-                                    >
-                                        Radiology
-                                    </option>
-
-                                    <option
-                                        value="procedure"
-                                        @selected(old('category') === 'procedure')
-                                    >
-                                        Procedure
-                                    </option>
-
-                                    <option
-                                        value="consultation"
-                                        @selected(old('category') === 'consultation')
-                                    >
-                                        Consultation
-                                    </option>
-
-                                    <option
-                                        value="nursing"
-                                        @selected(old('category') === 'nursing')
-                                    >
-                                        Nursing
-                                    </option>
-
-                                    <option
-                                        value="equipment"
-                                        @selected(old('category') === 'equipment')
-                                    >
-                                        Equipment / Device Use
-                                    </option>
-
-                                    <option
-                                        value="consumable"
-                                        @selected(old('category') === 'consumable')
-                                    >
-                                        Consumable
-                                    </option>
-
-                                    <option
-                                        value="facility"
-                                        @selected(old('category') === 'facility')
-                                    >
-                                        Facility / Miscellaneous
-                                    </option>
-
-                                    <option
-                                        value="other"
-                                        @selected(old('category') === 'other')
-                                    >
-                                        Other
-                                    </option>
-
+                                    @foreach ($categories as $category)
+                                        <option
+                                            value="{{ $category->code }}"
+                                            @selected(old('category') === $category->code)
+                                        >
+                                            {{ $category->name }}
+                                        </option>
+                                    @endforeach
                                 </select>
 
                             </div>

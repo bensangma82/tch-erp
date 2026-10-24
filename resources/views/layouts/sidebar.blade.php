@@ -2333,6 +2333,23 @@
 
                         @endif
 
+@if ($canSystemServices)
+
+    <a
+        href="{{ route('service-categories.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+            {{
+                request()->routeIs('service-categories.*')
+                    ? 'bg-slate-800/90 text-white'
+                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+            }}"
+    >
+        Service Categories
+    </a>
+
+@endif
+
+
 
 
                         @if ($canSystemUsers)
