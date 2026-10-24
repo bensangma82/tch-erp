@@ -117,16 +117,71 @@ class IpPaymentAccountingService
             $hasMhis = $account->mhisClaims->isNotEmpty();
 
             $mhisEligible = ! $hasMhis || (
-                in_array($account->mhis_category, ["semi_private", "private"], true)
-                && $account->mhisClaims->count() === 1
-                && $account->mhisClaims->first()->status === "submitted"
-                && (float) $account->mhisClaims->first()->expected_amount > 0
-            );
+    in_array(
+        $account->mhis_category,
+        ['semi_private', 'private'],
+        true
+    )
+    && $account->mhisClaims->count() === 1
+    && in_array(
+        $account->mhisClaims->first()->status,
+        ['submitted', 'approved', 'settled'],
+        true
+    )
+    && (
+        in_array(
+            $account->mhisClaims->first()->status,
+            ['approved', 'settled'],
+            true
+        )
+            ? (float) $account->mhisClaims->first()->approved_amount > 0
+            : (float) $account->mhisClaims->first()->expected_amount > 0
+    )
+);
+if ($hasMhis) {
+    $claim = $account->mhisClaims->first();
 
+    if (
+        $claim
+        && in_array($claim->status, ['approved', 'settled'], true)
+    ) {
+        $approvalPosted = JournalEntry::query()
+            ->where('source_type', 'ip_billing_mhis_claim')
+            ->where('source_id', $claim->id)
+            ->where('source_event', 'approved')
+            ->where('status', 'posted')
+            ->exists();
+
+        if (! $approvalPosted) {
+            throw new RuntimeException(
+                'MHIS approval journal must be posted before patient payment.'
+            );
+        }
+    }
+}
+if ($hasMhis) {
+    foreach (
+        $account->mhisReceipts->where('status', 'active')
+        as $receipt
+    ) {
+        $receiptPosted = JournalEntry::query()
+            ->where('source_type', 'ip_billing_mhis_receipt')
+            ->where('source_id', $receipt->id)
+            ->where('source_event', 'received')
+            ->where('status', 'posted')
+            ->exists();
+
+        if (! $receiptPosted) {
+            throw new RuntimeException(
+                'An active MHIS receipt has no posted accounting journal.'
+            );
+        }
+    }
+}
             if (
                 ! $mhisEligible
                 || ($hasMhis && $account->advances->where("status", "active")->isNotEmpty())
-                || $account->mhisReceipts->where("status", "active")->isNotEmpty()
+
                 || $account->mhisAdjustments->where("status", "active")->isNotEmpty()
                 || $account->staffMedicalBenefitTransactions->where("status", "active")->isNotEmpty()
                 || $account->charityAdjustments->where("status", "applied")->isNotEmpty()
@@ -229,7 +284,13 @@ class IpPaymentAccountingService
             }
 
             if ($hasMhis) {
-                $expectedCoverage = (float) $account->mhisClaims->first()->expected_amount;
+                $claim = $account->mhisClaims->first();
+
+$expectedCoverage = (float) (
+    in_array($claim->status, ['approved', 'settled'], true)
+        ? $claim->approved_amount
+        : $claim->expected_amount
+);
                 $patientSharePaise = max(
                     0,
                     (int) round(((float) $account->net_amount - $expectedCoverage) * 100)

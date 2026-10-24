@@ -3974,82 +3974,71 @@ throw ValidationException::withMessages([
     |
     */
 
-    public function finalizeBill(
-        Admission $admission
-    ) {
-        $account = $this->getOrCreateAccount(
-            $admission
-        );
+    public function finalizeBill(Admission $admission)
+    {
+        $stage = 'starting';
+        $accountId = null;
 
-        if ($account->status === 'finalized') {
+        try {
+            $stage = 'loading_account';
 
-            return redirect()
-                ->route(
+            $account = $this->getOrCreateAccount($admission);
+            $accountId = $account->id;
+
+            if ($account->status === 'finalized') {
+                return redirect()->route(
                     'ip-billing.final-bill',
                     $admission
                 );
-        }
+            }
 
-        if ($account->status !== 'open') {
-            throw ValidationException::withMessages([
-                'finalize' => 'Only an open IP billing account can be finalized.',
-            ]);
-        }
+            if ($account->status !== 'open') {
+                throw ValidationException::withMessages([
+                    'finalize' => 'Only an open IP billing account can be finalized.',
+                ]);
+            }
 
-        $this->recalculateAccount(
-            $account
-        );
+            $stage = 'recalculating_account';
+            $this->recalculateAccount($account);
 
-        DB::transaction(
-            function () use (
-                $account
-            ) {
+            $stage = 'finalization_transaction';
 
-                $lockedAccount =
-                    IpBillingAccount::query()
-                        ->whereKey(
-                            $account->id
-                        )
-                        ->lockForUpdate()
-                        ->firstOrFail();
+            DB::transaction(function () use ($account, &$stage) {
+                $stage = 'locking_account';
 
-                if (
-                    $lockedAccount->status
-                    === 'finalized'
-                ) {
+                $lockedAccount = IpBillingAccount::query()
+                    ->whereKey($account->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($lockedAccount->status === 'finalized') {
                     return;
                 }
 
-                if (
-                    $lockedAccount->status
-                    !== 'open'
-                ) {
+                if ($lockedAccount->status !== 'open') {
                     throw ValidationException::withMessages([
                         'finalize' => 'Only an open IP billing account can be finalized.',
                     ]);
                 }
 
-                if (
-                    ! $lockedAccount->final_bill_no
-                ) {
+                $stage = 'generating_final_bill_number';
+
+                if (! $lockedAccount->final_bill_no) {
                     $lockedAccount->final_bill_no =
-                        $this
-                            ->generateFinalBillNumber();
+                        $this->generateFinalBillNumber();
                 }
 
-                $lockedAccount->status =
-                    'finalized';
-
-                $lockedAccount->finalized_at =
-                    now();
-
-                $lockedAccount->finalized_by =
-                    auth()->id();
-
+                $lockedAccount->status = 'finalized';
+                $lockedAccount->finalized_at = now();
+                $lockedAccount->finalized_by = auth()->id();
                 $lockedAccount->save();
+
+                $stage = 'posting_final_bill_accounting';
 
                 app(IpBillingAccountingService::class)
                     ->postFinalBill($lockedAccount);
+
+                $stage = 'loading_settlement_records';
 
                 $lockedAccount->load([
                     'advances',
@@ -4077,24 +4066,40 @@ throw ValidationException::withMessages([
                         ->where('status', 'active')
                         ->isNotEmpty()
                 ) {
+                    $stage = 'applying_patient_advances';
+
                     app(IpAdvanceApplicationAccountingService::class)
                         ->apply($lockedAccount);
                 }
-            }
-        );
+            });
 
-        $account->refresh();
+            $stage = 'refreshing_finalized_account';
+            $account->refresh();
 
-        return redirect()
-            ->route(
-                'ip-billing.final-bill',
-                $admission
-            )
-            ->with(
-                'success',
-                'IP bill finalized successfully. Final Bill No: '
-                .$account->final_bill_no
+            return redirect()
+                ->route('ip-billing.final-bill', $admission)
+                ->with(
+                    'success',
+                    'IP bill finalized successfully. Final Bill No: '
+                    . $account->final_bill_no
+                );
+
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::error(
+                'IP billing finalization failed',
+                [
+                    'admission_id' => $admission->id,
+                    'billing_account_id' => $accountId,
+                    'stage' => $stage,
+                    'exception_type' => get_class($exception),
+                    'message' => $exception->getMessage(),
+                    'file' => $exception->getFile(),
+                    'line' => $exception->getLine(),
+                ]
             );
+
+            throw $exception;
+        }
     }
     /*
     |--------------------------------------------------------------------------

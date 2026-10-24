@@ -149,7 +149,7 @@ class ServiceController extends Controller
 
             'category' => [
                 'required',
-                'in:laboratory,radiology,procedure,consultation,other',
+                'in:laboratory,radiology,procedure,consultation,nursing,equipment,consumable,facility,other',
             ],
 
             'department_id' => [
@@ -304,7 +304,7 @@ $validated['sample_container'] =
 
             'category' => [
                 'required',
-                'in:laboratory,radiology,procedure,consultation,other',
+                'in:laboratory,radiology,procedure,consultation,nursing,equipment,consumable,facility,other',
             ],
 
             'department_id' => [

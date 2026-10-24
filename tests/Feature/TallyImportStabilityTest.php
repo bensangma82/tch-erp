@@ -62,6 +62,7 @@ class TallyImportStabilityTest extends TestCase
             ->startOfSecond();
 
         $importedVoucher = TallyImportedVoucher::create([
+            'tally_company' => config('tally.company'),
             'guid' => 'TEST-IMPORT-GUID-001',
             'remote_id' => 'OLD-REMOTE-ID',
             'voucher_date' => '2026-09-01',
