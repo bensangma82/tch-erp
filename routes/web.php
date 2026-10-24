@@ -1937,6 +1937,15 @@ Route::middleware(
             ->name('ip-billing.payment.store');
 
         Route::post(
+            '/ip-billing/{admission}/payments/{payment}/reverse',
+            [IpBillingController::class, 'reversePayment']
+        )
+            ->whereNumber('admission')
+            ->whereNumber('payment')
+            ->middleware('permission:ip-billing.payment-reverse')
+            ->name('ip-billing.payment.reverse');
+
+        Route::post(
             '/ip-billing/{admission}/staff-medical-benefit',
             [IpBillingController::class, 'applyStaffMedicalBenefit']
         )

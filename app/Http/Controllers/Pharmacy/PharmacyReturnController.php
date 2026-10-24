@@ -12,12 +12,17 @@ use App\Models\PharmacySaleItem;
 use App\Models\PharmacyStockLocation;
 use App\Models\PharmacyStockLocationBalance;
 use App\Models\PharmacyStockMovement;
+use App\Services\Accounting\PharmacyAccountingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PharmacyReturnController extends Controller
 {
+    public function __construct(
+        private readonly PharmacyAccountingService $accountingService
+    ) {}
+
     /**
      * Show patient-return form.
      */
@@ -1219,6 +1224,8 @@ class PharmacyReturnController extends Controller
                         );
                     }
 
+
+                    $this->accountingService->postSaleReturn($return);
 
                     return $return;
                 }

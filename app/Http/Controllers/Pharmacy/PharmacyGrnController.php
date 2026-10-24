@@ -11,6 +11,7 @@ use App\Models\PharmacyStockBatch;
 use App\Models\PharmacyStockLocation;
 use App\Models\PharmacyStockLocationBalance;
 use App\Models\PharmacyStockMovement;
+use App\Services\Accounting\PharmacyAccountingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,10 @@ use Illuminate\View\View;
 
 class PharmacyGrnController extends Controller
 {
+    public function __construct(
+        private readonly PharmacyAccountingService $accountingService
+    ) {}
+
     /**
      * GRN Register.
      */
@@ -845,10 +850,20 @@ class PharmacyGrnController extends Controller
                         |
                         */
 
+                        $inputGstRecoverable = (bool) config(
+                            'pharmacy_accounting.input_gst_recoverable',
+                            false
+                        );
+
+                        $inventoryAcquisitionAmount =
+                            $inputGstRecoverable
+                                ? $taxableAmount
+                                : $lineTotal;
+
                         $unitPurchaseCost =
                             $receivedUnits > 0
                                 ? round(
-                                    $taxableAmount
+                                    $inventoryAcquisitionAmount
                                     / $receivedUnits,
                                     4
                                 )
@@ -933,6 +948,20 @@ class PharmacyGrnController extends Controller
                                 $oldGlobalBalance
                                 + $receivedUnits;
 
+                            $existingUnitCost =
+                                (float) $stockBatch->purchase_price;
+
+                            $weightedAverageUnitCost =
+                                $newGlobalBalance > 0
+                                    ? round(
+                                        (
+                                            ($oldGlobalBalance * $existingUnitCost)
+                                            + ($receivedUnits * $unitPurchaseCost)
+                                        ) / $newGlobalBalance,
+                                        4
+                                    )
+                                    : $unitPurchaseCost;
+
 
                             $stockBatch->update([
 
@@ -946,7 +975,7 @@ class PharmacyGrnController extends Controller
                                     $newGlobalBalance,
 
                                 'purchase_price' =>
-                                   $unitPurchaseCost,
+                                    $weightedAverageUnitCost,
 
                                 'selling_price' =>
                                     $sellingPrice,
@@ -1417,6 +1446,8 @@ class PharmacyGrnController extends Controller
                         ]);
                     }
 
+
+                    $this->accountingService->postGrn($grn);
 
                     return $grn;
                 }

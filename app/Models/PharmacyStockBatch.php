@@ -29,7 +29,7 @@ class PharmacyStockBatch extends Model
         return [
             'expiry_date' => 'date',
             'received_date' => 'date',
-            'purchase_price' => 'decimal:2',
+            'purchase_price' => 'decimal:4',
             'selling_price' => 'decimal:2',
             'quantity_received' => 'integer',
             'quantity_available' => 'integer',

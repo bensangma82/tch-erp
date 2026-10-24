@@ -2030,6 +2030,84 @@ class IpBillingController extends Controller
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * Reverse an IPD patient payment and its accounting journal.
+     */
+    public function reversePayment(
+        Request $request,
+        Admission $admission,
+        IpBillingPayment $payment
+    ) {
+        abort_unless(
+            $request->user()
+                && $request->user()->hasPermission('ip-billing.payment-reverse'),
+            403
+        );
+
+        $validated = $request->validate([
+            'cancellation_reason' => [
+                'required',
+                'string',
+                'min:5',
+                'max:500',
+            ],
+        ]);
+
+        DB::transaction(function () use (
+            $admission,
+            $payment,
+            $validated,
+            $request
+        ) {
+            $account = IpBillingAccount::query()
+                ->where('admission_id', $admission->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedPayment = IpBillingPayment::query()
+                ->whereKey($payment->id)
+                ->where('admission_id', $admission->id)
+                ->where('ip_billing_account_id', $account->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($account->status !== 'finalized') {
+                throw ValidationException::withMessages([
+                    'payment' => 'IPD bill must be finalized.',
+                ]);
+            }
+
+            if ($lockedPayment->status !== 'active') {
+                throw ValidationException::withMessages([
+                    'payment' => 'Payment is already cancelled or inactive.',
+                ]);
+            }
+
+            app(IpPaymentAccountingService::class)
+                ->reverseReceipt(
+                    $lockedPayment,
+                    $validated['cancellation_reason']
+                );
+
+            $lockedPayment->update([
+                'status' => 'cancelled',
+                'cancelled_by' => $request->user()->id,
+                'cancelled_at' => now(),
+                'cancellation_reason' =>
+                    $validated['cancellation_reason'],
+            ]);
+
+            $this->recalculateAccount($account);
+        });
+
+        return redirect()
+            ->route('ip-billing.show', $admission)
+            ->with(
+                'success',
+                'IPD payment reversed successfully.'
+            );
+    }
+
     public function storeRefund(
         Request $request,
         Admission $admission

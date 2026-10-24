@@ -13,6 +13,7 @@ use App\Models\PharmacyStockLocationBalance;
 use App\Models\PharmacyStockMovement;
 use App\Models\PharmacySupplierPayable;
 use App\Services\Pharmacy\PharmacySupplierPayableService;
+use App\Services\Accounting\PharmacyAccountingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,8 @@ use Illuminate\View\View;
 class PharmacyPurchaseReturnController extends Controller
 {
     public function __construct(
-        private readonly PharmacySupplierPayableService $payableService
+        private readonly PharmacySupplierPayableService $payableService,
+        private readonly PharmacyAccountingService $accountingService
     ) {
     }
 
@@ -1202,6 +1204,8 @@ class PharmacyPurchaseReturnController extends Controller
                             );
                     }
 
+
+                    $this->accountingService->postPurchaseReturn($purchaseReturn);
 
                     return $purchaseReturn;
                 }

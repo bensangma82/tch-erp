@@ -414,4 +414,115 @@ $expectedCoverage = (float) (
             return $this->postingService->post($journal);
         });
     }
+
+
+    /**
+     * Post a compensating journal for an IPD patient receipt.
+     *
+     * Caller must cancel the payment and recalculate the billing
+     * account within the same outer database transaction.
+     */
+    public function reverseReceipt(
+        IpBillingPayment $payment,
+        string $reason
+    ): JournalEntry {
+        return DB::transaction(function () use ($payment, $reason) {
+            $reason = trim($reason);
+
+            if ($reason === '') {
+                throw new RuntimeException(
+                    'A payment reversal reason is required.'
+                );
+            }
+
+            if (! auth()->check()
+                || ! auth()->user()->hasPermission('ip-billing.payment-reverse')) {
+                throw new RuntimeException(
+                    'Not authorized to reverse IPD payments.'
+                );
+            }
+
+            $payment = IpBillingPayment::query()
+                ->whereKey($payment->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($payment->status !== 'active') {
+                throw new RuntimeException(
+                    'Only active payments can be reversed.'
+                );
+            }
+
+            $original = JournalEntry::query()
+                ->where('source_type', 'ip_billing_payment')
+                ->where('source_id', $payment->id)
+                ->where('source_event', 'received')
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($original->reference_no !== $payment->receipt_no) {
+                throw new RuntimeException('Receipt and journal references do not match.');
+            }
+
+            if ($original->status !== 'posted') {
+                throw new RuntimeException(
+                    'Original payment journal is not posted.'
+                );
+            }
+
+            if ($original->finance_voucher_id !== null
+                || $original->tallyExport()->exists()) {
+                throw new RuntimeException(
+                    'Finance/Tally-linked payment requires manual review.'
+                );
+            }
+
+            if (JournalEntry::query()
+                ->where('reversal_of_id', $original->id)
+                ->exists()) {
+                throw new RuntimeException(
+                    'Payment has already been reversed.'
+                );
+            }
+
+            $lines = $original->lines()->get();
+
+            if ($lines->count() < 2) {
+                throw new RuntimeException(
+                    'Original payment journal is incomplete.'
+                );
+            }
+
+            $journal = JournalEntry::create([
+                'journal_no' => 'JRN-IPPAY-REV-'.$payment->id,
+                'journal_date' => now()->toDateString(),
+                'source_type' => 'ip_billing_payment',
+                'source_id' => $payment->id,
+                'source_event' => 'reversed',
+                'reversal_of_id' => $original->id,
+                'reference_no' => $payment->receipt_no,
+                'narration' => 'IPD payment reversal: '
+                    .$payment->receipt_no.'; Reason: '.$reason,
+                'status' => 'draft',
+                'created_by' => auth()->id(),
+            ]);
+
+            foreach ($lines as $line) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journal->id,
+                    'line_no' => $line->line_no,
+                    'general_ledger_account_id' =>
+                        $line->general_ledger_account_id,
+                    'department_id' => $line->department_id,
+                    'debit' => $line->credit,
+                    'credit' => $line->debit,
+                    'reference_no' => $payment->receipt_no,
+                    'description' => 'Reversal: '.$line->description,
+                ]);
+            }
+
+            return $this->postingService->post($journal);
+        });
+    }
+
 }

@@ -15,6 +15,7 @@ use App\Models\PharmacyStockBatch;
 use App\Models\PharmacyStockLocation;
 use App\Models\PharmacyStockLocationBalance;
 use App\Models\PharmacyStockMovement;
+use App\Services\Accounting\PharmacyAccountingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,10 @@ use Illuminate\View\View;
 
 class DispensingController extends Controller
 {
+    public function __construct(
+        private readonly PharmacyAccountingService $accountingService
+    ) {}
+
     /**
      * Show recent pharmacy sales.
      */
@@ -1806,6 +1811,15 @@ $activeAdmissions =
                                     $allocation[
                                         'gross_amount'
                                     ],
+                                'unit_cost' =>
+                                    $batch->purchase_price,
+
+                                'total_cost' =>
+                                    round(
+                                        (float) $batch->purchase_price
+                                        * $quantity,
+                                        4
+                                    ),
                             ]);
 
 
@@ -1972,6 +1986,8 @@ $activeAdmissions =
                         );
                     }
 
+
+                    $this->accountingService->postSale($sale);
 
                     return $sale;
                 }

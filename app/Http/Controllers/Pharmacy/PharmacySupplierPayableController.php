@@ -9,6 +9,7 @@ use App\Models\PharmacyPurchaseReturnItem;
 use App\Models\PharmacySupplierPayable;
 use App\Models\PharmacySupplierPayment;
 use App\Services\Pharmacy\PharmacySupplierPayableService;
+use App\Services\Accounting\PharmacyAccountingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,8 @@ use Illuminate\View\View;
 class PharmacySupplierPayableController extends Controller
 {
     public function __construct(
-        private readonly PharmacySupplierPayableService $payableService
+        private readonly PharmacySupplierPayableService $payableService,
+        private readonly PharmacyAccountingService $accountingService
     ) {
     }
 
@@ -708,6 +710,8 @@ public function show(
                         $request->user()->id
                     );
 
+
+                    $this->accountingService->postSupplierPayment($payment);
 
                     return $payment;
                 }

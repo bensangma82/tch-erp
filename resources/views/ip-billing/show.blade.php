@@ -254,6 +254,59 @@ $refundDue =
     );
     @endphp
 
+    {{-- TCH-IPD-REVERSAL-UI-V1: auditable patient payment history --}}
+    @if ($isFinalized && $account->payments->isNotEmpty())
+        <section class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Patient payment history">
+            <h3 class="text-base font-semibold text-slate-900">Patient Payment History</h3>
+            <p class="mt-1 text-sm text-slate-500">Reversals preserve the original receipt and create an offsetting accounting journal. This is not a cash refund.</p>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead><tr class="text-left text-slate-600">
+                        <th class="px-3 py-2">Receipt</th><th class="px-3 py-2">Date</th>
+                        <th class="px-3 py-2">Mode</th><th class="px-3 py-2">Amount</th>
+                        <th class="px-3 py-2">Status / reason</th><th class="px-3 py-2">Action</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach ($account->payments->sortByDesc('id') as $patientPayment)
+                            <tr>
+                                <td class="px-3 py-3 font-mono">{{ $patientPayment->receipt_no }}</td>
+                                <td class="px-3 py-3">{{ $patientPayment->payment_date?->format('d M Y') ?? '—' }}</td>
+                                <td class="px-3 py-3">{{ strtoupper($patientPayment->payment_mode) }}</td>
+                                <td class="px-3 py-3">₹{{ number_format((float) $patientPayment->amount, 2) }}</td>
+                                <td class="px-3 py-3">
+                                    {{ ucfirst($patientPayment->status) }}
+                                    @if ($patientPayment->status === 'cancelled')
+                                        <div class="text-xs text-slate-500">{{ $patientPayment->cancellation_reason }}</div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-3">
+                                    @if ($patientPayment->status === 'active'
+                                        && auth()->user()?->hasPermission('ip-billing.manage')
+                                        && auth()->user()?->hasPermission('ip-billing.payment-reverse'))
+                                        <form method="POST"
+                                              action="{{ route('ip-billing.payment.reverse', ['admission' => $admission, 'payment' => $patientPayment]) }}"
+                                              onsubmit="return confirm('Reverse this receipt? This will post an offsetting journal.');">
+                                            @csrf
+                                            <label class="block text-xs font-medium" for="reverse-reason-{{ $patientPayment->id }}">Reason</label>
+                                            <input id="reverse-reason-{{ $patientPayment->id }}" name="cancellation_reason"
+                                                   type="text" minlength="5" maxlength="500" required
+                                                   placeholder="Mandatory reversal reason"
+                                                   class="mt-1 w-56 rounded-md border-slate-300 text-sm" />
+                                            <button type="submit" class="mt-2 rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Reverse Payment</button>
+                                        </form>
+                                    @else
+                                        <span class="text-slate-400">—</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endif
+
+
 
     <div class="py-6">
 

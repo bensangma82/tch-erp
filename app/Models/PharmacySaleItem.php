@@ -25,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'sgst_amount',
     'igst_amount',
     'amount',
+    'unit_cost',
+    'total_cost',
 ])]
 class PharmacySaleItem extends Model
 {
@@ -41,6 +43,8 @@ class PharmacySaleItem extends Model
             'sgst_amount' => 'decimal:2',
             'igst_amount' => 'decimal:2',
             'amount' => 'decimal:2',
+            'unit_cost' => 'decimal:4',
+            'total_cost' => 'decimal:4',
         ];
     }
 
