@@ -19,6 +19,33 @@ final class InvestigationRefundVerificationService {
             $method = strtolower((string)$p->payment_mode);
             if (!in_array($method,['cash','upi','card'],true) || $data['settlement_method'] !== $method) $this->deny('Refund method must match original payment.');
             if (empty($data['actually_paid'])) $this->deny('External settlement must already be completed.');
+            // Fail closed: only exact, positive monetary amounts within the approved
+            // cancellation value and the originating receipt are eligible.
+            // The accounting service remains the final allocation/duplicate guard.
+            $amount = (string) ($data['amount'] ?? '');
+            if (!preg_match('/^[0-9]{1,10}\.[0-9]{2}$/D', $amount)) {
+                $this->deny('A valid refund amount is required.');
+            }
+            $cents = static function ($value): int {
+                $value = (string) $value;
+                if (!preg_match('/^[0-9]{1,10}\.[0-9]{2}$/D', $value)) {
+                    throw ValidationException::withMessages(['refund' => 'Invalid monetary value.']);
+                }
+                [$whole, $fraction] = explode('.', $value);
+                return ((int) $whole * 100) + (int) $fraction;
+            };
+            $requestedCents = $cents($amount);
+            $approvedCents = $cents($c->approved_amount);
+            $paymentCents = $cents($p->amount);
+            if ($requestedCents <= 0 || $requestedCents > $approvedCents || $requestedCents > $paymentCents) {
+                $this->deny('Refund exceeds the approved cancellation or original receipt.');
+            }
+            // Full audit-chain inspection before another refund submission.
+            // Never automatically reissue if a previous refund is present.
+            if (InvestigationCancellationRefund::where('investigation_cancellation_request_id', $c->id)->exists()) {
+                $this->deny('A refund is already recorded for this cancellation. Reconcile before proceeding.');
+            }
+
             if (InvestigationRefundSettlementCheck::where('cancellation_id',$c->id)->whereIn('status',['submitted','verified','completed'])->exists()) $this->deny('An existing settlement requires reconciliation before another submission.');
             return InvestigationRefundSettlementCheck::create([
                 'cancellation_id'=>$c->id,'payment_id'=>$p->id,'amount'=>$data['amount'],
