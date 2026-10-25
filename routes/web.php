@@ -131,6 +131,10 @@ Route::get('/billing/investigation-refunds/verification',
 Route::post('/billing/investigation-refunds/{cancellation}/submit',
     [\App\Http\Controllers\InvestigationRefundSettlementCheckController::class,'submit'])
     ->whereNumber('cancellation')->name('billing.investigation-refunds.submit');
+    Route::post('/billing/investigation-refunds/{check}/disburse',
+    [\App\Http\Controllers\InvestigationRefundSettlementCheckController::class, 'disburse'])
+    ->whereNumber('check')
+    ->name('billing.investigation-refunds.disburse');
 Route::post('/billing/investigation-refunds/verification/{check}',
     [\App\Http\Controllers\InvestigationRefundSettlementCheckController::class,'verify'])
     ->whereNumber('check')->name('billing.investigation-refunds.verify');

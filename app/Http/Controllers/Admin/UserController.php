@@ -9,110 +9,73 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    /**
-     * Display ERP users.
-     */
+    private const REFUND_PROCESS =
+        'billing.investigation-refund.process';
+
+    private const REFUND_VERIFY =
+        'billing.investigation-refund.verify';
+
+    private const REFUND_PERMISSIONS = [
+        self::REFUND_PROCESS,
+        self::REFUND_VERIFY,
+    ];
+
     public function index(): View
     {
         $users = User::query()
             ->orderBy('name')
             ->get();
 
-        return view(
-            'admin.users.index',
-            compact('users')
-        );
+        return view('admin.users.index', compact('users'));
     }
 
-
-    /**
-     * Show user creation form.
-     */
     public function create(): View
     {
         $roles = $this->roles();
-
         $designations = $this->designations();
 
         $pharmacyPermissions = Permission::query()
-            ->where(
-                'module',
-                'pharmacy'
-            )
+            ->where('module', 'pharmacy')
             ->orderBy('label')
             ->get();
 
-        return view(
-            'admin.users.create',
-            compact(
-                'roles',
-                'designations',
-                'pharmacyPermissions'
-            )
-        );
+        return view('admin.users.create', compact(
+            'roles',
+            'designations',
+            'pharmacyPermissions'
+        ));
     }
 
-
-    /**
-     * Create ERP user.
-     */
-    public function store(
-        Request $request
-    ): RedirectResponse {
-
+    public function store(Request $request): RedirectResponse
+    {
         $validated = $request->validate([
-
             'name' => [
-                'required',
-                'string',
-                'max:255',
+                'required', 'string', 'max:255',
             ],
-
             'email' => [
-                'required',
-                'email',
-                'max:255',
+                'required', 'email', 'max:255',
                 'unique:users,email',
             ],
-
             'role' => [
                 'required',
-
-                Rule::in(
-                    array_keys(
-                        $this->roles()
-                    )
-                ),
+                Rule::in(array_keys($this->roles())),
             ],
-
             'designation' => [
-                'nullable',
-                'string',
-
-                Rule::in(
-                    array_keys(
-                        $this->designations()
-                    )
-                ),
+                'nullable', 'string',
+                Rule::in(array_keys($this->designations())),
             ],
-
             'password' => [
-                'required',
-                'string',
-                'min:8',
-                'confirmed',
+                'required', 'string', 'min:8', 'confirmed',
             ],
-
             'pharmacy_permissions' => [
-                'nullable',
-                'array',
+                'nullable', 'array',
             ],
-
             'pharmacy_permissions.*' => [
                 'string',
                 'distinct',
@@ -120,642 +83,479 @@ class UserController extends Controller
             ],
         ]);
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Super Administrator Assignment
-        |--------------------------------------------------------------------------
-        |
-        | Only an existing Super Administrator may create another
-        | Super Administrator account.
-        |
-        */
-
         if (
             $validated['role'] === 'super_admin'
-            &&
-            ! $this->currentUserIsSuperAdmin()
+            && !$this->currentUserIsSuperAdmin()
         ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'role' =>
-                        'Only a Super Administrator can assign the Super Administrator role.',
-                ]);
+            return back()->withInput()->withErrors([
+                'role' =>
+                    'Only a Super Administrator can assign the Super Administrator role.',
+            ]);
         }
 
+        $user = DB::transaction(function () use ($validated) {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'role' => $validated['role'],
+                'designation' =>
+                    $validated['designation'] ?? null,
+                'password' => Hash::make(
+                    $validated['password']
+                ),
+                'email_verified_at' => now(),
+                'is_active' => true,
+            ]);
 
-        $user = DB::transaction(
-            function () use (
-                $validated
-            ) {
+            if ($validated['role'] === 'pharmacy') {
+                $selected = $validated[
+                    'pharmacy_permissions'
+                ] ?? [];
 
-                /*
-                |--------------------------------------------------------------------------
-                | Create User
-                |--------------------------------------------------------------------------
-                */
+                $permissionIds = Permission::query()
+                    ->where('module', 'pharmacy')
+                    ->whereIn('name', $selected)
+                    ->pluck('id')
+                    ->all();
 
-                $user = User::create([
-
-                    'name' =>
-                        $validated['name'],
-
-                    'email' =>
-                        $validated['email'],
-
-                    'role' =>
-                        $validated['role'],
-
-                    'designation' =>
-                        $validated['designation'] ?? null,
-
-                    'password' =>
-                        Hash::make(
-                            $validated['password']
-                        ),
-
-                    'email_verified_at' =>
-                        now(),
-
-                    'is_active' =>
-                        true,
-                ]);
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Pharmacy Permissions
-                |--------------------------------------------------------------------------
-                |
-                | Permissions are assigned only when the selected role is
-                | Pharmacy.
-                |
-                | New pharmacy users do NOT automatically receive every
-                | permission.
-                |
-                */
-
-                if (
-                    $validated['role']
-                    ===
-                    'pharmacy'
-                ) {
-
-                    $selectedPermissionNames =
-                        $validated['pharmacy_permissions']
-                        ?? [];
-
-
-                    if (
-                        count(
-                            $selectedPermissionNames
-                        ) > 0
-                    ) {
-
-                        $permissionIds = Permission::query()
-                            ->where(
-                                'module',
-                                'pharmacy'
-                            )
-                            ->whereIn(
-                                'name',
-                                $selectedPermissionNames
-                            )
-                            ->pluck('id');
-
-
-                        $user->permissions()
-                            ->syncWithoutDetaching(
-                                $permissionIds
-                            );
-                    }
+                if ($permissionIds) {
+                    $user->permissions()
+                        ->syncWithoutDetaching($permissionIds);
                 }
-
-
-                return $user;
             }
-        );
 
+            return $user;
+        });
 
         return redirect()
-            ->route(
-                'admin.users.index'
-            )
+            ->route('admin.users.index')
             ->with(
                 'success',
-                'User '
-                . $user->name
-                . ' created successfully.'
+                'User ' . $user->name .
+                ' created successfully.'
             );
     }
 
-
-    /**
-     * Show edit form.
-     */
-    public function edit(
-        User $user
-    ): View {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Super Administrator Account
-        |--------------------------------------------------------------------------
-        |
-        | Ordinary administrators must not be able to open the edit screen
-        | for a Super Administrator account.
-        |
-        */
-
-        $this->ensureCanManageUser(
-            $user
-        );
-
+    public function edit(User $user): View
+    {
+        $this->ensureCanManageUser($user);
 
         $roles = $this->roles();
-
         $designations = $this->designations();
 
         $pharmacyPermissions = Permission::query()
-            ->where(
-                'module',
-                'pharmacy'
-            )
+            ->where('module', 'pharmacy')
             ->orderBy('label')
             ->get();
 
+        $userPermissionNames = $user->permissions()
+            ->pluck('permissions.name')
+            ->all();
 
-        $userPermissionNames =
-            $user->permissions()
-                ->pluck(
-                    'permissions.name'
+        $canManageRefundPermissions =
+            $this->canManageRefundPermissions($user);
+
+        $refundPermissions = $canManageRefundPermissions
+            ? Permission::query()
+                ->whereIn(
+                    'name',
+                    self::REFUND_PERMISSIONS
                 )
-                ->all();
+                ->orderBy('name')
+                ->get()
+            : collect();
 
-
-        return view(
-            'admin.users.edit',
-            compact(
-                'user',
-                'roles',
-                'designations',
-                'pharmacyPermissions',
-                'userPermissionNames'
-            )
-        );
+        return view('admin.users.edit', compact(
+            'user',
+            'roles',
+            'designations',
+            'pharmacyPermissions',
+            'userPermissionNames',
+            'refundPermissions',
+            'canManageRefundPermissions'
+        ));
     }
 
-
-    /**
-     * Update user and module permissions.
-     */
     public function update(
         Request $request,
         User $user
     ): RedirectResponse {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Super Administrator Account
-        |--------------------------------------------------------------------------
-        */
-
-        $this->ensureCanManageUser(
-            $user
-        );
-
+        $this->ensureCanManageUser($user);
 
         $validated = $request->validate([
-
             'name' => [
-                'required',
-                'string',
-                'max:255',
+                'required', 'string', 'max:255',
             ],
-
             'email' => [
-                'required',
-                'email',
-                'max:255',
-
-                Rule::unique(
-                    'users',
-                    'email'
-                )->ignore(
-                    $user->id
-                ),
+                'required', 'email', 'max:255',
+                Rule::unique('users', 'email')
+                    ->ignore($user->id),
             ],
-
             'role' => [
                 'required',
-
-                Rule::in(
-                    array_keys(
-                        $this->roles()
-                    )
-                ),
+                Rule::in(array_keys($this->roles())),
             ],
-
             'designation' => [
-                'nullable',
-                'string',
-
-                Rule::in(
-                    array_keys(
-                        $this->designations()
-                    )
-                ),
+                'nullable', 'string',
+                Rule::in(array_keys($this->designations())),
             ],
-
             'pharmacy_permissions' => [
-                'nullable',
-                'array',
+                'nullable', 'array',
             ],
-
             'pharmacy_permissions.*' => [
                 'string',
                 'distinct',
                 'exists:permissions,name',
             ],
+            'manage_refund_permissions' => [
+                'sometimes',
+                'required',
+                'in:1',
+            ],
+            'refund_permissions' => [
+                'sometimes',
+                'array',
+            ],
+            'refund_permissions.*' => [
+                'string',
+                'distinct',
+                Rule::in(self::REFUND_PERMISSIONS),
+            ],
         ]);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Existing Super Administrator Role
-        |--------------------------------------------------------------------------
-        |
-        | Once an account is a Super Administrator, this administration
-        | screen must not be used to downgrade it.
-        |
-        */
 
         if (
             $user->isSuperAdmin()
-            &&
-            $validated['role'] !== 'super_admin'
+            && $validated['role'] !== 'super_admin'
         ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'role' =>
-                        'The Super Administrator role cannot be removed from this account.',
-                ]);
+            return back()->withInput()->withErrors([
+                'role' =>
+                    'The Super Administrator role cannot be removed from this account.',
+            ]);
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Super Administrator Assignment
-        |--------------------------------------------------------------------------
-        */
 
         if (
             $validated['role'] === 'super_admin'
-            &&
-            ! $this->currentUserIsSuperAdmin()
+            && !$this->currentUserIsSuperAdmin()
         ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'role' =>
-                        'Only a Super Administrator can assign the Super Administrator role.',
-                ]);
+            return back()->withInput()->withErrors([
+                'role' =>
+                    'Only a Super Administrator can assign the Super Administrator role.',
+            ]);
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Current Administrator
-        |--------------------------------------------------------------------------
-        |
-        | Existing administrator behaviour is preserved.
-        |
-        */
-
         if (
-            auth()->id()
-            ===
-            $user->id
-            &&
-            ! in_array(
+            auth()->id() === $user->id
+            && !in_array(
                 $validated['role'],
-                [
-                    'admin',
-                    'super_admin',
-                ],
+                ['admin', 'super_admin'],
                 true
             )
         ) {
-
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'role' =>
-                        'You cannot remove your own administrator access.',
-                ]);
+            return back()->withInput()->withErrors([
+                'role' =>
+                    'You cannot remove your own administrator access.',
+            ]);
         }
 
+        $refundFieldsPresent =
+            $request->exists('manage_refund_permissions')
+            || $request->exists('refund_permissions');
 
-        DB::transaction(
-            function () use (
-                $validated,
-                $user
-            ) {
+        if (
+            $refundFieldsPresent
+            && !$this->canManageRefundPermissions($user)
+        ) {
+            abort(
+                403,
+                'You cannot modify direct financial permissions.'
+            );
+        }
 
-                /*
-                |--------------------------------------------------------------------------
-                | Update Account
-                |--------------------------------------------------------------------------
-                */
+        $shouldUpdateRefunds =
+            $this->canManageRefundPermissions($user)
+            && $request->input(
+                'manage_refund_permissions'
+            ) === '1';
 
-                $user->update([
+        if (
+            $this->canManageRefundPermissions($user)
+            && $request->exists('refund_permissions')
+            && !$shouldUpdateRefunds
+        ) {
+            abort(
+                403,
+                'Invalid financial permission submission.'
+            );
+        }
 
-                    'name' =>
-                        $validated['name'],
+        $selectedRefunds = $shouldUpdateRefunds
+            ? ($validated['refund_permissions'] ?? [])
+            : [];
 
-                    'email' =>
-                        $validated['email'],
+        if (
+            in_array(
+                self::REFUND_PROCESS,
+                $selectedRefunds,
+                true
+            )
+            && in_array(
+                self::REFUND_VERIFY,
+                $selectedRefunds,
+                true
+            )
+        ) {
+            return back()->withInput()->withErrors([
+                'refund_permissions' =>
+                    'Refund processing and independent verification cannot both be directly assigned to one user.',
+            ]);
+        }
 
-                    'role' =>
-                        $validated['role'],
+        if ($shouldUpdateRefunds) {
+            $existingRefundPermissions = Permission::query()
+                ->whereIn(
+                    'name',
+                    self::REFUND_PERMISSIONS
+                )
+                ->pluck('name')
+                ->all();
 
-                    'designation' =>
-                        $validated['designation'] ?? null,
+            if (count($existingRefundPermissions) !== 2) {
+                return back()->withInput()->withErrors([
+                    'refund_permissions' =>
+                        'Required refund permissions are missing from the permission registry.',
                 ]);
+            }
+        }
 
+        DB::transaction(function () use (
+            $user,
+            $validated,
+            $shouldUpdateRefunds,
+            $selectedRefunds
+        ) {
+            // Lock the account row while applying changes.
+            $lockedUser = User::query()
+                ->whereKey($user->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-                /*
-                |--------------------------------------------------------------------------
-                | Remove Existing Pharmacy Permissions
-                |--------------------------------------------------------------------------
-                */
+            $lockedUser->update([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'role' => $validated['role'],
+                'designation' =>
+                    $validated['designation'] ?? null,
+            ]);
 
-                $allPharmacyPermissionIds =
-                    Permission::query()
-                        ->where(
-                            'module',
-                            'pharmacy'
-                        )
-                        ->pluck('id');
+            /*
+             * Preserve original pharmacy-permission workflow.
+             * Only pharmacy permissions are replaced here.
+             */
+            $pharmacyIds = Permission::query()
+                ->where('module', 'pharmacy')
+                ->pluck('id')
+                ->all();
 
+            $lockedUser->permissions()->detach($pharmacyIds);
 
-                $user->permissions()
-                    ->detach(
-                        $allPharmacyPermissionIds
-                    );
+            if ($validated['role'] === 'pharmacy') {
+                $selectedPharmacy = $validated[
+                    'pharmacy_permissions'
+                ] ?? [];
 
+                $selectedPharmacyIds = Permission::query()
+                    ->where('module', 'pharmacy')
+                    ->whereIn('name', $selectedPharmacy)
+                    ->pluck('id')
+                    ->all();
 
-                /*
-                |--------------------------------------------------------------------------
-                | Reassign Selected Pharmacy Permissions
-                |--------------------------------------------------------------------------
-                */
-
-                if (
-                    $validated['role']
-                    ===
-                    'pharmacy'
-                ) {
-
-                    $selectedPermissionNames =
-                        $validated['pharmacy_permissions']
-                        ?? [];
-
-
-                    if (
-                        count(
-                            $selectedPermissionNames
-                        ) > 0
-                    ) {
-
-                        $selectedPermissionIds =
-                            Permission::query()
-                                ->where(
-                                    'module',
-                                    'pharmacy'
-                                )
-                                ->whereIn(
-                                    'name',
-                                    $selectedPermissionNames
-                                )
-                                ->pluck('id');
-
-
-                        $user->permissions()
-                            ->syncWithoutDetaching(
-                                $selectedPermissionIds
-                            );
-                    }
+                if ($selectedPharmacyIds) {
+                    $lockedUser->permissions()
+                        ->syncWithoutDetaching(
+                            $selectedPharmacyIds
+                        );
                 }
             }
-        );
 
+            /*
+             * Financial permissions are independent of
+             * pharmacy and other module permissions.
+             */
+            if ($shouldUpdateRefunds) {
+                $refundIds = Permission::query()
+                    ->whereIn(
+                        'name',
+                        self::REFUND_PERMISSIONS
+                    )
+                    ->pluck('id')
+                    ->all();
+
+                $before = $lockedUser->permissions()
+                    ->whereIn(
+                        'permissions.name',
+                        self::REFUND_PERMISSIONS
+                    )
+                    ->pluck('permissions.name')
+                    ->all();
+
+                $lockedUser->permissions()
+                    ->detach($refundIds);
+
+                $selectedIds = Permission::query()
+                    ->whereIn(
+                        'name',
+                        $selectedRefunds
+                    )
+                    ->pluck('id')
+                    ->all();
+
+                if ($selectedIds) {
+                    $lockedUser->permissions()
+                        ->syncWithoutDetaching(
+                            $selectedIds
+                        );
+                }
+
+                $added = array_values(
+                    array_diff(
+                        $selectedRefunds,
+                        $before
+                    )
+                );
+
+                $removed = array_values(
+                    array_diff(
+                        $before,
+                        $selectedRefunds
+                    )
+                );
+
+                if ($added || $removed) {
+                    Log::notice(
+                        'Direct investigation refund permissions changed',
+                        [
+                            'actor_id' => auth()->id(),
+                            'target_user_id' => $lockedUser->id,
+                            'added' => $added,
+                            'removed' => $removed,
+                            'recorded_at' => now()->toIso8601String(),
+                        ]
+                    );
+                }
+            }
+        }, 3);
 
         return redirect()
-            ->route(
-                'admin.users.edit',
-                $user
-            )
+            ->route('admin.users.edit', $user)
             ->with(
                 'success',
                 'User details and permissions updated successfully.'
             );
     }
 
-
-    /**
-     * Reset user's password.
-     */
     public function resetPassword(
         Request $request,
         User $user
     ): RedirectResponse {
+        $this->ensureCanManageUser($user);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Super Administrator Account
-        |--------------------------------------------------------------------------
-        |
-        | Ordinary administrators must not be able to reset the password of
-        | a Super Administrator.
-        |
-        */
-
-        $this->ensureCanManageUser(
-            $user
-        );
-
-
-        $validated =
-            $request->validate([
-
-                'password' => [
-                    'required',
-                    'string',
-                    'min:8',
-                    'confirmed',
-                ],
-            ]);
-
-
-        $user->update([
-
-            'password' =>
-                Hash::make(
-                    $validated['password']
-                ),
+        $validated = $request->validate([
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+            ],
         ]);
 
+        $user->update([
+            'password' => Hash::make(
+                $validated['password']
+            ),
+        ]);
 
         return redirect()
-            ->route(
-                'admin.users.edit',
-                $user
-            )
+            ->route('admin.users.edit', $user)
             ->with(
                 'success',
                 'Password reset successfully.'
             );
     }
 
-
-    /**
-     * Activate or deactivate user.
-     */
     public function toggleStatus(
         User $user
     ): RedirectResponse {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect Super Administrator Account
-        |--------------------------------------------------------------------------
-        */
-
         if (
             $user->isSuperAdmin()
-            &&
-            ! $this->currentUserIsSuperAdmin()
+            && !$this->currentUserIsSuperAdmin()
         ) {
-
             return redirect()
-                ->route(
-                    'admin.users.index'
-                )
+                ->route('admin.users.index')
                 ->with(
                     'error',
                     'Only a Super Administrator can change the status of a Super Administrator account.'
                 );
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Prevent Self-Deactivation
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            auth()->id()
-            ===
-            $user->id
-        ) {
-
+        if (auth()->id() === $user->id) {
             return redirect()
-                ->route(
-                    'admin.users.index'
-                )
+                ->route('admin.users.index')
                 ->with(
                     'error',
                     'You cannot deactivate your own account.'
                 );
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Keep Existing Super Administrator Active
-        |--------------------------------------------------------------------------
-        |
-        | Even another Super Administrator cannot deactivate a protected
-        | Super Administrator through this screen.
-        |
-        */
-
         if (
             $user->isSuperAdmin()
-            &&
-            $user->is_active
+            && $user->is_active
         ) {
-
             return redirect()
-                ->route(
-                    'admin.users.index'
-                )
+                ->route('admin.users.index')
                 ->with(
                     'error',
                     'A Super Administrator account cannot be deactivated from User Management.'
                 );
         }
 
-
         $user->update([
-
-            'is_active' =>
-                ! $user->is_active,
+            'is_active' => !$user->is_active,
         ]);
 
-
-        $status =
-            $user->is_active
-                ? 'activated'
-                : 'deactivated';
-
+        $status = $user->is_active
+            ? 'activated'
+            : 'deactivated';
 
         return redirect()
-            ->route(
-                'admin.users.index'
-            )
+            ->route('admin.users.index')
             ->with(
                 'success',
-                'User '
-                . $user->name
-                . ' '
-                . $status
-                . ' successfully.'
+                'User ' . $user->name . ' ' .
+                $status . ' successfully.'
             );
     }
 
-
-    /**
-     * Determine whether the currently authenticated user is a
-     * Super Administrator.
-     */
     private function currentUserIsSuperAdmin(): bool
     {
         $currentUser = auth()->user();
 
-        return $currentUser
-            instanceof User
-            &&
-            $currentUser->isSuperAdmin();
+        return $currentUser instanceof User
+            && $currentUser->isSuperAdmin();
     }
 
+    private function canManageRefundPermissions(
+        User $target
+    ): bool {
+        return $this->currentUserIsSuperAdmin()
+            && (int) auth()->id() !== (int) $target->id;
+    }
 
-    /**
-     * Ensure the current authenticated user is allowed to manage
-     * the supplied user account.
-     */
     private function ensureCanManageUser(
         User $user
     ): void {
-
         if (
             $user->isSuperAdmin()
-            &&
-            ! $this->currentUserIsSuperAdmin()
+            && !$this->currentUserIsSuperAdmin()
         ) {
             abort(
                 403,
@@ -764,57 +564,24 @@ class UserController extends Controller
         }
     }
 
-
-    /**
-     * Available ERP roles.
-     */
     private function roles(): array
     {
         $roles = [
-
-            'admin' =>
-                'Administrator',
-
-            'reception' =>
-                'Reception',
-
-            'nursing' =>
-                'Nursing',
-
-            'doctor' =>
-                'Doctor',
-
-            'billing' =>
-                'Billing',
-
-            'finance' =>
-                'Finance / Accounts',
-
-            'laboratory' =>
-                'Laboratory',
-
-            'radiology' =>
-                'Radiology',
-
-            'pharmacy' =>
-                'Pharmacy',
-
-            'stores' =>
-                'Stores / Inventory',
-
-            'hr' =>
-                'HR',
-
-            'medical_records' =>
-                'Medical Records',
-
-            'emergency' =>
-                'Emergency',
-
-            'ipd' =>
-                'IPD / Ward',
-
-                        'hospital_administrator' => 'Hospital Administrator',
+            'admin' => 'Administrator',
+            'reception' => 'Reception',
+            'nursing' => 'Nursing',
+            'doctor' => 'Doctor',
+            'billing' => 'Billing',
+            'finance' => 'Finance / Accounts',
+            'laboratory' => 'Laboratory',
+            'radiology' => 'Radiology',
+            'pharmacy' => 'Pharmacy',
+            'stores' => 'Stores / Inventory',
+            'hr' => 'HR',
+            'medical_records' => 'Medical Records',
+            'emergency' => 'Emergency',
+            'ipd' => 'IPD / Ward',
+            'hospital_administrator' => 'Hospital Administrator',
             'medical_superintendent' => 'Medical Superintendent',
             'reception_supervisor' => 'Reception Supervisor',
             'nursing_supervisor' => 'Nursing Supervisor',
@@ -826,85 +593,36 @@ class UserController extends Controller
             'asset_manager' => 'Asset Manager',
             'mis_reporting' => 'MIS / Reporting',
             'auditor' => 'Internal Auditor / Read Only',
-'management' =>
-                'Management / Read Only',
+            'management' => 'Management / Read Only',
         ];
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Super Administrator Role
-        |--------------------------------------------------------------------------
-        |
-        | The role is intentionally hidden from ordinary administrators.
-        | Only an existing Super Administrator can see or assign it.
-        |
-        */
-
-        if (
-            $this->currentUserIsSuperAdmin()
-        ) {
+        if ($this->currentUserIsSuperAdmin()) {
             $roles = [
-                'super_admin' =>
-                    'Super Administrator',
-
+                'super_admin' => 'Super Administrator',
                 ...$roles,
             ];
         }
 
-
         return $roles;
     }
 
-
-    /**
-     * Available hospital designations.
-     */
     private function designations(): array
     {
         return [
-
-            'Medical Superintendent' =>
-                'Medical Superintendent',
-
-            'Deputy Medical Superintendent' =>
-                'Deputy Medical Superintendent',
-
-            'Administrator' =>
-                'Administrator',
-
-            'Nursing Superintendent' =>
-                'Nursing Superintendent',
-
-            'Manager' =>
-                'Manager',
-
-            'Accountant' =>
-                'Accountant',
-
-            'Assistant Accountant' =>
-                'Assistant Accountant',
-
-            'Pharmacy In-charge' =>
-                'Pharmacy In-charge',
-
-            'Laboratory In-charge' =>
-                'Laboratory In-charge',
-
-            'Radiology In-charge' =>
-                'Radiology In-charge',
-
-            'Reception In-charge' =>
-                'Reception In-charge',
-
-            'Stores In-charge' =>
-                'Stores In-charge',
-
-            'Maintenance In-charge' =>
-                'Maintenance In-charge',
-
-            'Other' =>
-                'Other',
+            'Medical Superintendent' => 'Medical Superintendent',
+            'Deputy Medical Superintendent' => 'Deputy Medical Superintendent',
+            'Administrator' => 'Administrator',
+            'Nursing Superintendent' => 'Nursing Superintendent',
+            'Manager' => 'Manager',
+            'Accountant' => 'Accountant',
+            'Assistant Accountant' => 'Assistant Accountant',
+            'Pharmacy In-charge' => 'Pharmacy In-charge',
+            'Laboratory In-charge' => 'Laboratory In-charge',
+            'Radiology In-charge' => 'Radiology In-charge',
+            'Reception In-charge' => 'Reception In-charge',
+            'Stores In-charge' => 'Stores In-charge',
+            'Maintenance In-charge' => 'Maintenance In-charge',
+            'Other' => 'Other',
         ];
     }
 }

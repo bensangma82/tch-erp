@@ -12,25 +12,34 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * Investigation refund settlement verification.
+ * Three-stage investigation refund workflow.
  *
- * This controller records refund settlement evidence and
- * authorizes accounting entries after independent verification.
+ * 1. Initiate a refund request.
+ * 2. Record actual cashier disbursement.
+ * 3. Independently verify and post accounting.
  *
- * It does not transfer money through a payment gateway.
+ * This controller never transfers money.
  */
 final class InvestigationRefundSettlementCheckController extends Controller
 {
     /**
-     * Display pending refund settlements.
+     * Display outstanding refund requests and settlements.
      */
     public function index(Request $request): View
     {
+        $this->ensureRefundFeatureEnabled();
+
         $user = $request->user();
 
         abort_unless(
             $user && (
-                $user->hasPermission('billing.investigation-refund.process') ||
+                $user->permissions()
+                    ->where(
+                        'permissions.name',
+                        'billing.investigation-refund.process'
+                    )
+                    ->exists()
+                ||
                 $user->permissions()
                     ->where(
                         'permissions.name',
@@ -42,7 +51,11 @@ final class InvestigationRefundSettlementCheckController extends Controller
         );
 
         $pending = InvestigationRefundSettlementCheck::query()
-            ->where('status', 'submitted')
+            ->whereIn('status', [
+                'initiated',
+                'disbursed',
+                'submitted',
+            ])
             ->orderBy('id')
             ->paginate(20);
 
@@ -53,9 +66,10 @@ final class InvestigationRefundSettlementCheckController extends Controller
     }
 
     /**
-     * Submit refund settlement evidence.
+     * Stage 1: Initiate a refund request.
      *
-     * No accounting journal is posted at this stage.
+     * Reuses the existing submit route for compatibility.
+     * No actual payment or accounting is recorded.
      */
     public function submit(
         Request $request,
@@ -78,6 +92,41 @@ final class InvestigationRefundSettlementCheckController extends Controller
                 'required',
                 'in:cash,upi,card',
             ],
+        ]);
+
+        $payment = Payment::findOrFail(
+            $data['payment_id']
+        );
+
+        $service->initiate(
+            $cancellation,
+            $payment,
+            $request->user(),
+            $data
+        );
+
+        return back()->with(
+            'success',
+            'Refund request initiated successfully. ' .
+            'No payment or accounting journal has been recorded. ' .
+            'Cashier disbursement is required.'
+        );
+    }
+
+    /**
+     * Stage 2: Record actual refund disbursement.
+     *
+     * This records evidence of an external cash/bank settlement.
+     * No accounting journal is posted.
+     */
+    public function disburse(
+        Request $request,
+        InvestigationRefundSettlementCheck $check,
+        InvestigationRefundVerificationService $service
+    ): RedirectResponse {
+        $this->ensureRefundFeatureEnabled();
+
+        $data = $request->validate([
             'settlement_reference' => [
                 'required',
                 'string',
@@ -96,28 +145,25 @@ final class InvestigationRefundSettlementCheckController extends Controller
             ],
         ]);
 
-        $payment = Payment::findOrFail($data['payment_id']);
-
-        $service->submit(
-            $cancellation,
-            $payment,
+        $service->disburse(
+            $check,
             $request->user(),
             $data
         );
 
         return back()->with(
             'success',
-            'Settlement evidence submitted successfully. ' .
-            'Independent verification is required. ' .
+            'Refund disbursement recorded. ' .
+            'Independent verification is now required. ' .
             'No accounting journal has been posted.'
         );
     }
 
     /**
-     * Independently verify a refund settlement.
+     * Stage 3: Independently verify a completed disbursement.
      *
-     * The service performs permission checks, separation
-     * of duties, duplicate prevention, and journal posting.
+     * The service enforces maker-checker controls,
+     * duplicate prevention and journal posting.
      */
     public function verify(
         Request $request,
@@ -149,16 +195,13 @@ final class InvestigationRefundSettlementCheckController extends Controller
 
         return back()->with(
             'success',
-            'Refund settlement verified and accounting recorded. ' .
+            'Refund independently verified and accounting journal posted. ' .
             'Please reconcile the cash/bank register.'
         );
     }
 
     /**
-     * Allow refund testing when explicitly enabled.
-     *
-     * Does not depend on APP_ENV=local.
-     * Authentication and authorization remain mandatory.
+     * Refund workflow feature flag.
      */
     private function ensureRefundFeatureEnabled(): void
     {
