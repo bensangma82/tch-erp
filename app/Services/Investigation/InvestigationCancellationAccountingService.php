@@ -31,7 +31,14 @@ class InvestigationCancellationAccountingService
 
     public function reverseRevenue(InvestigationCancellationRequest $cancellation, User $actor): JournalEntry
     {
-        $this->requirePermission($actor, 'billing.investigation-refund.process');
+        // Journal posting requires explicit refund verification authority.
+// Cashier submission is authorized separately by the verification service.
+abort_unless(
+    $actor->permissions()
+        ->where('permissions.name', 'billing.investigation-refund.verify')
+        ->exists(),
+    403
+);
         return DB::transaction(function () use ($cancellation, $actor) {
             $request = InvestigationCancellationRequest::query()->whereKey($cancellation->id)->lockForUpdate()->firstOrFail();
             if ($request->status !== 'approved' || $request->executed_at !== null) {
