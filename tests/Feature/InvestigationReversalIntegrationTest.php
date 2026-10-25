@@ -29,7 +29,7 @@ class InvestigationReversalIntegrationTest extends TestCase
             'REFUSING TO RUN: current DB is not testing');
     }
 
-    
+
 public function test_unprivileged_user_cannot_execute_revenue_reversal(): void
 {
     $actor = User::factory()->create([

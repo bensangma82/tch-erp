@@ -310,7 +310,7 @@
         ₹{{ number_format((float) $latestInvestigationInvoice->balance_amount, 2) }}
     </a>
 @endif
-                                            
+
 {{-- INVESTIGATION CANCELLATION --}}
 @if (
     $latestInvestigationInvoice
