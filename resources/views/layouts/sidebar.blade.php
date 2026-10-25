@@ -1537,6 +1537,17 @@
 >
     Approved Cancellations
 </a>
+                    @if (auth()->user()->permissions()
+                        ->where('permissions.name', 'billing.investigation-refund.verify')
+                        ->exists())
+                        <a
+                            href="{{ route('billing.investigation-refunds.verification') }}"
+                            class="block px-3 py-2 text-sm rounded hover:bg-slate-700
+                                {{ request()->routeIs('billing.investigation-refunds.verification') ? 'bg-slate-700 text-white' : '' }}"
+                        >
+                            Refund Verification
+                        </a>
+                    @endif
                     @endif
 
                     {{-- Management Information System --}}
