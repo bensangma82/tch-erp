@@ -522,6 +522,20 @@ class InvestigationCancellationAccountingService
                 $refundCents
             );
 
+            /*
+             * REFUND JOURNAL POSTING CORRECTION
+             *
+             * Populate posting metadata while the journal
+             * remains in draft status.
+             *
+             * JournalPostingService retains responsibility
+             * for validating and posting the journal.
+             */
+            $journal->forceFill([
+                'posted_by' => $actor->id,
+                'posted_at' => now(),
+            ])->save();
+
             $this->posting->post($journal);
 
             $refund->forceFill([
