@@ -29,8 +29,7 @@
 <p>#{{ $r->id }} — {{ $money((int)round(((float)$r->amount)*100)) }} — {{ $r->status }} — {{ $r->reference_no }}</p>
 @empty<p>No refund recorded.</p>@endforelse
 @php
-    $refundEnabled = app()->environment('local')
-        && config('investigation_cancellation.enable_verified_refunds', false);
+    $refundEnabled = config('investigation_cancellation.enable_verified_refunds', false) === true;
 
     $canSubmitRefund = auth()->user()->permissions()
         ->where('permissions.name', 'billing.investigation-refund.process')
