@@ -1531,6 +1531,12 @@
                         >
                             Cancellation Approvals
                         </a>
+                        <a
+    href="{{ route('billing.investigation-cancellations.queue', ['status' => 'approved']) }}"
+    class="block px-3 py-2 text-sm rounded hover:bg-slate-700"
+>
+    Approved Cancellations
+</a>
                     @endif
 
                     {{-- Management Information System --}}
