@@ -27,11 +27,61 @@
             <td class="p-2">{{ $c->clinical_status_at_request }}</td>
             <td class="p-2">{{ $c->requires_ms_approval ? 'Yes' : 'No at request' }}</td>
             <td class="p-2">{{ $c->status }}</td>
-            @if($c->status === 'approved' && $canDecide)
-                <td class="p-2"><a class="underline text-blue-700" href="{{ route('billing.investigation-cancellations.preview', $c) }}">Preview reversal</a></td>
-            @else
-                <td class="p-2">—</td>
+
+<td class="p-2">
+    @if($c->status === 'approved' && $c->executed_at === null)
+        <div class="flex flex-col gap-3">
+
+            {{-- Revenue reversal preview --}}
+            @if($canDecide || auth()->user()->permissions()
+                ->where(
+                    'permissions.name',
+                    'billing.investigation-cancellation.execute'
+                )->exists())
+
+                <a
+                    class="underline text-blue-700"
+                    href="{{ route('billing.investigation-cancellations.preview', $c) }}"
+                >
+                    Preview reversal
+                </a>
             @endif
+
+            {{-- Execute reversal: direct permission required --}}
+            @if(auth()->user()->permissions()
+                ->where(
+                    'permissions.name',
+                    'billing.investigation-cancellation.execute'
+                )->exists())
+
+                <form
+                    method="POST"
+                    action="{{ route('billing.investigation-cancellations.execute', $c) }}"
+                    onsubmit="return confirm('Execute revenue reversal for cancellation #{{ $c->id }}? This will post an accounting journal.');"
+                >
+                    @csrf
+
+                    <input
+                        type="hidden"
+                        name="confirmation"
+                        value="EXECUTE REVERSAL"
+                    >
+
+                    <button
+                        type="submit"
+                        class="rounded bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800"
+                    >
+                        Execute Reversal
+                    </button>
+                </form>
+            @endif
+
+        </div>
+    @else
+        —
+    @endif
+</td>
+
             <td class="p-2">
             @if($c->status === 'pending' && $canDecide)
                 <form method="POST" action="{{ route('billing.investigation-cancellations.decide', $c) }}" class="flex flex-col gap-2">

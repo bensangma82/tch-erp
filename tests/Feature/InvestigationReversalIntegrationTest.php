@@ -59,20 +59,42 @@ public function test_unprivileged_user_cannot_execute_revenue_reversal(): void
 }
 
 
-    public function test_unprivileged_user_cannot_record_refund(): void
-    {
-        $actor = User::factory()->create(['role' => 'reception']);
-        $before = JournalEntry::count();
-        try {
-            app(InvestigationCancellationAccountingService::class)->recordCompletedRefund(
-                new InvestigationCancellationRequest(), new Payment(), $actor, 'TEST-NOT-PAID', '500.00'
+    
+public function test_unprivileged_user_cannot_record_refund(): void
+{
+    $actor = User::factory()->create([
+        'role' => 'reception',
+    ]);
+
+    $before = JournalEntry::count();
+
+    try {
+        app(InvestigationCancellationAccountingService::class)
+            ->recordCompletedRefund(
+                new InvestigationCancellationRequest(),
+                new Payment(),
+                $actor,
+                'TEST-NOT-PAID',
+                '500.00'
             );
-            $this->fail('Unprivileged actor was allowed');
-        } catch (ValidationException $e) {
-            $this->assertSame($before, JournalEntry::count());
-            $this->assertArrayHasKey('cancellation', $e->errors());
-        }
+
+        $this->fail('Unprivileged actor was allowed to record a refund.');
+
+    } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+
+        $this->assertSame(
+            403,
+            $e->getStatusCode(),
+            'Unauthorized refund recording must return HTTP 403.'
+        );
+
+        $this->assertSame(
+            $before,
+            JournalEntry::count(),
+            'Unauthorized refund must not create a journal entry.'
+        );
     }
+}
 
     public function test_reversal_posts_balanced_journal_and_second_attempt_is_rejected_when_fixture_exists(): void
     {
@@ -92,7 +114,17 @@ public function test_unprivileged_user_cannot_execute_revenue_reversal(): void
 
         // Admin override permits financial execution in existing RBAC, so use only
         // in isolated synthetic tests. Production permission design is separate.
-        $actor = User::factory()->create(['role' => 'admin']);
+       $actor = User::factory()->create([
+    'role' => 'admin',
+]);
+
+$executionPermission = \App\Models\Permission::query()
+    ->where('name', 'billing.investigation-cancellation.execute')
+    ->firstOrFail();
+
+$actor->permissions()->syncWithoutDetaching([
+    $executionPermission->id,
+]);
         $originalPayments = Payment::where('invoice_id', $request->invoice_id)
             ->orderBy('id')->get(['id', 'amount', 'receipt_no'])->toArray();
         $invoiceTotal = (string) $request->invoice->total_amount;
