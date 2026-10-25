@@ -310,7 +310,23 @@
         ₹{{ number_format((float) $latestInvestigationInvoice->balance_amount, 2) }}
     </a>
 @endif
-                                            {{-- RECEIPT REPRINT --}}
+                                            
+{{-- INVESTIGATION CANCELLATION --}}
+@if (
+    $latestInvestigationInvoice
+    && auth()->user()->hasPermission(
+        'billing.investigation-cancellation.request'
+    )
+)
+    <a
+        href="{{ route('billing.investigation-cancellations.invoice', $latestInvestigationInvoice->id) }}"
+        class="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+    >
+        Request Cancellation
+    </a>
+@endif
+
+{{-- RECEIPT REPRINT --}}
                                             @if ($latestInvestigationPayment)
 
                                                 <div class="mt-2 flex flex-col items-end">

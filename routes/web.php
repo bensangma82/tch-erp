@@ -114,6 +114,62 @@ Route::middleware([
     )->name('dashboard.metrics');
 
     /*
+|--------------------------------------------------------------------------
+| Investigation Cancellation — Development
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/billing/investigation-cancellations/{cancellation}/execute-dummy',
+    [\App\Http\Controllers\InvestigationCancellationExecuteController::class, 'execute'])
+    ->whereNumber('cancellation')->name('billing.investigation-cancellations.execute');
+
+// Investigation invoice reconciliation; no financial writes.
+// Development-only maker-checker refund evidence workflow. No transfers.
+Route::get('/billing/investigation-refunds/verification',
+    [\App\Http\Controllers\InvestigationRefundSettlementCheckController::class,'index'])
+    ->name('billing.investigation-refunds.verification');
+Route::post('/billing/investigation-refunds/{cancellation}/submit',
+    [\App\Http\Controllers\InvestigationRefundSettlementCheckController::class,'submit'])
+    ->whereNumber('cancellation')->name('billing.investigation-refunds.submit');
+Route::post('/billing/investigation-refunds/verification/{check}',
+    [\App\Http\Controllers\InvestigationRefundSettlementCheckController::class,'verify'])
+    ->whereNumber('check')->name('billing.investigation-refunds.verify');
+
+Route::get('/billing/invoices/{invoice}/investigation-reconciliation',
+    [\App\Http\Controllers\InvestigationCancellationSettlementController::class, 'show'])
+    ->whereNumber('invoice')->name('billing.investigation-cancellations.reconciliation');
+// Disabled by default: local dummy test recording only, never a payment transfer.
+Route::post('/billing/investigation-cancellations/{cancellation}/refund-dummy',
+    [\App\Http\Controllers\InvestigationCancellationSettlementController::class, 'refund'])
+    ->whereNumber('cancellation')->name('billing.investigation-cancellations.refund-dummy');
+
+Route::get('/billing/investigation-cancellations/{cancellation}/preview',
+    [\App\Http\Controllers\InvestigationCancellationPreviewController::class, 'show'])
+    ->whereNumber('cancellation')->name('billing.investigation-cancellations.preview');
+
+Route::get(
+    '/billing/investigation-cancellations',
+    [\App\Http\Controllers\InvestigationCancellationReviewController::class, 'queue']
+)->name('billing.investigation-cancellations.queue');
+
+Route::get(
+    '/billing/invoices/{invoice}/investigation-cancellations',
+    [\App\Http\Controllers\InvestigationCancellationReviewController::class, 'invoice']
+)->whereNumber('invoice')
+ ->name('billing.investigation-cancellations.invoice');
+
+Route::post(
+    '/billing/investigations/items/{invoiceItem}/cancellation-requests',
+    [\App\Http\Controllers\InvestigationCancellationController::class, 'requestCancellation']
+)->whereNumber('invoiceItem')
+ ->name('billing.investigation-cancellations.request');
+
+Route::post(
+    '/billing/investigations/cancellation-requests/{cancellation}/decision',
+    [\App\Http\Controllers\InvestigationCancellationController::class, 'decide']
+)->whereNumber('cancellation')
+ ->name('billing.investigation-cancellations.decide');
+    /*
     |--------------------------------------------------------------------------
     | System Administration - User Management / Role Permissions
     |--------------------------------------------------------------------------

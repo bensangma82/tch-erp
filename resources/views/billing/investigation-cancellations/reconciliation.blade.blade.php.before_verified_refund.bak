@@ -1,0 +1,50 @@
+<x-app-layout>
+<div class="max-w-5xl mx-auto p-6 space-y-4">
+<h1 class="text-2xl font-bold">Investigation cancellation reconciliation — {{ $invoice->invoice_no }}</h1>
+<p class="text-amber-700">The original invoice and receipts remain unchanged. Figures below reflect executed cancellation journals and completed refund records.</p>
+@if(session('success'))<p class="text-green-700" role="status">{{ session('success') }}</p>@endif
+@if($errors->any())<p class="text-red-700" role="alert">{{ $errors->first() }}</p>@endif
+@php $money = fn ($n) => '₹'.number_format($n / 100, 2); @endphp
+<table class="w-full bg-white text-left border-collapse">
+@foreach([
+'Original invoice' => $summary['invoice_total'],
+'Original receipts collected' => $summary['paid'],
+'Executed cancellation amount' => $summary['executed_cancellations'],
+'Revised net bill' => $summary['revised_net_bill'],
+'Completed refunds' => $summary['completed_refunds'],
+'Net cash retained' => $summary['net_paid'],
+'Balance due' => $summary['balance_due'],
+'Potential refundable overpayment' => $summary['potential_refund']
+] as $label => $value)
+<tr class="border-b"><th class="p-3">{{ $label }}</th><td class="p-3 text-right">{{ $money($value) }}</td></tr>
+@endforeach
+</table>
+@if($summary['refund_hold'])<p class="text-red-700">Unresolved refund record exists. Further refund recording blocked until reconciliation.</p>@endif
+<h2 class="font-semibold">Cancellation history</h2>
+@foreach($summary['requests'] as $c)
+<p>#{{ $c->id }} — {{ ucfirst($c->status) }} — {{ $money((int)round(((float)($c->approved_amount ?? $c->requested_amount))*100)) }}</p>
+@endforeach
+<h2 class="font-semibold">Recorded refunds</h2>
+@forelse($summary['refunds'] as $r)
+<p>#{{ $r->id }} — {{ $money((int)round(((float)$r->amount)*100)) }} — {{ $r->status }} — {{ $r->reference_no }}</p>
+@empty<p>No refund recorded.</p>@endforelse
+@if($dummyEnabled && $eligible && $summary['potential_refund'] === 50000 && !$summary['refund_hold'] && $summary['refunds']->isEmpty())
+<div class="border border-red-300 p-4 space-y-3">
+<h2 class="font-semibold text-red-700">Development-only cash refund recording</h2>
+<p>Only use AFTER physically handing over ₹500 cash to the dummy test patient and documenting the cashier voucher. This form does not transfer cash or independently verify payment. Posting is irreversible through this screen.</p>
+<form method="POST" action="{{ route('billing.investigation-cancellations.refund-dummy', $eligible) }}" class="space-y-3">
+@csrf
+<input type="hidden" name="payment_id" value="29" />
+<input type="hidden" name="amount" value="500.00" />
+<label class="block">Cash settlement voucher/reference <input class="border p-2 w-full" required minlength="6" maxlength="100" name="reference" /></label>
+<label class="block"><input type="checkbox" required name="cashier_attestation" value="1" /> I attest ₹500 cash was actually returned and the cash voucher exists.</label>
+<label class="block">Type RECEIPT 29 CASH REFUND PAID <input class="border p-2 w-full" required name="confirmation" /></label>
+<button class="border border-red-600 text-red-700 p-2" type="submit">Record completed ₹500 cash refund</button>
+</form>
+</div>
+@else
+<p class="text-slate-600">Refund entry unavailable. This screen is read-only unless the strictly restricted local dummy test is enabled and eligible.</p>
+@endif
+<a class="underline" href="{{ route('billing.investigation-cancellations.queue', ['status'=>'executed']) }}">Back to executed cancellations</a>
+</div>
+</x-app-layout>

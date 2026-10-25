@@ -1503,6 +1503,36 @@
                     @endif
 
 
+
+                    {{-- Investigation Cancellation Navigation --}}
+                    @if (
+                        auth()->user()->hasPermission('billing.investigation-cancellation.request')
+                        || auth()->user()->hasPermission('billing.investigation-cancellation.approve')
+                    )
+                        <a
+                            href="{{ route('billing.index') }}"
+                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium text-slate-400 hover:bg-slate-900/70 hover:text-slate-100"
+                        >
+                            Investigation Cancellations
+                        </a>
+                    @endif
+
+                    @if (
+                        auth()->user()->hasPermission('billing.investigation-cancellation.approve')
+                    )
+                        <a
+                            href="{{ route('billing.investigation-cancellations.queue') }}"
+                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+                                {{
+                                    request()->routeIs('billing.investigation-cancellations.queue')
+                                        ? 'bg-slate-800/90 text-white'
+                                        : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+                                }}"
+                        >
+                            Cancellation Approvals
+                        </a>
+                    @endif
+
                     {{-- Management Information System --}}
                     @if (
                         auth()->user()->hasRole('admin')
