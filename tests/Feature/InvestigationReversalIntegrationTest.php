@@ -96,56 +96,281 @@ public function test_unprivileged_user_cannot_record_refund(): void
     }
 }
 
-    public function test_reversal_posts_balanced_journal_and_second_attempt_is_rejected_when_fixture_exists(): void
-    {
-        // Never copy real patient invoices to the test database automatically.
-        // Create an independently authorized, synthetic, approved investigation fixture
-        // in testing first. This test will skip if one does not exist.
-        $fixtureId = env('TCH_TEST_APPROVED_INVESTIGATION_CANCELLATION_ID');
-        if (!$fixtureId || !ctype_digit((string) $fixtureId)) {
-            $this->markTestSkipped('Set TCH_TEST_APPROVED_INVESTIGATION_CANCELLATION_ID to an approved synthetic record in testing.');
-        }
-        $request = InvestigationCancellationRequest::query()->findOrFail((int) $fixtureId);
-        $this->assertSame('approved', $request->status);
-        $this->assertNull($request->executed_at);
-        $this->assertSame('investigation', $request->invoice->invoice_type);
-        $this->assertStringStartsWith('TEST-', (string) $request->reason,
-            'Fixture reason must start with TEST-; never use a real record');
+   
+public function test_reversal_posts_balanced_journal_and_rejects_duplicate(): void
+{
+    $suffix = (string) \Illuminate\Support\Str::uuid();
+    $now = now();
 
-        // Admin override permits financial execution in existing RBAC, so use only
-        // in isolated synthetic tests. Production permission design is separate.
-       $actor = User::factory()->create([
-    'role' => 'admin',
-]);
+    $actor = User::factory()->create(['role' => 'admin']);
 
-$executionPermission = \App\Models\Permission::query()
-    ->where('name', 'billing.investigation-cancellation.execute')
-    ->firstOrFail();
+    $permission = \App\Models\Permission::firstOrCreate([
+        'name' => 'billing.investigation-cancellation.execute',
+    ]);
 
-$actor->permissions()->syncWithoutDetaching([
-    $executionPermission->id,
-]);
-        $originalPayments = Payment::where('invoice_id', $request->invoice_id)
-            ->orderBy('id')->get(['id', 'amount', 'receipt_no'])->toArray();
-        $invoiceTotal = (string) $request->invoice->total_amount;
-        $journal = app(InvestigationCancellationAccountingService::class)->reverseRevenue($request, $actor);
-        $this->assertSame('posted', $journal->status);
-        $this->assertSame('revenue_reversed', $journal->source_event);
-        $this->assertSame('executed', $request->fresh()->status);
-        $debits = (int) round($journal->lines->sum('debit') * 100);
-        $credits = (int) round($journal->lines->sum('credit') * 100);
-        $this->assertSame($debits, $credits);
-        $this->assertSame((int) round((float) $request->approved_amount * 100), $debits);
-        $this->assertSame($originalPayments, Payment::where('invoice_id', $request->invoice_id)
-            ->orderBy('id')->get(['id', 'amount', 'receipt_no'])->toArray());
-        $this->assertSame($invoiceTotal, (string) $request->invoice->fresh()->total_amount);
-        try {
-            app(InvestigationCancellationAccountingService::class)->reverseRevenue($request, $actor);
-            $this->fail('Duplicate cancellation reversal succeeded');
-        } catch (ValidationException $e) {
-            $this->assertSame(1, JournalEntry::where('source_type', 'investigation_cancellation_request')
-                ->where('source_id', $request->id)->where('source_event', 'revenue_reversed')->count());
-        }
-        // DatabaseTransactions rolls back this entire synthetic test.
+    $actor->permissions()->syncWithoutDetaching([$permission->id]);
+    $this->actingAs($actor);
+
+    // Synthetic accounting master records.
+    $financeHeadId = DB::table('finance_heads')->insertGetId([
+        'code' => 'TL-' . substr($suffix, 0, 20),
+        'name' => 'TEST Laboratory Revenue',
+        'head_type' => 'income',
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    foreach ([
+        ['1200', 'Patient Receivables', 'asset', 'debit'],
+        ['4201', 'Laboratory Revenue', 'income', 'credit'],
+    ] as [$code, $name, $type, $normal]) {
+        DB::table('general_ledger_accounts')->updateOrInsert(
+            ['account_code' => $code],
+            [
+                'account_name' => $name,
+                'account_type' => $type,
+                'account_group' => $type === 'asset'
+                    ? 'Sundry Debtors'
+                    : 'Direct Incomes',
+                'finance_head_id' => $code === '4201'
+                    ? $financeHeadId
+                    : null,
+                'normal_balance' => $normal,
+                'is_active' => true,
+                'allow_posting' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]
+        );
+    }
+
+    // Synthetic patient.
+    $patientId = DB::table('patients')->insertGetId([
+        'uhid' => 'TEST-' . $suffix,
+        'first_name' => 'Synthetic',
+        'last_name' => 'Cancellation',
+        'sex' => 'Male',
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    // Laboratory service.
+    $serviceId = DB::table('services')->insertGetId([
+        'code' => 'TEST-LAB-' . $suffix,
+        'name' => 'TEST Laboratory Investigation',
+        'category' => 'laboratory',
+        'finance_head_id' => $financeHeadId,
+        'price' => '500.00',
+        'is_active' => true,
+        'requires_sample' => false,
+        'requires_report' => false,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    // Clinical investigation order.
+    $orderId = DB::table('service_orders')->insertGetId([
+        'order_no' => 'TEST-ORD-' . $suffix,
+        'patient_id' => $patientId,
+        'ordered_at' => $now,
+        'status' => 'draft',
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    $orderItemId = DB::table('service_order_items')->insertGetId([
+        'service_order_id' => $orderId,
+        'service_id' => $serviceId,
+        'service_code' => 'TEST-LAB-' . $suffix,
+        'service_name' => 'TEST Laboratory Investigation',
+        'category' => 'laboratory',
+        'quantity' => 1,
+        'unit_price' => '500.00',
+        'amount' => '500.00',
+        'status' => 'ordered',
+        'requires_sample' => false,
+        'requires_report' => false,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    // Original invoice and payment.
+    $invoiceId = DB::table('invoices')->insertGetId([
+        'invoice_no' => 'TEST-INV-' . $suffix,
+        'patient_id' => $patientId,
+        'invoice_date' => today(),
+        'invoice_type' => 'investigation',
+        'subtotal' => '500.00',
+        'discount' => '0.00',
+        'total_amount' => '500.00',
+        'paid_amount' => '500.00',
+        'balance_amount' => '0.00',
+        'status' => 'paid',
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    $invoiceItemId = DB::table('invoice_items')->insertGetId([
+        'invoice_id' => $invoiceId,
+        'service_order_item_id' => $orderItemId,
+        'service_id' => $serviceId,
+        'description' => 'TEST Laboratory Investigation',
+        'quantity' => 1,
+        'unit_price' => '500.00',
+        'discount' => '0.00',
+        'amount' => '500.00',
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    $paymentId = DB::table('payments')->insertGetId([
+        'receipt_no' => 'TEST-RCP-' . $suffix,
+        'invoice_id' => $invoiceId,
+        'patient_id' => $patientId,
+        'payment_date' => $now,
+        'amount' => '500.00',
+        'payment_mode' => 'cash',
+        'received_by' => $actor->id,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    // Synthetic posted accounting prerequisites.
+    foreach ([
+        ['invoice', $invoiceId, 'issued', 'INV'],
+        ['payment', $paymentId, 'received', 'RCP'],
+    ] as [$sourceType, $sourceId, $sourceEvent, $prefix]) {
+        DB::table('journal_entries')->insert([
+            'journal_no' => 'TEST-JRN-' . $prefix . '-' . $suffix,
+            'journal_date' => today(),
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+            'source_event' => $sourceEvent,
+            'reference_no' => 'TEST-' . $prefix . '-' . $suffix,
+            'narration' => 'Synthetic prerequisite journal',
+            'status' => 'posted',
+            'created_by' => $actor->id,
+            'posted_by' => $actor->id,
+            'posted_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    $cancellationId = DB::table(
+        'investigation_cancellation_requests'
+    )->insertGetId([
+        'invoice_id' => $invoiceId,
+        'invoice_item_id' => $invoiceItemId,
+        'service_order_item_id' => $orderItemId,
+        'clinical_status_at_request' => 'ordered',
+        'sample_collected_at_request' => false,
+        'requires_ms_approval' => false,
+        'requested_amount' => '500.00',
+        'approved_amount' => '500.00',
+        'status' => 'approved',
+        'reason' => 'TEST - Synthetic cancellation',
+        'requested_by' => $actor->id,
+        'reviewed_by' => $actor->id,
+        'reviewed_at' => $now,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    $request = InvestigationCancellationRequest::findOrFail(
+        $cancellationId
+    );
+
+    $originalPayments = Payment::where(
+        'invoice_id',
+        $invoiceId
+    )->get(['id', 'amount', 'receipt_no'])->toArray();
+
+    $invoiceTotal = (string) $request->invoice->total_amount;
+
+    // Execute real reversal accounting service.
+    $accounting = app(
+        InvestigationCancellationAccountingService::class
+    );
+
+    $journal = $accounting->reverseRevenue($request, $actor);
+
+    $this->assertSame('posted', $journal->status);
+    $this->assertSame('revenue_reversed', $journal->source_event);
+    $this->assertSame('executed', $request->fresh()->status);
+
+    $this->assertSame(
+        'JRN-ICR-' . $cancellationId,
+        $journal->journal_no
+    );
+
+    $lines = DB::table('journal_entry_lines as line')
+        ->join(
+            'general_ledger_accounts as gl',
+            'gl.id',
+            '=',
+            'line.general_ledger_account_id'
+        )
+        ->where('line.journal_entry_id', $journal->id)
+        ->select('gl.account_code', 'line.debit', 'line.credit')
+        ->get();
+
+    $this->assertCount(2, $lines);
+
+    $revenue = $lines->firstWhere('account_code', '4201');
+    $receivable = $lines->firstWhere('account_code', '1200');
+
+    $this->assertNotNull($revenue);
+    $this->assertNotNull($receivable);
+
+    $this->assertEqualsWithDelta(500, $revenue->debit, 0.001);
+    $this->assertEqualsWithDelta(0, $revenue->credit, 0.001);
+
+    $this->assertEqualsWithDelta(0, $receivable->debit, 0.001);
+    $this->assertEqualsWithDelta(500, $receivable->credit, 0.001);
+
+    $this->assertEqualsWithDelta(
+        500,
+        $lines->sum('debit'),
+        0.001
+    );
+
+    $this->assertEqualsWithDelta(
+        500,
+        $lines->sum('credit'),
+        0.001
+    );
+
+    // Original payment and invoice must remain unchanged.
+    $this->assertSame(
+        $originalPayments,
+        Payment::where('invoice_id', $invoiceId)
+            ->get(['id', 'amount', 'receipt_no'])
+            ->toArray()
+    );
+
+    $this->assertSame(
+        $invoiceTotal,
+        (string) $request->invoice->fresh()->total_amount
+    );
+
+    // Duplicate execution must fail.
+    try {
+        $accounting->reverseRevenue($request, $actor);
+
+        $this->fail('Duplicate cancellation reversal succeeded.');
+    } catch (ValidationException $e) {
+        $this->assertSame(
+            1,
+            JournalEntry::where(
+                'source_type',
+                'investigation_cancellation_request'
+            )
+                ->where('source_id', $cancellationId)
+                ->where('source_event', 'revenue_reversed')
+                ->count()
+        );
     }
 }
+}
+
