@@ -68,10 +68,39 @@ class JournalPostingService
                 ]);
             }
 
-            $journal->status = 'posted';
-            $journal->posted_at = now();
-            $journal->posted_by = auth()->id();
-            $journal->save();
+            // Resolve the posting actor.
+// Prefer the authenticated user during normal HTTP requests.
+// For explicitly authorised service calls, retain the
+// previously assigned posting user.
+
+$authenticatedUserId = auth()->id();
+
+if (
+    $authenticatedUserId !== null &&
+    $journal->posted_by !== null &&
+    (int) $authenticatedUserId !== (int) $journal->posted_by
+) {
+    throw ValidationException::withMessages([
+        'journal' => 'Posting user does not match the authorised verifier.',
+    ]);
+}
+
+$postingUserId = $authenticatedUserId
+    ?? $journal->posted_by;
+
+if (
+    $postingUserId === null ||
+    ! \App\Models\User::query()->whereKey($postingUserId)->exists()
+) {
+    throw ValidationException::withMessages([
+        'journal' => 'An authorised posting user is required.',
+    ]);
+}
+
+$journal->posted_by = $postingUserId;
+$journal->posted_at = now();
+$journal->status = 'posted';
+$journal->save();
 
             return $journal->fresh('lines');
         });
