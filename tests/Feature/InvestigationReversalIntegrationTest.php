@@ -29,19 +29,35 @@ class InvestigationReversalIntegrationTest extends TestCase
             'REFUSING TO RUN: current DB is not testing');
     }
 
-    public function test_unprivileged_user_cannot_execute_revenue_reversal(): void
-    {
-        $actor = User::factory()->create(['role' => 'reception']);
-        $cancellation = new InvestigationCancellationRequest();
-        $before = JournalEntry::count();
-        try {
-            app(InvestigationCancellationAccountingService::class)->reverseRevenue($cancellation, $actor);
-            $this->fail('Unprivileged actor was allowed');
-        } catch (ValidationException $e) {
-            $this->assertSame($before, JournalEntry::count());
-            $this->assertArrayHasKey('cancellation', $e->errors());
-        }
+    
+public function test_unprivileged_user_cannot_execute_revenue_reversal(): void
+{
+    $actor = User::factory()->create([
+        'role' => 'reception',
+    ]);
+
+    $cancellation = new InvestigationCancellationRequest();
+
+    $before = JournalEntry::count();
+
+    try {
+        app(InvestigationCancellationAccountingService::class)
+            ->reverseRevenue($cancellation, $actor);
+
+        $this->fail('Unprivileged actor was allowed');
+
+    } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+
+        $this->assertSame(403, $e->getStatusCode());
+
+        $this->assertSame(
+            $before,
+            JournalEntry::count(),
+            'Unauthorized reversal must not create a journal entry.'
+        );
     }
+}
+
 
     public function test_unprivileged_user_cannot_record_refund(): void
     {
