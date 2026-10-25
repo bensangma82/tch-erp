@@ -9,61 +9,61 @@
     |--------------------------------------------------------------------------
     */
 
+   
+    /*
+    |--------------------------------------------------------------------------
+    | Functional Module Visibility
+    |--------------------------------------------------------------------------
+    | Permissions control navigation visibility.
+    | Sensitive financial actions retain direct-user authorization.
+    */
+
     $canReception =
-        $isAdmin
-        || $user->hasRole('reception');
+        $isAdmin || $user->hasPermission('patients.view')
+        || $user->hasPermission('opd.view');
 
     $canNursing =
-        $isAdmin
-        || $user->hasRole('nursing');
+        $isAdmin || $user->hasPermission('nursing.view');
 
     $canBilling =
-        $isAdmin
-        || $user->hasRole('billing');
+        $isAdmin || $user->hasPermission('billing.view');
 
     $canFinance =
-        $isAdmin
-        || $user->hasRole('finance');
+        $isAdmin || $user->hasPermission('finance.dashboard')
+        || $user->hasPermission('finance.vouchers.view')
+        || $user->hasPermission('finance.reports')
+        || $user->hasPermission('finance.master');
 
     $canLaboratory =
-        $isAdmin
-        || $user->hasRole('laboratory');
+        $isAdmin || $user->hasPermission('laboratory.view');
 
     $canRadiology =
-        $isAdmin
-        || $user->hasRole('radiology');
+        $isAdmin || $user->hasPermission('radiology.view');
 
     $canPharmacy =
-        $isAdmin
-        || $user->hasRole('pharmacy');
+        $isAdmin || $user->hasPermission('pharmacy.view');
 
     $canDoctor =
-        $isAdmin
-        || $user->hasRole('doctor');
+        $isAdmin || $user->hasRole('doctor');
 
     $canStores =
-        $isAdmin
-        || $user->hasRole('stores');
+        $isAdmin || $user->hasRole('stores');
 
     $canHr =
-        $isAdmin
-        || $user->hasRole('hr');
+        $isAdmin || $user->hasPermission('hr.departments')
+        || $user->hasPermission('hr.employees');
 
     $canMedicalRecords =
-        $isAdmin
-        || $user->hasRole('medical_records');
+        $isAdmin || $user->hasRole('medical_records');
 
     $canEmergency =
-        $isAdmin
-        || $user->hasRole('emergency');
+        $isAdmin || $user->hasPermission('emergency.view');
 
     $canIpd =
-        $isAdmin
-        || $user->hasRole('ipd');
+        $isAdmin || $user->hasPermission('ipd.view');
 
     $canManagement =
-        $isAdmin
-        || $user->hasRole('management');
+        $isAdmin || $user->hasRole('management');
 
 
     /*
