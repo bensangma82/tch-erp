@@ -415,6 +415,103 @@
                     </div>
 
 
+{{-- Direct Investigation Refund Permissions --}}
+@if($canManageRefundPermissions)
+
+    <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-5 space-y-4">
+
+        <input type="hidden"
+               name="manage_refund_permissions"
+               value="1">
+
+        <div>
+            <h4 class="text-base font-bold text-slate-900">
+                Sensitive Financial Permissions
+            </h4>
+
+            <p class="mt-1 text-sm text-slate-600">
+                Assign direct investigation refund permissions
+                to this individual user.
+            </p>
+        </div>
+
+        <div class="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p class="text-sm text-amber-900">
+                <strong>Separation of duties:</strong>
+                Refund processing and independent verification
+                must be assigned to different users.
+            </p>
+        </div>
+
+        @php
+
+$selectedRefundPermissions = old(
+    'refund_permissions',
+    array_values(array_intersect(
+        $userPermissionNames,
+        [
+            'billing.investigation-refund.process',
+            'billing.investigation-refund.verify',
+            'billing.investigation-cancellation.execute',
+        ]
+    ))
+);
+
+        @endphp
+
+        <div class="grid gap-4 md:grid-cols-2">
+
+            @foreach($refundPermissions as $permission)
+
+                <label class="flex items-start gap-3 rounded-lg
+                              border border-slate-200 bg-white p-4">
+
+                    <input
+                        type="checkbox"
+                        name="refund_permissions[]"
+                        value="{{ $permission->name }}"
+                        @checked(in_array(
+                            $permission->name,
+                            $selectedRefundPermissions,
+                            true
+                        ))
+                        class="mt-1 rounded border-slate-300"
+                    >
+
+                    <span>
+                        <span class="block text-sm font-semibold text-slate-900">
+
+{{ match ($permission->name) {
+    'billing.investigation-refund.process'
+        => 'Process Investigation Refund',
+    'billing.investigation-refund.verify'
+        => 'Verify Investigation Refund',
+    'billing.investigation-cancellation.execute'
+        => 'Execute Investigation Cancellation Reversal',
+    default => $permission->name,
+} }}
+
+                        </span>
+
+                        <span class="mt-1 block text-xs font-mono text-slate-500">
+                            {{ $permission->name }}
+                        </span>
+                    </span>
+
+                </label>
+
+            @endforeach
+
+        </div>
+
+        @error('refund_permissions')
+            <p class="text-sm text-red-600">{{ $message }}</p>
+        @enderror
+
+    </div>
+
+@endif
+
 
                     <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-6">
 
