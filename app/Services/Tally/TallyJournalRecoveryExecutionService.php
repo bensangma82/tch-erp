@@ -78,6 +78,7 @@ class TallyJournalRecoveryExecutionService
 
             $attempt->update([
                 'status' => 'claimed',
+                'claimed_at' => now(),
             ]);
 
             return $attempt->fresh();

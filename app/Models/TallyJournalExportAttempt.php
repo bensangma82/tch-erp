@@ -20,6 +20,7 @@ class TallyJournalExportAttempt extends Model
         'recovery_authorized_at',
         'recovery_reason',
         'reconciliation_evidence',
+        'claimed_at',
         'transmitted_at',
         'confirmed_at',
     ];

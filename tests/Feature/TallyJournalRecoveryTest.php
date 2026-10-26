@@ -476,6 +476,7 @@ class TallyJournalRecoveryTest extends TestCase
         $claimed = $service->claim($export->id, $user->id);
 
         $this->assertSame('claimed', $claimed->status);
+        $this->assertNotNull($claimed->claimed_at);
 
         try {
             $service->claim($export->id, $user->id);
