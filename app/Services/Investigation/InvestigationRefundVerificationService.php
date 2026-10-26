@@ -538,15 +538,15 @@ final class InvestigationRefundVerificationService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! in_array(
-                $settlement->status,
-                ['initiated', 'disbursed', 'submitted'],
-                true
-            )) {
-                $this->deny(
-                    'Only pending, unverified settlements may be voided.'
-                );
-            }
+
+if ($settlement->status !== 'initiated') {
+    $this->deny(
+        'Only initiated settlements may be voided. ' .
+        'Recorded disbursements require independent ' .
+        'payment reconciliation before any status change.'
+    );
+}
+
 
 
 if ($settlement->refund_id !== null) {
