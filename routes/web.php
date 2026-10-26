@@ -1198,6 +1198,20 @@ Route::post(
                 'index'
             ]
         )->name('finance.tally.journals.index');
+    // Audited recovery workflow: authenticated, authorized, explicitly -Test company only.
+    Route::get('/admin/finance/tally/journal-exports/{tallyExport}/recovery',
+        [\App\Http\Controllers\Finance\TallyJournalRecoveryWebController::class, 'show'])
+        ->whereNumber('tallyExport')->name('finance.tally.journals.recovery.show');
+    Route::post('/admin/finance/tally/journal-exports/{tallyExport}/recovery/resolve',
+        [\App\Http\Controllers\Finance\TallyJournalRecoveryWebController::class, 'resolve'])
+        ->whereNumber('tallyExport')->name('finance.tally.journals.recovery.resolve');
+    Route::post('/admin/finance/tally/journal-exports/{tallyExport}/recovery/approve',
+        [\App\Http\Controllers\Finance\TallyJournalRecoveryWebController::class, 'approve'])
+        ->whereNumber('tallyExport')->name('finance.tally.journals.recovery.approve');
+    Route::post('/admin/finance/tally/journal-exports/{tallyExport}/recovery/send',
+        [\App\Http\Controllers\Finance\TallyJournalRecoveryWebController::class, 'send'])
+        ->whereNumber('tallyExport')->name('finance.tally.journals.recovery.send');
+
         Route::get(
     '/admin/finance/tally/journals/{journalEntry}/preview',
     [

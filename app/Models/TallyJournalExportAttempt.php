@@ -27,6 +27,9 @@ class TallyJournalExportAttempt extends Model
         'claimed_at',
         'transmitted_at',
         'confirmed_at',
+        'rejection_resolved_by',
+        'rejection_resolved_at',
+        'rejection_resolution_evidence',
     ];
 
     protected $casts = [
@@ -34,6 +37,7 @@ class TallyJournalExportAttempt extends Model
         'recovery_authorized_at' => 'datetime',
         'transmitted_at' => 'datetime',
         'confirmed_at' => 'datetime',
+        'rejection_resolved_at' => 'datetime',
     ];
 
     public function tallyExport(): BelongsTo
