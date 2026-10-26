@@ -114,6 +114,7 @@ class TallyJournalRecoveryService
                 'tally_export_id' => $export->id,
                 'attempt_number' => $attemptNumber,
                 'status' => 'authorized',
+                // Snapshot the original export identity and response.
                 'remote_id' => $export->remote_id,
                 'export_reference' => $export->export_reference,
                 'tally_accounting_date' => $export->tally_accounting_date,

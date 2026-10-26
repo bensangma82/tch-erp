@@ -12,6 +12,12 @@ class TallyJournalRecoveryExecutionService
 {
     public function claim(int $exportId, int $userId): TallyJournalExportAttempt
     {
+        if (! config('tally.journal_export_enabled')) {
+            throw ValidationException::withMessages([
+                'recovery' => 'Tally journal export is disabled.',
+            ]);
+        }
+
         $user = \App\Models\User::findOrFail($userId);
 
         if (! $user->hasPermission('tally.journal-recovery.authorize')) {
@@ -84,4 +90,27 @@ class TallyJournalRecoveryExecutionService
             return $attempt->fresh();
         });
     }
+
+    public function prepareRetry(
+        int $exportId,
+        int $userId
+    ): TallyJournalExportAttempt {
+        return DB::transaction(function () use ($exportId, $userId) {
+            $attempt = $this->claim($exportId, $userId);
+
+            $attempt->update([
+                'status' => 'sending',
+                'remote_id' => (string) \Illuminate\Support\Str::uuid(),
+                'export_reference' => 'TALLY-RECOVERY-'
+                    . \Illuminate\Support\Str::upper(
+                        \Illuminate\Support\Str::uuid()->toString()
+                    ),
+                'transmitted_at' => null,
+            ]);
+
+            return $attempt->fresh();
+        });
+    }
+
+
 }

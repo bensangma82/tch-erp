@@ -13,6 +13,14 @@ class TallyJournalRecoveryTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('tally.journal_export_enabled', true);
+    }
+
+
     public function test_user_without_permission_cannot_authorize_recovery(): void
     {
         $user = User::factory()->create();
@@ -599,6 +607,251 @@ class TallyJournalRecoveryTest extends TestCase
             $this->assertSame('authorized', $attempt->fresh()->status);
             $this->assertSame('unknown', $export->fresh()->status);
         }
+    }
+
+
+    public function test_retry_preparation_preserves_original_export(): void
+    {
+        $user = User::factory()->create();
+
+        $permission = \App\Models\Permission::firstOrCreate(
+            ['name' => 'tally.journal-recovery.authorize'],
+            ['label' => 'Authorize Tally Journal Recovery', 'module' => 'finance']
+        );
+
+        $user->permissions()->syncWithoutDetaching([$permission->id]);
+
+        $journal = \App\Models\JournalEntry::create([
+            'journal_no' => 'JRN-RECOVERY-PREP-001',
+            'journal_date' => '2026-10-26',
+            'source_type' => 'recovery_test',
+            'source_id' => 999010,
+            'source_event' => 'test',
+            'status' => 'posted',
+            'created_by' => $user->id,
+            'posted_by' => $user->id,
+            'posted_at' => now(),
+        ]);
+
+        $originalId = (string) \Illuminate\Support\Str::uuid();
+
+        $export = TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'unknown',
+            'export_reference' => 'TEST-ORIGINAL-001',
+            'remote_id' => $originalId,
+        ]);
+
+        \App\Models\TallyJournalExportAttempt::create([
+            'tally_export_id' => $export->id,
+            'attempt_number' => 1,
+            'status' => 'authorized',
+            'recovery_authorized_by' => $user->id,
+            'recovery_authorized_at' => now(),
+            'recovery_reason' => 'Rejected export',
+            'reconciliation_evidence' => 'Independently verified',
+        ]);
+
+        $attempt = app(
+            \App\Services\Tally\TallyJournalRecoveryExecutionService::class
+        )->prepareRetry($export->id, $user->id);
+
+        $this->assertSame('sending', $attempt->status);
+        $this->assertNotNull($attempt->claimed_at);
+        $this->assertNotNull($attempt->remote_id);
+        $this->assertNotSame($originalId, $attempt->remote_id);
+        $this->assertSame('unknown', $export->fresh()->status);
+        $this->assertSame($originalId, $export->fresh()->remote_id);
+        $this->assertDatabaseCount('tally_journal_export_attempts', 1);
+    }
+
+
+    public function test_uncertain_recovery_response_remains_unknown(): void
+    {
+        $user = User::factory()->create();
+
+        $journal = \App\Models\JournalEntry::create([
+            'journal_no' => 'JRN-RECOVERY-OUTCOME-001',
+            'journal_date' => '2026-10-26',
+            'source_type' => 'recovery_test',
+            'source_id' => 999011,
+            'source_event' => 'test',
+            'status' => 'posted',
+            'created_by' => $user->id,
+            'posted_by' => $user->id,
+            'posted_at' => now(),
+        ]);
+
+        $export = TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'unknown',
+            'export_reference' => 'TEST-OUTCOME-001',
+            'remote_id' => (string) \Illuminate\Support\Str::uuid(),
+        ]);
+
+        $attempt = \App\Models\TallyJournalExportAttempt::create([
+            'tally_export_id' => $export->id,
+            'attempt_number' => 1,
+            'status' => 'sending',
+            'remote_id' => (string) \Illuminate\Support\Str::uuid(),
+        ]);
+
+        $response = '<RESPONSE>'
+            .'<LINEERROR>Voucher rejected</LINEERROR>'
+            .'<CREATED>0</CREATED>'
+            .'<ALTERED>0</ALTERED>'
+            .'<DELETED>0</DELETED>'
+            .'<IGNORED>0</IGNORED>'
+            .'<ERRORS>0</ERRORS>'
+            .'<CANCELLED>0</CANCELLED>'
+            .'</RESPONSE>';
+
+        $result = app(
+            \App\Services\Tally\TallyJournalRecoveryOutcomeService::class
+        )->record($attempt->id, $response);
+
+        $this->assertSame('unknown', $result->status);
+        $this->assertSame($response, $result->tally_response);
+        $this->assertSame('unknown', $export->fresh()->status);
+    }
+
+
+    public function test_successful_recovery_response_confirms_attempt(): void
+    {
+        $user = User::factory()->create();
+
+        $journal = \App\Models\JournalEntry::create([
+            'journal_no' => 'JRN-RECOVERY-SUCCESS-001',
+            'journal_date' => '2026-10-26',
+            'source_type' => 'recovery_test',
+            'source_id' => 999012,
+            'source_event' => 'test',
+            'status' => 'posted',
+            'created_by' => $user->id,
+            'posted_by' => $user->id,
+            'posted_at' => now(),
+        ]);
+
+        $export = TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'unknown',
+            'export_reference' => 'TEST-SUCCESS-001',
+            'remote_id' => (string) \Illuminate\Support\Str::uuid(),
+        ]);
+
+        $attempt = \App\Models\TallyJournalExportAttempt::create([
+            'tally_export_id' => $export->id,
+            'attempt_number' => 1,
+            'status' => 'sending',
+            'remote_id' => (string) \Illuminate\Support\Str::uuid(),
+        ]);
+
+        $response = '<RESPONSE>'
+            .'<CREATED>1</CREATED>'
+            .'<ALTERED>0</ALTERED>'
+            .'<IGNORED>0</IGNORED>'
+            .'<ERRORS>0</ERRORS>'
+            .'<CANCELLED>0</CANCELLED>'
+            .'<LASTVCHID>9</LASTVCHID>'
+            .'</RESPONSE>';
+
+        $result = app(
+            \App\Services\Tally\TallyJournalRecoveryOutcomeService::class
+        )->record($attempt->id, $response);
+
+        $this->assertSame('confirmed', $result->status);
+        $this->assertNotNull($result->confirmed_at);
+        $this->assertSame($response, $result->tally_response);
+
+        $updatedExport = $export->fresh();
+
+        $this->assertSame('confirmed', $updatedExport->status);
+        $this->assertSame('9', (string) $updatedExport->tally_voucher_id);
+        $this->assertNotNull($updatedExport->confirmed_at);
+        $this->assertSame(
+            $export->remote_id,
+            $updatedExport->remote_id
+        );
+    }
+
+
+    public function test_recovery_http_failure_is_recorded_as_unknown(): void
+    {
+        $user = User::factory()->create();
+
+        $permission = \App\Models\Permission::firstOrCreate(
+            ['name' => 'tally.journal-recovery.authorize'],
+            ['label' => 'Authorize Tally Journal Recovery', 'module' => 'finance']
+        );
+        $user->permissions()->syncWithoutDetaching([$permission->id]);
+
+        $journal = \App\Models\JournalEntry::create([
+            'journal_no' => 'JRN-RECOVERY-HTTP-001',
+            'journal_date' => '2026-10-26',
+            'source_type' => 'recovery_test',
+            'source_id' => 999013,
+            'source_event' => 'test',
+            'status' => 'posted',
+            'created_by' => $user->id,
+            'posted_by' => $user->id,
+            'posted_at' => now(),
+        ]);
+
+        $export = TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'unknown',
+            'export_reference' => 'TEST-HTTP-001',
+            'remote_id' => (string) \Illuminate\Support\Str::uuid(),
+        ]);
+
+        \App\Models\TallyJournalExportAttempt::create([
+            'tally_export_id' => $export->id,
+            'attempt_number' => 1,
+            'status' => 'authorized',
+            'recovery_authorized_by' => $user->id,
+            'recovery_authorized_at' => now(),
+            'recovery_reason' => 'Rejected original transmission',
+            'reconciliation_evidence' => 'Verified in Tally test company',
+        ]);
+
+        $builder = \Mockery::mock(
+            \App\Services\Tally\TallyJournalXmlBuilder::class
+        );
+
+        $builder->shouldReceive('build')
+            ->once()
+            ->andReturn('<ENVELOPE><BODY>TEST</BODY></ENVELOPE>');
+
+        $this->app->instance(
+            \App\Services\Tally\TallyJournalXmlBuilder::class,
+            $builder
+        );
+
+        $client = \Mockery::mock(
+            \App\Services\Tally\TallyHttpClient::class
+        );
+
+        $client->shouldReceive('postXml')
+            ->once()
+            ->andThrow(new \RuntimeException('Simulated network failure'));
+
+        $this->app->instance(
+            \App\Services\Tally\TallyHttpClient::class,
+            $client
+        );
+
+        $result = app(
+            \App\Services\Tally\TallyJournalRecoveryTransmissionService::class
+        )->send($export->id, $user->id);
+
+        $this->assertSame('unknown', $result['status']);
+
+        $this->assertDatabaseHas('tally_journal_export_attempts', [
+            'tally_export_id' => $export->id,
+            'status' => 'unknown',
+        ]);
+
+        $this->assertSame('unknown', $export->fresh()->status);
     }
 
 }
