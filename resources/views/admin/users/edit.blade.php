@@ -444,16 +444,19 @@
         </div>
 
         @php
-            $selectedRefundPermissions = old(
-                'refund_permissions',
-                array_values(array_intersect(
-                    $userPermissionNames,
-                    [
-                        'billing.investigation-refund.process',
-                        'billing.investigation-refund.verify',
-                    ]
-                ))
-            );
+
+$selectedRefundPermissions = old(
+    'refund_permissions',
+    array_values(array_intersect(
+        $userPermissionNames,
+        [
+            'billing.investigation-refund.process',
+            'billing.investigation-refund.verify',
+            'billing.investigation-cancellation.execute',
+        ]
+    ))
+);
+
         @endphp
 
         <div class="grid gap-4 md:grid-cols-2">
@@ -477,9 +480,17 @@
 
                     <span>
                         <span class="block text-sm font-semibold text-slate-900">
-                            {{ $permission->name === 'billing.investigation-refund.process'
-                                ? 'Process Investigation Refund'
-                                : 'Verify Investigation Refund' }}
+
+{{ match ($permission->name) {
+    'billing.investigation-refund.process'
+        => 'Process Investigation Refund',
+    'billing.investigation-refund.verify'
+        => 'Verify Investigation Refund',
+    'billing.investigation-cancellation.execute'
+        => 'Execute Investigation Cancellation Reversal',
+    default => $permission->name,
+} }}
+
                         </span>
 
                         <span class="mt-1 block text-xs font-mono text-slate-500">

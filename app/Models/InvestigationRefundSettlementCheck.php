@@ -30,6 +30,10 @@ class InvestigationRefundSettlementCheck extends Model
         'disbursed_at',
         'disbursement_reference',
         'disbursement_evidence',
+        'voided_by',
+        'voided_at',
+        'void_reason',
+        'void_evidence_reference',
     ];
 
     protected $casts = [
@@ -37,6 +41,7 @@ class InvestigationRefundSettlementCheck extends Model
         'verified_at' => 'datetime',
         'initiated_at' => 'datetime',
         'disbursed_at' => 'datetime',
+        'voided_at' => 'datetime',
     ];
 
     public function cancellation(): BelongsTo
@@ -94,4 +99,12 @@ class InvestigationRefundSettlementCheck extends Model
             'disbursed_by'
         );
     }
+
+    public function voidedBy(): BelongsTo
+{
+    return $this->belongsTo(
+        User::class,
+        'voided_by'
+    );
+}
 }

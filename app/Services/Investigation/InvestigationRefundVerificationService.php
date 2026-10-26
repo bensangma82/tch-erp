@@ -508,4 +508,141 @@ final class InvestigationRefundVerificationService
             return $s->refresh();
         }, 3);
     }
+
+    /**
+     * Void a settlement without deleting its audit history.
+     *
+     * No cash or bank transaction is performed.
+     */
+    public function voidSettlement(
+        InvestigationRefundSettlementCheck $check,
+        User $officer,
+        string $reason,
+        string $evidenceReference
+    ): InvestigationRefundSettlementCheck {
+        if (! $this->direct(
+            $officer,
+            'billing.investigation-refund.void'
+        )) {
+            abort(403, 'Direct settlement void permission required.');
+        }
+
+        return DB::transaction(function () use (
+            $check,
+            $officer,
+            $reason,
+            $evidenceReference
+        ) {
+            $settlement = InvestigationRefundSettlementCheck::query()
+                ->whereKey($check->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! in_array(
+                $settlement->status,
+                ['initiated', 'disbursed', 'submitted'],
+                true
+            )) {
+                $this->deny(
+                    'Only pending, unverified settlements may be voided.'
+                );
+            }
+
+
+if ($settlement->refund_id !== null) {
+    $this->deny('A linked refund cannot be voided.');
+}
+
+
+$refundIds = InvestigationCancellationRefund::query()
+    ->where(
+        'investigation_cancellation_request_id',
+        $settlement->cancellation_id
+    )
+    ->pluck('id');
+
+if (
+    $refundIds->isNotEmpty()
+    && DB::table('journal_entries')
+        ->where('source_type', 'investigation_cancellation_refund')
+        ->where('source_event', 'paid')
+        ->whereIn('source_id', $refundIds)
+        ->exists()
+) {
+    $this->deny(
+        'Refund accounting exists. Settlement cannot be voided.'
+    );
+}
+
+if ($refundIds->isNotEmpty()) {
+    $this->deny(
+        'An existing refund record requires financial reconciliation.'
+    );
+}
+
+
+
+            if (strlen(trim($reason)) < 20) {
+                $this->deny(
+                    'A detailed void reason is required.'
+                );
+            }
+
+            if (
+                trim($evidenceReference) === ''
+                || strlen($evidenceReference) > 150
+            ) {
+                $this->deny(
+                    'A valid supporting evidence reference is required.'
+                );
+            }
+
+            if (
+                in_array(
+                    $settlement->status,
+                    ['disbursed', 'submitted'],
+                    true
+                )
+                && (
+                    (int) $settlement->submitted_by === $officer->id
+                    || (int) $settlement->initiated_by === $officer->id
+                    || (int) $settlement->disbursed_by === $officer->id
+                )
+            ) {
+                $this->deny(
+                    'Recorded disbursements require an independent voiding officer.'
+                );
+            }
+
+            // A recorded disbursement must not be voided merely
+            // because someone describes it as a test.
+            // Independent payment reconciliation is required.
+            if (
+                in_array(
+                    $settlement->status,
+                    ['disbursed', 'submitted'],
+                    true
+                )
+                && ! str_contains(
+                    strtolower(trim($reason)),
+                    'no actual payment'
+                )
+            ) {
+                $this->deny(
+                    'Confirm that no actual payment occurred and document the reconciliation.'
+                );
+            }
+
+            $settlement->forceFill([
+                'status' => 'voided',
+                'voided_by' => $officer->id,
+                'voided_at' => now(),
+                'void_reason' => trim($reason),
+                'void_evidence_reference' => trim($evidenceReference),
+            ])->save();
+
+            return $settlement->refresh();
+        }, 3);
+    }
+
 }

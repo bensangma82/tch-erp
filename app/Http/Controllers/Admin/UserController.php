@@ -15,16 +15,25 @@ use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    private const REFUND_PROCESS =
-        'billing.investigation-refund.process';
 
-    private const REFUND_VERIFY =
-        'billing.investigation-refund.verify';
+private const REFUND_PROCESS =
+    'billing.investigation-refund.process';
 
-    private const REFUND_PERMISSIONS = [
-        self::REFUND_PROCESS,
-        self::REFUND_VERIFY,
-    ];
+private const REFUND_VERIFY =
+    'billing.investigation-refund.verify';
+
+private const CANCELLATION_EXECUTE =
+    'billing.investigation-cancellation.execute';
+
+/**
+ * Sensitive financial permissions requiring direct assignment.
+ */
+private const REFUND_PERMISSIONS = [
+    self::REFUND_PROCESS,
+    self::REFUND_VERIFY,
+    self::CANCELLATION_EXECUTE,
+];
+
 
     public function index(): View
     {
@@ -319,7 +328,7 @@ class UserController extends Controller
                 ->pluck('name')
                 ->all();
 
-            if (count($existingRefundPermissions) !== 2) {
+            if (count($existingRefundPermissions) !== 3) {
                 return back()->withInput()->withErrors([
                     'refund_permissions' =>
                         'Required refund permissions are missing from the permission registry.',
