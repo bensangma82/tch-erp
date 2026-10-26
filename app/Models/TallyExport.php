@@ -33,6 +33,12 @@ class TallyExport extends Model
         'tally_accounting_date' => 'date',
     ];
 
+    public function journalExportAttempts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(TallyJournalExportAttempt::class)
+            ->orderBy('attempt_number');
+    }
+
     public function financeVoucher(): BelongsTo
     {
         return $this->belongsTo(FinanceVoucher::class);
