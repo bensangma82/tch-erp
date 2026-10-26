@@ -1,5 +1,4 @@
-@extends('layouts.app')
-@section('content')
+<x-app-layout>
 <div class="container mx-auto max-w-3xl p-6 space-y-5">
     <h1 class="text-2xl font-bold">Controlled Tally Journal Recovery</h1>
     <p><a class="underline" href="{{ route('finance.tally.journals.index') }}">Back to journal exports</a></p>
@@ -54,4 +53,4 @@
         <p class="border p-3">This export cannot be resent: reconciliation or additional review is required.</p>
     @endif
 </div>
-@endsection
+</x-app-layout>
