@@ -15,6 +15,10 @@ class TallyJournalRecoveryService
         string $reason,
         string $evidence
     ): TallyJournalExportAttempt {
+        if (! config('tally.journal_recovery_enabled', false)) {
+            throw ValidationException::withMessages(['recovery' => 'Tally journal recovery is disabled.']);
+        }
+
         $reason = trim($reason);
         $evidence = trim($evidence);
 
@@ -88,6 +92,10 @@ class TallyJournalRecoveryService
                 ]);
             }
 
+            if (! str_contains(strtolower($evidence), 'day book') || ! str_contains($evidence, $journal->journal_no)) {
+                throw ValidationException::withMessages(['recovery' => 'Record the Tally Day Book verification and exact ERP journal number in the evidence.']);
+            }
+
             $previousAttempts = TallyJournalExportAttempt::query()
                 ->where('tally_export_id', $export->id);
 
@@ -95,6 +103,7 @@ class TallyJournalRecoveryService
                 (clone $previousAttempts)
                     ->whereIn('status', [
                         'authorized',
+                        'claimed',
                         'sending',
                         'confirmed',
                         'unknown',
@@ -112,6 +121,10 @@ class TallyJournalRecoveryService
 
             return TallyJournalExportAttempt::create([
                 'tally_export_id' => $export->id,
+                'original_remote_id' => $export->remote_id,
+                'original_export_reference' => $export->export_reference,
+                'original_tally_response' => $export->tally_response,
+                'tally_company' => (string) config('tally.company'),
                 'attempt_number' => $attemptNumber,
                 'status' => 'authorized',
                 // Snapshot the original export identity and response.

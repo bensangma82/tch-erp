@@ -9,6 +9,10 @@ class TallyJournalExportAttempt extends Model
 {
     protected $fillable = [
         'tally_export_id',
+        'original_remote_id',
+        'original_export_reference',
+        'original_tally_response',
+        'tally_company',
         'attempt_number',
         'status',
         'remote_id',

@@ -12,7 +12,7 @@ class TallyJournalRecoveryExecutionService
 {
     public function claim(int $exportId, int $userId): TallyJournalExportAttempt
     {
-        if (! config('tally.journal_export_enabled')) {
+        if (! config('tally.journal_export_enabled') || ! config('tally.journal_recovery_enabled', false)) {
             throw ValidationException::withMessages([
                 'recovery' => 'Tally journal export is disabled.',
             ]);
@@ -52,6 +52,8 @@ class TallyJournalRecoveryExecutionService
                 ]);
             }
 
+            TallyExportLock::acquire($journal->source_type, $journal->source_id, $journal->source_event);
+
             $reconciliation = app(
                 TallyJournalReconciliationService::class
             )->reconcile($journal);
@@ -82,6 +84,10 @@ class TallyJournalRecoveryExecutionService
                 ]);
             }
 
+            if ($attempt->tally_company !== (string) config('tally.company') || ! $attempt->recovery_authorized_at || $attempt->recovery_authorized_at->lt(now()->subMinutes(15))) {
+                throw ValidationException::withMessages(['recovery' => 'Recovery approval expired or the Tally company changed. Reconcile again.']);
+            }
+
             $attempt->update([
                 'status' => 'claimed',
                 'claimed_at' => now(),
@@ -97,6 +103,13 @@ class TallyJournalRecoveryExecutionService
     ): TallyJournalExportAttempt {
         return DB::transaction(function () use ($exportId, $userId) {
             $attempt = $this->claim($exportId, $userId);
+
+            $journal = JournalEntry::findOrFail($attempt->tallyExport->journal_entry_id);
+            $eligibility = app(TallyJournalExportService::class)->checkEligibility($journal);
+            $errors = array_filter($eligibility['errors'], fn ($e) => ! str_contains($e, 'already has a Tally export record'));
+            if ($errors) {
+                throw ValidationException::withMessages(['recovery' => implode(' ', $errors)]);
+            }
 
             $attempt->update([
                 'status' => 'sending',

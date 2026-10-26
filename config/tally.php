@@ -15,6 +15,7 @@ return [
         'TALLY_COMPANY',
         'Tura Christian Hospital ERP -Test'
     ),
+    'journal_recovery_enabled' => env('TALLY_JOURNAL_RECOVERY_ENABLED', false),
     'journal_export_enabled' => env(
     'TALLY_JOURNAL_EXPORT_ENABLED',
     false

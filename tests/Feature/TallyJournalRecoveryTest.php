@@ -18,6 +18,8 @@ class TallyJournalRecoveryTest extends TestCase
         parent::setUp();
 
         config()->set('tally.journal_export_enabled', true);
+        config()->set('tally.journal_recovery_enabled', true);
+        config()->set('tally.company', 'Tura Christian Hospital ERP -Test');
     }
 
 
@@ -233,7 +235,7 @@ class TallyJournalRecoveryTest extends TestCase
                 $export->id,
                 $user->id,
                 'Original Tally import rejected',
-                'Tally response reviewed; no matching voucher found in synchronized records'
+                'Tally Day Book checked in Tura Christian Hospital ERP -Test: JRN-RECOVERY-TEST-003 absent; no matching voucher in October 2026'
             );
 
         $this->assertSame('authorized', $attempt->status);
@@ -282,7 +284,7 @@ class TallyJournalRecoveryTest extends TestCase
 
         $service->authorizeRecovery(
             $export->id, $user->id,
-            'Tally rejected voucher', 'Independent verification'
+            'Tally rejected voucher', 'Tally Day Book checked in Tura Christian Hospital ERP -Test: JRN-RECOVERY-DUP-001 absent; no matching voucher in October 2026'
         );
 
         try {
@@ -470,6 +472,7 @@ class TallyJournalRecoveryTest extends TestCase
         \App\Models\TallyJournalExportAttempt::create([
             'tally_export_id' => $export->id,
             'attempt_number' => 1,
+            'tally_company' => config('tally.company'),
             'status' => 'authorized',
             'recovery_authorized_by' => $user->id,
             'recovery_authorized_at' => now(),
@@ -645,12 +648,19 @@ class TallyJournalRecoveryTest extends TestCase
         \App\Models\TallyJournalExportAttempt::create([
             'tally_export_id' => $export->id,
             'attempt_number' => 1,
+            'tally_company' => config('tally.company'),
             'status' => 'authorized',
             'recovery_authorized_by' => $user->id,
             'recovery_authorized_at' => now(),
             'recovery_reason' => 'Rejected export',
             'reconciliation_evidence' => 'Independently verified',
         ]);
+
+        // Mocked eligibility for isolated transmission test; real GL/mapping integration still required.
+        $eligibility = \Mockery::mock(\App\Services\Tally\TallyJournalExportService::class);
+        $eligibility->shouldReceive('checkEligibility')->once()
+            ->andReturn(['eligible' => true, 'errors' => ['This journal already has a Tally export record.']]);
+        $this->app->instance(\App\Services\Tally\TallyJournalExportService::class, $eligibility);
 
         $attempt = app(
             \App\Services\Tally\TallyJournalRecoveryExecutionService::class
@@ -807,6 +817,7 @@ class TallyJournalRecoveryTest extends TestCase
         \App\Models\TallyJournalExportAttempt::create([
             'tally_export_id' => $export->id,
             'attempt_number' => 1,
+            'tally_company' => config('tally.company'),
             'status' => 'authorized',
             'recovery_authorized_by' => $user->id,
             'recovery_authorized_at' => now(),
@@ -839,6 +850,12 @@ class TallyJournalRecoveryTest extends TestCase
             \App\Services\Tally\TallyHttpClient::class,
             $client
         );
+
+        // Mocked eligibility for isolated transmission test; real GL/mapping integration still required.
+        $eligibility = \Mockery::mock(\App\Services\Tally\TallyJournalExportService::class);
+        $eligibility->shouldReceive('checkEligibility')->once()
+            ->andReturn(['eligible' => true, 'errors' => ['This journal already has a Tally export record.']]);
+        $this->app->instance(\App\Services\Tally\TallyJournalExportService::class, $eligibility);
 
         $result = app(
             \App\Services\Tally\TallyJournalRecoveryTransmissionService::class

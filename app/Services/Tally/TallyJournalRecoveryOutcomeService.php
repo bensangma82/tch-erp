@@ -24,6 +24,9 @@ class TallyJournalRecoveryOutcomeService
                 ]);
             }
 
+            if (trim($responseXml) === '' || simplexml_load_string($responseXml, \SimpleXMLElement::class, LIBXML_NONET) === false) {
+                throw new \RuntimeException('Invalid Tally response; outcome is unknown.');
+            }
             $parsed = app(TallyResponseParser::class)
                 ->parse($responseXml);
 
@@ -69,6 +72,18 @@ class TallyJournalRecoveryOutcomeService
                 ]);
             }
 
+            return $attempt->fresh();
+        });
+    }
+
+    public function recordPreparationFailure(int $attemptId, \Throwable $exception): TallyJournalExportAttempt
+    {
+        return DB::transaction(function () use ($attemptId, $exception) {
+            $attempt = TallyJournalExportAttempt::whereKey($attemptId)->lockForUpdate()->firstOrFail();
+            if ($attempt->status !== 'sending' || $attempt->transmitted_at !== null) {
+                throw ValidationException::withMessages(['recovery' => 'Cannot mark a transmitted attempt as a preparation failure.']);
+            }
+            $attempt->update(['status' => 'preparation_failed', 'error_message' => $exception->getMessage()]);
             return $attempt->fresh();
         });
     }

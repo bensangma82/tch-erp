@@ -30,40 +30,43 @@ class TallyJournalRecoveryTransmissionService
                 ->build($journal, $attempt->remote_id);
         } catch (Throwable $exception) {
             app(TallyJournalRecoveryOutcomeService::class)
-                ->recordTransmissionFailure($attempt->id, $exception);
+                ->recordPreparationFailure($attempt->id, $exception);
 
             return [
-                'status' => 'unknown',
+                'status' => 'preparation_failed',
                 'attempt_id' => $attempt->id,
                 'message' => 'XML preparation failed; no HTTP request was made.',
             ];
         }
 
+        // Persist the transmission marker before the network call.
+        \App\Models\TallyJournalExportAttempt::whereKey($attempt->id)
+            ->where('status', 'sending')
+            ->whereNull('transmitted_at')
+            ->update(['transmitted_at' => now()]);
+
         try {
-            $response = app(TallyHttpClient::class)
-                ->postXml($xml);
-
-            $result = app(
-                TallyJournalRecoveryOutcomeService::class
-            )->record($attempt->id, $response);
-
-            return [
-                'status' => $result->status,
-                'attempt_id' => $result->id,
-            ];
-
+            $response = app(TallyHttpClient::class)->postXml($xml);
         } catch (Throwable $exception) {
             app(TallyJournalRecoveryOutcomeService::class)
-                ->recordTransmissionFailure(
-                    $attempt->id,
-                    $exception
-                );
+                ->recordTransmissionFailure($attempt->id, $exception);
+            return ['status' => 'unknown', 'attempt_id' => $attempt->id,
+                'message' => 'HTTP outcome uncertain; do not retry.'];
+        }
 
-            return [
-                'status' => 'unknown',
+        // A database failure AFTER a successful HTTP response must never
+        // start another transmission or overwrite a confirmed outcome.
+        try {
+            $result = app(TallyJournalRecoveryOutcomeService::class)
+                ->record($attempt->id, $response);
+            return ['status' => $result->status, 'attempt_id' => $result->id];
+        } catch (Throwable $exception) {
+            \Log::error('Tally recovery response processing failed', [
                 'attempt_id' => $attempt->id,
-                'message' => 'Transmission outcome uncertain.',
-            ];
+                'error' => $exception->getMessage(),
+            ]);
+            return ['status' => 'unknown', 'attempt_id' => $attempt->id,
+                'message' => 'Tally responded but ERP confirmation failed. Reconcile manually.'];
         }
     }
 }
