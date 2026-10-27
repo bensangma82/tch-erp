@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\FinanceAccount;
+use App\Models\GeneralLedgerAccount;
 use App\Models\FinanceHead;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,13 @@ class FinanceMasterController extends Controller
         $accounts = FinanceAccount::query()
             ->orderBy('account_type')
             ->orderBy('name')
+            ->get();
+
+        $bankCashGlAccounts = GeneralLedgerAccount::query()
+            ->where('account_type', 'asset')
+            ->where('is_active', true)
+            ->where('allow_posting', true)
+            ->orderBy('account_code')
             ->get();
 
         $incomeHeads = FinanceHead::query()
@@ -45,6 +53,7 @@ class FinanceMasterController extends Controller
 
         return view('finance.master', compact(
             'accounts',
+            'bankCashGlAccounts',
             'incomeHeads',
             'expenseHeads',
             'parentHeads'
@@ -177,6 +186,14 @@ class FinanceMasterController extends Controller
                 'nullable',
                 'date',
             ],
+            'general_ledger_account_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('general_ledger_accounts', 'id')
+                    ->where('account_type', 'asset')
+                    ->where('is_active', true)
+                    ->where('allow_posting', true),
+            ],
             'is_active' => [
                 'required',
                 'boolean',
@@ -189,7 +206,54 @@ class FinanceMasterController extends Controller
 
         $validated['code'] = strtoupper($validated['code']);
 
-        $financeAccount->update($validated);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($financeAccount, $validated) {
+            $account = FinanceAccount::query()
+                ->lockForUpdate()
+                ->findOrFail($financeAccount->id);
+
+            $glId = !empty($validated['general_ledger_account_id'])
+                ? (int) $validated['general_ledger_account_id']
+                : $account->general_ledger_account_id;
+
+            if ($glId !== null) {
+                $gl = GeneralLedgerAccount::query()
+                    ->lockForUpdate()
+                    ->findOrFail($glId);
+
+                if (
+                    ! $gl->is_active
+                    || ! $gl->allow_posting
+                    || $gl->account_type !== 'asset'
+                    || (
+                        $gl->finance_account_id !== null
+                        && (int) $gl->finance_account_id !== (int) $account->id
+                    )
+                    || FinanceAccount::where('general_ledger_account_id', $glId)
+                        ->whereKeyNot($account->id)
+                        ->exists()
+                ) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'general_ledger_account_id' => 'GL account is unavailable or already linked.',
+                    ]);
+                }
+            }
+
+            $previousGlId = $account->general_ledger_account_id;
+
+            $validated['general_ledger_account_id'] = $glId;
+            $account->update($validated);
+
+            if ($previousGlId !== null && (int) $previousGlId !== (int) $glId) {
+                GeneralLedgerAccount::whereKey($previousGlId)
+                    ->where('finance_account_id', $account->id)
+                    ->update(['finance_account_id' => null]);
+            }
+
+            if ($glId !== null) {
+                GeneralLedgerAccount::whereKey($glId)
+                    ->update(['finance_account_id' => $account->id]);
+            }
+        });
 
         return back()->with(
             'success',

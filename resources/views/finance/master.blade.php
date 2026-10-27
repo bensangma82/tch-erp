@@ -393,6 +393,22 @@
                                             </button>
                                         </div>
 
+                                        <div class="mb-4">
+                                            <label class="block text-sm font-medium text-slate-700">
+                                                Linked GL Account
+                                            </label>
+                                            <select name="general_ledger_account_id"
+                                                class="mt-1 w-full rounded-lg border-slate-300 text-sm">
+                                                <option value="">Select GL Account</option>
+                                                @foreach ($bankCashGlAccounts as $gl)
+                                                    <option value="{{ $gl->id }}"
+                                                        @selected((int) old('general_ledger_account_id', $account->general_ledger_account_id) === (int) $gl->id)>
+                                                        {{ $gl->account_code }} — {{ $gl->account_name }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+
                                         <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
 
                                             <div>
