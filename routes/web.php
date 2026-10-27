@@ -1592,6 +1592,37 @@ Route::post(
 
     });
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Medical Records - Discharge History
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware(
+        'permission:ipd.discharge-summary.view'
+    )->group(function () {
+
+        Route::get(
+            '/medical-records/discharge-summaries',
+            [\App\Http\Controllers\DischargeHistoryController::class, 'index']
+        )->name('medical-records.discharge-history.index');
+
+        Route::get(
+            '/medical-records/admissions/{admission}/clinical-record',
+            [\App\Http\Controllers\DischargeHistoryController::class, 'clinicalRecord']
+        )
+            ->whereNumber('admission')
+            ->name('medical-records.discharge-history.clinical-record');
+
+        Route::get(
+            '/medical-records/patients/{patient}/discharges',
+            [\App\Http\Controllers\DischargeHistoryController::class, 'patient']
+        )
+            ->whereNumber('patient')
+            ->name('medical-records.discharge-history.patient');
+
+    });
+
     Route::middleware(
         'permission:ipd.discharge-summary.view'
     )->group(function () {
