@@ -166,6 +166,18 @@ class Admission extends Model
      *
      * One discharge summary per admission.
      */
+
+    /**
+     * Investigation orders linked to this admission.
+     */
+    public function serviceOrders(): HasMany
+    {
+        return $this->hasMany(
+            ServiceOrder::class,
+            'admission_id'
+        )->orderBy('ordered_at');
+    }
+
     public function dischargeSummary(): HasOne
     {
         return $this->hasOne(

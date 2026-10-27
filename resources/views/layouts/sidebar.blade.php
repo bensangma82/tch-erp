@@ -287,6 +287,10 @@
         ||
         request()->routeIs(
             'ipd.*'
+        )
+        ||
+        request()->routeIs(
+            'medical-records.discharge-history.*'
         );
 
 
@@ -859,6 +863,25 @@
                             Bed Management
                         </a>
 
+                    @endif
+
+                    {{-- Discharge Summary & Clinical Records --}}
+                    @if (
+                        $canUsePermission('ipd.discharge-summary.view')
+                    )
+                        <a
+                            href="{{ route('medical-records.discharge-history.index') }}"
+                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+                                {{
+                                    request()->routeIs(
+                                        'medical-records.discharge-history.*'
+                                    )
+                                        ? 'bg-slate-800/90 text-white'
+                                        : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+                                }}"
+                        >
+                            Discharge Records
+                        </a>
                     @endif
 
                 </div>

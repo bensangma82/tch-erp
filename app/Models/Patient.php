@@ -70,6 +70,18 @@ class Patient extends Model
     |--------------------------------------------------------------------------
     */
 
+
+    /**
+     * All inpatient admissions belonging to this patient.
+     */
+    public function admissions(): HasMany
+    {
+        return $this->hasMany(
+            Admission::class,
+            'patient_id'
+        );
+    }
+
     public function encounters(): HasMany
     {
         return $this->hasMany(
