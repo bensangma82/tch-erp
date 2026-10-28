@@ -773,6 +773,17 @@
                         >
                             Doctor-wise OPD Report
                         </a>
+
+                        <a
+                            href="{{ route('reports.ipd-activity') }}"
+                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+                                {{ request()->routeIs('reports.ipd-activity')
+                                    ? 'bg-slate-800/90 text-white'
+                                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
+                        >
+                            IPD Activity Report
+                        </a>
+
                     @endif
 
                     @if (

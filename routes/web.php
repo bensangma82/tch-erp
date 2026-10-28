@@ -1772,6 +1772,19 @@ Route::post(
 
     /*
     |--------------------------------------------------------------------------
+    | Doctor-wise and Department-wise IPD Activity Report
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin,management')->group(function () {
+        Route::get(
+            '/reports/ipd-activity',
+            [\App\Http\Controllers\Reports\IpdActivityReportController::class, 'index']
+        )->name('reports.ipd-activity');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | OPD Queue / View
     |--------------------------------------------------------------------------
     */
