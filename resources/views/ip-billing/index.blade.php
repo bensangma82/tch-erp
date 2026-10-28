@@ -1,3 +1,22 @@
+
+<style>
+@keyframes mhisRedGlow {
+    0%, 100% {
+        box-shadow: 0 0 5px 2px rgba(220,38,38,0.4);
+    }
+    50% {
+        box-shadow: 0 0 18px 6px rgba(239,68,68,0.95);
+    }
+}
+.mhis-glow {
+    animation: mhisRedGlow 1.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .mhis-glow {
+        animation: none;
+    }
+}
+</style>
 <x-app-layout>
 
     <x-slot name="header">
@@ -356,7 +375,7 @@
 
 @if (($summary['mhis_due_amount'] ?? 0) > 0)
     <div class="mt-2">
-        <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+        <span class="inline-flex rounded-full bg-red-600 px-2.5 py-1 text-xs font-bold text-white mhis-glow">
             MHIS Due ₹{{ number_format((float) $summary['mhis_due_amount'], 2) }}
         </span>
     </div>
