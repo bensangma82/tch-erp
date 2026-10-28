@@ -1798,6 +1798,19 @@ Route::post(
 
     /*
     |--------------------------------------------------------------------------
+    | Ultrasound, X-ray and ECG Activity Report
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin,management')->group(function () {
+        Route::get(
+            '/reports/diagnostic-activity',
+            [\App\Http\Controllers\Reports\DiagnosticActivityReportController::class, 'index']
+        )->name('reports.diagnostic-activity');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | OPD Queue / View
     |--------------------------------------------------------------------------
     */
