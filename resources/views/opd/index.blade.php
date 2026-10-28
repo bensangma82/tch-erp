@@ -276,7 +276,22 @@
                                     <td class="px-3 py-4 align-top">
                                         <div class="flex flex-col items-stretch gap-1.5">
 
-                                            <a
+                                            @if (
+    $status === 'waiting_for_doctor'
+    && auth()->user()?->hasPermission('opd.view')
+    && $encounter->doctor?->user_id === auth()->id()
+)
+    <form method="POST" action="{{ route('opd.mark-seen', $encounter) }}">
+        @csrf
+        <button type="submit"
+            onclick="return confirm('Confirm that you have examined this patient?')"
+            class="w-full rounded-lg bg-emerald-600 px-2 py-2 text-xs font-bold text-white hover:bg-emerald-700">
+            Mark as Seen
+        </button>
+    </form>
+@endif
+
+                                        <a
                                                 href="{{ route('opd.card', $encounter) }}"
                                                 target="_blank"
                                                 class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"

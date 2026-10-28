@@ -1759,6 +1759,19 @@ Route::post(
 
     /*
     |--------------------------------------------------------------------------
+    | Doctor-wise OPD Patient Register
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin,management')->group(function () {
+        Route::get(
+            '/reports/doctor-opd',
+            [\App\Http\Controllers\Reports\DoctorOpdReportController::class, 'index']
+        )->name('reports.doctor-opd');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | OPD Queue / View
     |--------------------------------------------------------------------------
     */
@@ -1785,6 +1798,21 @@ Route::post(
             ->whereNumber('encounter')
             ->name('opd.card');
 
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | OPD Consultation Completion
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('permission:opd.view')->group(function () {
+        Route::post(
+            '/opd/{encounter}/mark-seen',
+            [OpdController::class, 'markSeen']
+        )
+            ->whereNumber('encounter')
+            ->name('opd.mark-seen');
     });
 
     /*

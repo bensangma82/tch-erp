@@ -22,11 +22,14 @@ class Encounter extends Model
         'referred_by',
         'reason_for_visit',
         'status',
+        'seen_at',
+        'seen_by',
         'created_by',
     ];
 
     protected $casts = [
         'encounter_date' => 'date',
+        'seen_at' => 'datetime',
     ];
 
     public function patient()

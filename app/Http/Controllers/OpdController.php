@@ -14,6 +14,61 @@ use Illuminate\Support\Facades\DB;
 
 class OpdController extends Controller
 {
+    public function markSeen(Encounter $encounter)
+    {
+        abort_unless(
+            auth()->user()?->hasPermission('opd.view'),
+            403
+        );
+
+        $employee = Employee::query()
+            ->where('user_id', auth()->id())
+            ->where('is_doctor', true)
+            ->where('is_active', true)
+            ->first();
+
+        abort_unless(
+            $employee && $employee->id === (int) $encounter->doctor_id,
+            403,
+            'Only the assigned doctor can complete this consultation.'
+        );
+
+        DB::transaction(function () use ($encounter, $employee) {
+            $locked = Encounter::query()
+                ->lockForUpdate()
+                ->findOrFail($encounter->id);
+
+            abort_unless($locked->encounter_type === 'OPD', 422);
+
+            abort_unless(
+                (int) $locked->doctor_id === (int) $employee->id,
+                403
+            );
+
+            abort_unless(
+                $locked->status === 'waiting_for_doctor',
+                409,
+                'This consultation is not awaiting the doctor.'
+            );
+
+            abort_if(
+                $locked->seen_at !== null,
+                409,
+                'Consultation has already been completed.'
+            );
+
+            $locked->update([
+                'status' => 'completed',
+                'seen_at' => now(),
+                'seen_by' => auth()->id(),
+            ]);
+        });
+
+        return redirect()
+            ->route('opd.index')
+            ->with('success', 'Consultation marked as seen.');
+    }
+
     public function index()
     {
         $encounters = Encounter::with([

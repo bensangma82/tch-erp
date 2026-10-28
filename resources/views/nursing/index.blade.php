@@ -88,6 +88,10 @@
                                 </th>
 
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Consultation Status
+                                </th>
+
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Action
                                 </th>
 
@@ -180,6 +184,25 @@
 
 
                                     <td class="px-5 py-4">
+                                    @if ($encounter->status === 'completed')
+                                        <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                                            Completed
+                                        </span>
+                                        <div class="mt-2 text-xs text-gray-500">
+                                            {{ $encounter->seen_at?->format('h:i A') ?? '—' }}
+                                        </div>
+                                    @elseif ($encounter->status === 'waiting_for_doctor')
+                                        <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                                            Waiting for Doctor
+                                        </span>
+                                    @else
+                                        <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                                            Waiting
+                                        </span>
+                                    @endif
+                                </td>
+
+                                <td class="px-5 py-4">
 
                                         <a
     href="{{ route('nursing.vitals.create', $encounter) }}"
@@ -197,7 +220,7 @@
                                 <tr>
 
                                     <td
-                                        colspan="7"
+                                        colspan="8"
                                         class="px-6 py-14 text-center text-sm text-gray-500"
                                     >
                                         No OPD patients registered today.
