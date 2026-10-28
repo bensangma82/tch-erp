@@ -3512,9 +3512,9 @@ throw ValidationException::withMessages([
                         ->exists();
 
                     if ($alreadyRecognized) {
-                        throw new \RuntimeException(
-                            'An existing MHIS recognition journal prevents claim edits.'
-                        );
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'status' => 'This MHIS claim has already been recognised in accounting. Financial amendments require an authorised adjustment workflow.',
+                        ]);
                     }
 
                     $existingClaim->update(
