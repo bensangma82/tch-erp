@@ -1,5 +1,13 @@
 <x-app-layout>
     <div class="mx-auto max-w-7xl space-y-6 px-4 py-6">
+        <div class="print:hidden">
+            <a href="{{ route('reports.activity.index') }}"
+               class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+                ← Back to Activity Reports
+            </a>
+        </div>
+
+
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">

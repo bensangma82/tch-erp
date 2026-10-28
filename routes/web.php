@@ -1811,6 +1811,19 @@ Route::post(
 
     /*
     |--------------------------------------------------------------------------
+    | Central Activity Reports Overview
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin,management')->group(function () {
+        Route::view(
+            '/reports/activity',
+            'reports.activity-index'
+        )->name('reports.activity.index');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | OPD Queue / View
     |--------------------------------------------------------------------------
     */

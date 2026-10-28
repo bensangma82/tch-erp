@@ -764,48 +764,43 @@
 
 
                     @if (auth()->user()?->isAdmin() || auth()->user()?->hasAnyRole(['management']))
-                        <a
-                            href="{{ route('reports.doctor-opd') }}"
-                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
-                                {{ request()->routeIs('reports.doctor-opd')
-                                    ? 'bg-slate-800/90 text-white'
-                                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
+                        <div
+                            x-data="{ open: {{ request()->routeIs('reports.activity.index', 'reports.doctor-opd', 'reports.ipd-activity', 'reports.laboratory-activity', 'reports.diagnostic-activity') ? 'true' : 'false' }} }"
+                            class="space-y-1"
                         >
-                            Doctor-wise OPD Report
-                        </a>
+                            <button
+                                type="button"
+                                @click="open = !open"
+                                :aria-expanded="open.toString()"
+                                class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[12.5px] font-semibold text-slate-300 hover:bg-slate-900/70 hover:text-white"
+                            >
+                                <a href="{{ route('reports.activity.index') }}"
+   @click.stop
+   class="flex-1 hover:text-white">
+    Activity Reports
+</a>
+                                <span x-text="open ? '−' : '+'"></span>
+                            </button>
 
-                        <a
-                            href="{{ route('reports.ipd-activity') }}"
-                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
-                                {{ request()->routeIs('reports.ipd-activity')
-                                    ? 'bg-slate-800/90 text-white'
-                                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
-                        >
-                            IPD Activity Report
-                        </a>
-
-                        <a
-                            href="{{ route('reports.laboratory-activity') }}"
-                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
-                                {{ request()->routeIs('reports.laboratory-activity')
-                                    ? 'bg-slate-800/90 text-white'
-                                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
-                        >
-                            Laboratory Activity Report
-                        </a>
-
-                        <a
-                            href="{{ route('reports.diagnostic-activity') }}"
-                            class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
-                                {{ request()->routeIs('reports.diagnostic-activity')
-                                    ? 'bg-slate-800/90 text-white'
-                                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
-                        >
-                            Ultrasound, X-ray & ECG Report
-                        </a>
-
-
-
+                            <div x-show="open" x-cloak class="ml-3 space-y-1 border-l border-slate-700 pl-3">
+                                @foreach ([
+                                    'reports.doctor-opd' => 'Doctor-wise OPD',
+                                    'reports.ipd-activity' => 'IPD Activity',
+                                    'reports.laboratory-activity' => 'Laboratory Activity',
+                                    'reports.diagnostic-activity' => 'Ultrasound, X-ray & ECG',
+                                ] as $reportRoute => $reportLabel)
+                                    <a
+                                        href="{{ route($reportRoute) }}"
+                                        class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+                                            {{ request()->routeIs($reportRoute)
+                                                ? 'bg-slate-800/90 text-white'
+                                                : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
+                                    >
+                                        {{ $reportLabel }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
                     @endif
 
                     @if (
