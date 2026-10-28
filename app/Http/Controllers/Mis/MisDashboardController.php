@@ -55,7 +55,7 @@ class MisDashboardController extends Controller
         */
 
         $opdQuery = Encounter::query()
-            ->where('encounter_type', 'opd')
+            ->whereRaw('UPPER(encounter_type) = ?', ['OPD'])
             ->whereBetween('encounter_date', [$from, $to]);
 
         $opdVisits = (clone $opdQuery)->count();
@@ -556,6 +556,58 @@ class MisDashboardController extends Controller
         | not necessarily that the specimen was never collected.
         |
         */
+
+
+        /*
+        | Consolidated Clinical Activity MIS
+        | Counts refer to the selected reporting period.
+        */
+
+        $clinicalOpdRegistered = Encounter::query()
+            ->whereRaw('UPPER(encounter_type) = ?', ['OPD'])
+            ->whereBetween('encounter_date', [$from, $to])
+            ->count();
+
+        $clinicalOpdSeen = Encounter::query()
+            ->whereRaw('UPPER(encounter_type) = ?', ['OPD'])
+            ->whereBetween('encounter_date', [$from, $to])
+            ->where('status', 'completed')
+            ->count();
+
+        $clinicalOpdPending = max(
+            0,
+            $clinicalOpdRegistered - $clinicalOpdSeen
+        );
+
+        $clinicalIpdCensus = Admission::query()
+            ->where('admitted_at', '<=', $end)
+            ->where(function ($query) use ($end) {
+                $query->whereNull('closed_at')
+                    ->orWhere('closed_at', '>', $end);
+            })
+            ->where(function ($query) use ($end) {
+                $query->whereNull('discharged_at')
+                    ->orWhere('discharged_at', '>', $end);
+            })
+            ->count();
+
+        $clinicalLaboratoryTests = (float) $diagnosticItems
+            ->filter(fn ($item) =>
+                strtolower(trim((string) $item->category)) === 'laboratory'
+            )
+            ->sum('quantity');
+
+        $clinicalUltrasound = (float) $diagnosticItems
+            ->where('service_id', 7)
+            ->sum('quantity');
+
+        $clinicalXray = (float) $diagnosticItems
+            ->where('service_id', 8)
+            ->sum('quantity');
+
+        $clinicalEcg = (float) $diagnosticItems
+            ->where('service_id', 70)
+            ->sum('quantity');
 
         $sampleItems = DB::table('service_order_items as items')
             ->join(
@@ -3161,6 +3213,15 @@ class MisDashboardController extends Controller
             'from' => $from,
             'to' => $to,
             'opdVisits' => $opdVisits,
+            'clinicalOpdRegistered' => $clinicalOpdRegistered,
+            'clinicalOpdSeen' => $clinicalOpdSeen,
+            'clinicalOpdPending' => $clinicalOpdPending,
+            'clinicalIpdCensus' => $clinicalIpdCensus,
+            'clinicalLaboratoryTests' => $clinicalLaboratoryTests,
+            'clinicalUltrasound' => $clinicalUltrasound,
+            'clinicalXray' => $clinicalXray,
+            'clinicalEcg' => $clinicalEcg,
+
             'opdPatients' => $opdPatients,
             'ipdAdmissions' => $ipdAdmissions,
             'ipdDischarges' => $ipdDischarges,

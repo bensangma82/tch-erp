@@ -34,6 +34,63 @@
 
         $misKpis = [
             [
+                'label' => 'OPD Registered',
+                'value' => number_format($clinicalOpdRegistered),
+                'detail' => 'Registered OPD encounters',
+                'color' => 'text-blue-700',
+                'tab' => 'clinical',
+            ],
+            [
+                'label' => 'OPD Seen',
+                'value' => number_format($clinicalOpdSeen),
+                'detail' => 'Consultations confirmed as completed',
+                'color' => 'text-emerald-700',
+                'tab' => 'clinical',
+            ],
+            [
+                'label' => 'OPD Pending',
+                'value' => number_format($clinicalOpdPending),
+                'detail' => 'Consultations not marked completed',
+                'color' => 'text-amber-700',
+                'tab' => 'clinical',
+            ],
+            [
+                'label' => 'IPD Census',
+                'value' => number_format($clinicalIpdCensus),
+                'detail' => 'Inpatients at the reporting cutoff',
+                'color' => 'text-indigo-700',
+                'tab' => 'clinical',
+            ],
+            [
+                'label' => 'Laboratory Tests',
+                'value' => number_format($clinicalLaboratoryTests),
+                'detail' => 'Laboratory test quantities ordered',
+                'color' => 'text-violet-700',
+                'tab' => 'clinical',
+            ],
+            [
+                'label' => 'Ultrasound',
+                'value' => number_format($clinicalUltrasound),
+                'detail' => 'Ultrasound examination quantities',
+                'color' => 'text-teal-700',
+                'tab' => 'clinical',
+            ],
+            [
+                'label' => 'X-ray',
+                'value' => number_format($clinicalXray),
+                'detail' => 'X-ray examination quantities',
+                'color' => 'text-sky-700',
+                'tab' => 'clinical',
+            ],
+            [
+                'label' => 'ECG',
+                'value' => number_format($clinicalEcg),
+                'detail' => 'ECG examination quantities',
+                'color' => 'text-rose-700',
+                'tab' => 'clinical',
+            ],
+
+            [
                 'label' => 'OPD Visits',
                 'value' => number_format($opdVisits),
                 'detail' => 'Registered outpatient encounters',
