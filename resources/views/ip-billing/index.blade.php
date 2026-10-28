@@ -354,6 +354,15 @@
                                                     {{ ucfirst($account->status) }}
                                                 </span>
 
+@if (($summary['mhis_due_amount'] ?? 0) > 0)
+    <div class="mt-2">
+        <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            MHIS Due ₹{{ number_format((float) $summary['mhis_due_amount'], 2) }}
+        </span>
+    </div>
+@endif
+
+
                                             @else
 
                                                 <span class="inline-flex whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">

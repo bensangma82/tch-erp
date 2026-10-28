@@ -257,6 +257,17 @@ class IpBillingController extends Controller
                     $account->mhisClaims
                 );
 
+                $mhisDueAmount = round(max(
+                    (float) $account->mhisClaims
+                        ->whereIn('status', ['approved', 'settled'])
+                        ->sum(fn ($claim) => (float) $claim->approved_amount)
+                    -
+                    (float) $account->mhisReceipts
+                        ->where('status', 'active')
+                        ->sum(fn ($receipt) => (float) $receipt->amount),
+                    0
+                ), 2);
+
                 $staffMedicalBenefitAmount = round(
                     (float) $account
                         ->staffMedicalBenefitTransactions
@@ -353,6 +364,7 @@ class IpBillingController extends Controller
                     'refund_amount' => $refundAmount,
 
                     'mhis_approved_amount' => $mhisApprovedAmount,
+                    'mhis_due_amount' => $mhisDueAmount,
 
                     'staff_medical_benefit_amount' => $staffMedicalBenefitAmount,
 
