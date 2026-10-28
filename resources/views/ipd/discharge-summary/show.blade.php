@@ -928,7 +928,8 @@
 
 
     $chiefComplaint =
-        $admission->emergencyVisit?->chief_complaint
+        $summary->chief_complaint
+        ?: $admission->emergencyVisit?->chief_complaint
         ??
         $admission->admission_reason
         ??

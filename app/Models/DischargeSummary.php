@@ -12,6 +12,7 @@ class DischargeSummary extends Model
 
     protected $fillable = [
         'admission_id',
+        'chief_complaint',
         'final_diagnosis',
         'hospital_course',
         'procedures_performed',

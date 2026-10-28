@@ -402,7 +402,7 @@
                     </h3>
 
                     <p class="mt-1 text-xs text-slate-500">
-                        Taken from the Emergency registration.
+                        Enter or edit directly. Existing Emergency information is used when available.
                     </p>
 
                 </div>
@@ -410,9 +410,13 @@
 
                 <div class="p-6">
 
-                    <div class="whitespace-pre-line text-sm leading-6 text-slate-800">
-                        {{ $chiefComplaint }}
-                    </div>
+                    <textarea
+                        name="chief_complaint" form="discharge-summary-form"
+                        rows="4"
+                        maxlength="10000"
+                        class="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm"
+                        placeholder="Enter the patient's chief complaints and duration"
+                    >{{ old('chief_complaint', $summary?->chief_complaint ?? $chiefComplaint ?? '') }}</textarea>
 
                 </div>
 
@@ -424,7 +428,7 @@
             {{-- DISCHARGE SUMMARY FORM --}}
             {{-- ========================================================= --}}
 
-            <form
+            <form id="discharge-summary-form"
                 method="POST"
                 action="{{ route('ipd.discharge-summary.update', $admission) }}"
                 class="space-y-6"

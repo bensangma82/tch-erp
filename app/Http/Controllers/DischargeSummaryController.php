@@ -108,6 +108,12 @@ class DischargeSummaryController extends Controller
         */
 
         $validated = $request->validate([
+            'chief_complaint' => [
+                'nullable',
+                'string',
+                'max:10000',
+            ],
+
             'final_diagnosis' => [
                 'nullable',
                 'string',
