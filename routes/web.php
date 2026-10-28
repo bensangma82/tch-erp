@@ -3470,3 +3470,20 @@ Route::middleware([
 */
 
 require __DIR__.'/auth.php';
+
+/*
+|--------------------------------------------------------------------------
+| Pharmacy Medicine Movement Analytics
+|--------------------------------------------------------------------------
+*/
+Route::middleware([
+    'auth',
+    'verified',
+    'active',
+    'role:admin,management',
+])->group(function () {
+    Route::get(
+        '/pharmacy/movement-report',
+        [\App\Http\Controllers\Pharmacy\PharmacyMovementReportController::class, 'index']
+    )->name('pharmacy.movement-report');
+});

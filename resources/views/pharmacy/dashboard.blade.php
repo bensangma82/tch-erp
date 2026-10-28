@@ -17,6 +17,15 @@
             </div>
 
 
+            @if (auth()->user()?->isAdmin() || auth()->user()?->hasAnyRole(['management']))
+                <a
+                    href="{{ route('pharmacy.movement-report') }}"
+                    class="inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+                >
+                    Medicine Movement Analytics
+                </a>
+            @endif
+
             <a
                 href="{{ route('pharmacy.dispensing.create') }}"
                 class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
