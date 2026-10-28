@@ -1785,6 +1785,19 @@ Route::post(
 
     /*
     |--------------------------------------------------------------------------
+    | Laboratory Activity Report
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin,management')->group(function () {
+        Route::get(
+            '/reports/laboratory-activity',
+            [\App\Http\Controllers\Reports\LaboratoryActivityReportController::class, 'index']
+        )->name('reports.laboratory-activity');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | OPD Queue / View
     |--------------------------------------------------------------------------
     */
