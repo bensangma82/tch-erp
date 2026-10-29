@@ -197,6 +197,13 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Post charges, advances, payments, investigations and finalize bills.',
             ],
 
+            [
+                'name' => 'finance.reconciliation.manage',
+                'label' => 'Manage Accounting Reconciliation',
+                'module' => 'finance',
+                'description' => 'Review and authorize corrections to existing accounting transactions.',
+            ],
+
             // FINANCE
             [
                 'name' => 'finance.dashboard',
@@ -551,6 +558,7 @@ class RolePermissionSeeder extends Seeder
             ],
 
             'finance' => [
+                'finance.reconciliation.manage',
                 'billing.view',
                 'ip-billing.view',
                 'finance.dashboard',

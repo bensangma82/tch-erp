@@ -150,6 +150,9 @@
                             class="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
                         >
                             <option value="">Current Admissions</option>
+                            <option value="all" @selected(request('status') === 'all')>
+                                All Admissions
+                            </option>
                             @foreach ($statusLabels as $value => $label)
                                 <option value="{{ $value }}" @selected(request('status') === $value)>
                                     {{ $label }}
@@ -319,6 +322,57 @@
                                         <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $statusClass }}">
                                             {{ $statusLabel }}
                                         </span>
+                                    {{-- MHIS STATUS --}}
+                                    @php
+                                        $account = $admission->billingAccount;
+                                        $claims = $account?->mhisClaims ?? collect();
+                                        $receipts = $account?->mhisReceipts ?? collect();
+
+                                        $coverage = round((float) $claims->sum(
+                                            fn ($claim) => match ($claim->status) {
+                                                'submitted' => (float) ($claim->expected_amount ?? 0),
+                                                'approved', 'settled' => (float) ($claim->approved_amount ?? 0),
+                                                default => 0,
+                                            }
+                                        ), 2);
+
+                                        $received = round((float) $receipts
+                                            ->where('status', 'active')
+                                            ->sum('amount'), 2);
+
+                                        $mhisOutstanding = round(
+                                            max($coverage - $received, 0), 2
+                                        );
+
+                                        if ($claims->isEmpty()) {
+                                            $mhisLabel = 'No MHIS Claim';
+                                        } elseif ($mhisOutstanding > 0) {
+                                            $mhisLabel = $received > 0
+                                                ? 'MHIS Partially Paid'
+                                                : 'MHIS Pending';
+                                        } elseif ($coverage > 0) {
+                                            $mhisLabel = 'MHIS Settled';
+                                        } else {
+                                            $mhisLabel = 'MHIS Awaiting Approval';
+                                        }
+
+                                        $mhisClass = match ($mhisLabel) {
+                                            'MHIS Pending' => 'bg-red-600 text-white ring-2 ring-red-400 shadow-[0_0_12px_rgba(220,38,38,0.65)] animate-pulse',
+                                            'MHIS Partially Paid' => 'bg-blue-50 text-blue-800',
+                                            'MHIS Settled' => 'bg-emerald-50 text-emerald-800',
+                                            default => 'bg-slate-100 text-slate-600',
+                                        };
+                                    @endphp
+
+                                    <div class="mt-1">
+                                        <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $mhisClass }}">
+                                            {{ $mhisLabel }}
+                                            @if ($mhisOutstanding > 0)
+                                                — ₹{{ number_format($mhisOutstanding, 2) }}
+                                            @endif
+                                        </span>
+                                    </div>
+
                                     </td>
 
                                     {{-- ACTIONS --}}
@@ -338,7 +392,16 @@
                                                 IP Billing
                                             </a>
 
-                                            @if (in_array($admission->status, ['admitted', 'transferred'], true))
+                                            @if (in_array($admission->status, ['discharged', 'referred', 'death'], true))
+                                        <a
+                                            href="{{ route('ip-billing.final-bill', $admission) }}"
+                                            class="inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1.5 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                                        >
+                                            Print Final Bill
+                                        </a>
+                                    @endif
+
+                                    @if (in_array($admission->status, ['admitted', 'transferred'], true))
                                                 <a
                                                     href="{{ route('pharmacy.dispensing.create', ['admission_id' => $admission->id]) }}"
                                                     class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-2 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-violet-700"

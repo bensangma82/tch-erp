@@ -23,6 +23,8 @@ class AdmissionController extends Controller
                 'consultant',
                 'bed.ward',
                 'currentBedAllocation.bed.ward',
+                'billingAccount.mhisClaims',
+                'billingAccount.mhisReceipts',
             ]);
 
 
@@ -35,18 +37,12 @@ class AdmissionController extends Controller
         |
         */
 
-        if ($request->filled('status')) {
+        $status = $request->input('status', 'admitted');
 
+        if ($status !== 'all') {
             $query->where(
                 'status',
-                $request->string('status')->toString()
-            );
-
-        } else {
-
-            $query->where(
-                'status',
-                'admitted'
+                $status ?: 'admitted'
             );
         }
 

@@ -2145,6 +2145,21 @@ Route::middleware(
             ->name('ip-billing.charges.store');
 
         Route::post(
+            '/ip-billing/{admission}/accounting/reconcile',
+            [IpBillingController::class, 'reconcileAccounting']
+        )
+            ->whereNumber('admission')
+            ->middleware('permission:finance.reconciliation.manage')
+            ->name('ip-billing.accounting.reconcile');
+
+        Route::post(
+            '/ip-billing/{admission}/mhis/preflight',
+            [IpBillingController::class, 'checkMhisReadiness']
+        )
+            ->whereNumber('admission')
+            ->name('ip-billing.mhis.preflight');
+
+        Route::post(
             '/ip-billing/{admission}/mhis',
             [IpBillingController::class, 'storeMhisClaim']
         )

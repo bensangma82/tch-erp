@@ -142,8 +142,7 @@ class MhisReceivableAccountingService
             ]);
 
             if (
-                $account->advances->isNotEmpty()
-                || $account->refunds->isNotEmpty()
+                $account->refunds->isNotEmpty()
                 || $account->mhisReceipts->isNotEmpty()
                 || $account->mhisAdjustments->isNotEmpty()
                 || $account->staffMedicalBenefitTransactions->isNotEmpty()
@@ -182,7 +181,10 @@ class MhisReceivableAccountingService
                 ->where("source_type", "ip_billing_account")
                 ->where("source_id", (string) $account->id)
                 ->where("status", "posted")
-                ->where("source_event", "!=", "finalized")
+                ->whereNotIn("source_event", [
+                    "finalized",
+                    "advance_applied",
+                ])
                 ->exists();
 
             if ($otherJournals) {
@@ -208,6 +210,134 @@ class MhisReceivableAccountingService
                         'GL account '.$code.' is unavailable.'
                     );
                 }
+            }
+
+            // MHIS_RECONCILED_ADVANCES_V1
+            $appliedAdvancePaise = 0;
+
+            if ($account->advances->isNotEmpty()) {
+                $advanceTotalPaise = 0;
+
+                $advanceLiability = GeneralLedgerAccount::query()
+                    ->where('account_code', '2100')
+                    ->where('is_active', true)
+                    ->where('allow_posting', true)
+                    ->first();
+
+                if (! $advanceLiability) {
+                    throw new RuntimeException(
+                        'Patient advance GL 2100 is unavailable.'
+                    );
+                }
+
+                foreach ($account->advances as $advance) {
+                    if (
+                        $advance->status !== 'active'
+                        || $advance->source_type !== null
+                    ) {
+                        throw new RuntimeException(
+                            'The patient advance requires Finance review.'
+                        );
+                    }
+
+                    $receipt = JournalEntry::query()
+                        ->where('source_type', 'ip_billing_advance')
+                        ->where('source_id', (string) $advance->id)
+                        ->where('source_event', 'received')
+                        ->where('status', 'posted')
+                        ->with('lines')
+                        ->first();
+
+                    if (! $receipt) {
+                        throw new RuntimeException(
+                            'The patient advance receipt journal is missing.'
+                        );
+                    }
+
+                    $liabilityCredit = 0;
+
+                    foreach ($receipt->lines as $line) {
+                        if (
+                            (int) $line->general_ledger_account_id
+                            === (int) $advanceLiability->id
+                        ) {
+                            if ($toPaise($line->debit) !== 0) {
+                                throw new RuntimeException(
+                                    'Advance receipt liability is inconsistent.'
+                                );
+                            }
+
+                            $liabilityCredit += $toPaise($line->credit);
+                        }
+                    }
+
+                    $advancePaise = $toPaise($advance->amount);
+
+                    if ($liabilityCredit !== $advancePaise) {
+                        throw new RuntimeException(
+                            'Advance receipt amount does not reconcile.'
+                        );
+                    }
+
+                    $advanceTotalPaise += $advancePaise;
+                }
+
+                $application = JournalEntry::query()
+                    ->where('source_type', 'ip_billing_account')
+                    ->where('source_id', (string) $account->id)
+                    ->where('source_event', 'advance_applied')
+                    ->where('status', 'posted')
+                    ->with('lines')
+                    ->first();
+
+                if (! $application) {
+                    throw new RuntimeException(
+                        'The advance application journal is not posted.'
+                    );
+                }
+
+                $liabilityDebit = 0;
+                $receivableCredit = 0;
+
+                foreach ($application->lines as $line) {
+                    $glId = (int) $line->general_ledger_account_id;
+
+                    if ($glId === (int) $advanceLiability->id) {
+                        if ($toPaise($line->credit) !== 0) {
+                            throw new RuntimeException(
+                                'Advance liability application is inconsistent.'
+                            );
+                        }
+
+                        $liabilityDebit += $toPaise($line->debit);
+                    }
+
+                    if ($glId === (int) $accounts['1200']->id) {
+                        if ($toPaise($line->debit) !== 0) {
+                            throw new RuntimeException(
+                                'Advance receivable application is inconsistent.'
+                            );
+                        }
+
+                        $receivableCredit += $toPaise($line->credit);
+                    }
+                }
+
+                $expectedApplication = min(
+                    $advanceTotalPaise,
+                    $billPaise
+                );
+
+                if (
+                    $liabilityDebit !== $expectedApplication
+                    || $receivableCredit !== $expectedApplication
+                ) {
+                    throw new RuntimeException(
+                        'Advance application does not reconcile with GL 1200 and 2100.'
+                    );
+                }
+
+                $appliedAdvancePaise = $receivableCredit;
             }
 
             // Confirm that the original patient receivable
@@ -238,7 +368,8 @@ class MhisReceivableAccountingService
             }
 
             // MHIS GL 1200 balance reconciliation.
-            $remainingPaise = $originalDebitPaise;
+            $remainingPaise = $originalDebitPaise
+                - $appliedAdvancePaise;
 
             foreach ($account->payments as $payment) {
                 $paymentJournal = JournalEntry::query()

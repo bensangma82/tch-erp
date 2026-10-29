@@ -468,12 +468,54 @@ class IpBillingController extends Controller
             ->orderBy('name')
             ->get();
 
+        $billingPreflight = app(
+            \App\Services\Preflight\IpBillingPreflightService::class
+        )->checkFinalization($account);
+
+        $mhisPreflight = null;
+
+        $proposedMhisStatus = old(
+            'status',
+            $account->mhisClaims->first()?->status ?? 'pending'
+        );
+
+        if ($proposedMhisStatus === 'approved') {
+            $proposedApprovedAmount = (float) old(
+                'approved_amount',
+                $account->mhisClaims->first()?->approved_amount ?? 0
+            );
+
+            $mhisPreflight = app(
+                \App\Services\Preflight\MhisPreflightService::class
+            )->checkApproval($account, $proposedApprovedAmount);
+        }
+
+        $accountingReconciliation = null;
+        $accountingCorrectionPreview = null;
+
+        if (
+            $account->status === 'finalized'
+            && auth()->user()?->hasPermission('finance.reconciliation.manage')
+        ) {
+            $accountingReconciliation = app(
+                \App\Services\Preflight\IpAccountingReconciliationService::class
+            )->inspect($account);
+
+            $accountingCorrectionPreview = app(
+                \App\Services\Accounting\IpExtendedReconciliationService::class
+            )->preview($account);
+        }
+
         return view(
             'ip-billing.show',
             compact(
                 'admission',
                 'account',
-                'chargeServices'
+                'chargeServices',
+                'billingPreflight',
+                'mhisPreflight',
+                'accountingReconciliation',
+                'accountingCorrectionPreview'
             )
         );
     }
@@ -2001,8 +2043,26 @@ class IpBillingController extends Controller
 |--------------------------------------------------------------------------
 */
 
-                app(IpPaymentAccountingService::class)
-                    ->postReceipt($payment);
+                try {
+                    app(IpPaymentAccountingService::class)
+                        ->postReceipt($payment);
+                } catch (\RuntimeException $e) {
+                    if (
+                        $e->getMessage() ===
+                        'This IPD bill requires an extended accounting workflow.'
+                    ) {
+                        throw ValidationException::withMessages([
+                            'amount' =>
+                                'Payment cannot be posted because this account '
+                                .'has MHIS coverage, advances or adjustments '
+                                .'requiring extended accounting. '
+                                .'Contact Finance for reconciliation before '
+                                .'collecting another payment.',
+                        ]);
+                    }
+
+                    throw $e;
+                }
                 /*
                 |--------------------------------------------------------------------------
                 | Recalculate Account
@@ -3183,6 +3243,73 @@ throw ValidationException::withMessages([
     |
     */
 
+    public function checkMhisReadiness(
+        \Illuminate\Http\Request $request,
+        \App\Models\Admission $admission
+    ): \Illuminate\Http\JsonResponse {
+        $validated = $request->validate([
+            'status' => ['required', 'in:pending,submitted,approved,rejected,settled'],
+            'approved_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'approval_date' => ['nullable', 'date'],
+        ]);
+
+        if ($validated['status'] !== 'approved') {
+            return response()->json([
+                'ready' => true,
+                'issues' => [],
+                'message' => 'Approval accounting checks do not apply to this status.',
+            ]);
+        }
+
+        $account = \App\Models\IpBillingAccount::query()
+            ->where('admission_id', $admission->id)
+            ->firstOrFail();
+
+        $result = app(
+            \App\Services\Preflight\MhisPreflightService::class
+        )->checkApproval(
+            $account,
+            (float) ($validated['approved_amount'] ?? 0)
+        );
+
+        if (empty($validated['approval_date'])) {
+            $result->add(new \App\Services\Preflight\PreflightIssue(
+                'APPROVAL_DATE_REQUIRED',
+                'blocking',
+                'The formal MHIS approval date is missing.',
+                'Enter the approval date from the official MHIS authorization.',
+                'Billing account #'.$account->id
+            ));
+        }
+
+        return response()->json($result->toArray());
+    }
+
+    public function reconcileAccounting(
+        \Illuminate\Http\Request $request,
+        \App\Models\Admission $admission
+    ) {
+        $request->validate([
+            'cash_verified' => ['required', 'accepted'],
+        ]);
+
+        $account = \App\Models\IpBillingAccount::query()
+            ->where('admission_id', $admission->id)
+            ->firstOrFail();
+
+        $result = app(
+            \App\Services\Accounting\IpExtendedReconciliationService::class
+        )->reconcile($account);
+
+        return redirect()
+            ->route('ip-billing.show', $admission)
+            ->with(
+                'success',
+                'Accounting reconciliation posted: '
+                .implode(', ', $result['posted_journals'])
+            );
+    }
+
     public function storeMhisClaim(
         Request $request,
         Admission $admission
@@ -3331,6 +3458,40 @@ throw ValidationException::withMessages([
 
         if (in_array($validated['status'], ['pending', 'submitted', 'rejected'], true)) {
             $approvedAmount = 0.00;
+        }
+
+        if ($validated['status'] === 'approved') {
+            $eligibleAmount = round((float) $account->net_amount, 2);
+
+            if ($approvedAmount > $eligibleAmount) {
+                throw ValidationException::withMessages([
+                    'approved_amount' =>
+                        'MHIS approved amount cannot exceed the eligible hospital bill of ₹'
+                        . number_format($eligibleAmount, 2)
+                        . '. Please verify the approved amount.',
+                ]);
+            }
+        }
+
+        if ($validated['status'] === 'approved') {
+            $mhisPreflight = app(
+                \App\Services\Preflight\MhisPreflightService::class
+            )->checkApproval($account, $approvedAmount);
+
+            if ($mhisPreflight->hasBlockingIssues()) {
+                $messages = array_map(
+                    fn ($issue) => $issue['message']
+                        .' Correction: '.$issue['correction'],
+                    array_filter(
+                        $mhisPreflight->issues(),
+                        fn ($issue) => $issue['severity'] === 'blocking'
+                    )
+                );
+
+                throw ValidationException::withMessages([
+                    'status' => implode(' ', $messages),
+                ]);
+            }
         }
 
         DB::transaction(
@@ -3502,6 +3663,38 @@ throw ValidationException::withMessages([
 
                     'updated_by' => auth()->id(),
                 ];
+
+                // MHIS_APPROVAL_PREFLIGHT_V1
+                // Recheck inside the existing locked DB transaction.
+                if ($effectiveStatus === 'approved') {
+                    if ($lockedAccount->status !== 'finalized') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'status' => 'Finalize the IPD bill before approving MHIS.',
+                        ]);
+                    }
+
+                    $approvalCheck = app(
+                        \App\Services\Preflight\MhisPreflightService::class
+                    )->checkApproval($lockedAccount, $approvedAmount)
+                        ->toArray();
+
+                    if (! ($approvalCheck['ready'] ?? false)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'approved_amount' => implode(
+                                '; ',
+                                $approvalCheck['issues'] ?? [
+                                    'MHIS accounting preflight failed.'
+                                ]
+                            ),
+                        ]);
+                    }
+                }
+
+                if ($effectiveStatus === 'settled') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'status' => 'MHIS settlement must use the receipt reconciliation workflow.',
+                    ]);
+                }
 
                 if ($existingClaim) {
 
@@ -4080,6 +4273,26 @@ throw ValidationException::withMessages([
 
             $stage = 'recalculating_account';
             $this->recalculateAccount($account);
+            $account->refresh();
+
+            $stage = 'billing_preflight';
+            $preflight = app(
+                \App\Services\Preflight\IpBillingPreflightService::class
+            )->checkFinalization($account);
+
+            if ($preflight->hasBlockingIssues()) {
+                $messages = array_map(
+                    fn ($issue) => $issue['message'].' Correction: '.$issue['correction'],
+                    array_filter(
+                        $preflight->issues(),
+                        fn ($issue) => $issue['severity'] === 'blocking'
+                    )
+                );
+
+                throw ValidationException::withMessages([
+                    'finalize' => implode(' ', $messages),
+                ]);
+            }
 
             $stage = 'finalization_transaction';
 
@@ -4098,6 +4311,27 @@ throw ValidationException::withMessages([
                 if ($lockedAccount->status !== 'open') {
                     throw ValidationException::withMessages([
                         'finalize' => 'Only an open IP billing account can be finalized.',
+                    ]);
+                }
+
+                $stage = 'locked_billing_preflight';
+
+                $lockedPreflight = app(
+                    \App\Services\Preflight\IpBillingPreflightService::class
+                )->checkFinalization($lockedAccount);
+
+                if ($lockedPreflight->hasBlockingIssues()) {
+                    $messages = array_map(
+                        fn ($issue) => $issue['message']
+                            .' Correction: '.$issue['correction'],
+                        array_filter(
+                            $lockedPreflight->issues(),
+                            fn ($issue) => $issue['severity'] === 'blocking'
+                        )
+                    );
+
+                    throw ValidationException::withMessages([
+                        'finalize' => implode(' ', $messages),
                     ]);
                 }
 

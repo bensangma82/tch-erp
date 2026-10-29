@@ -180,16 +180,37 @@ if ($hasMhis) {
 }
             if (
                 ! $mhisEligible
-                || ($hasMhis && $account->advances->where("status", "active")->isNotEmpty())
+                || ($hasMhis && $account->advances->where("status", "active")->isNotEmpty()
+                    && (
+                        $account->advances->where("status", "active")->contains(
+                            fn ($advance) => ! JournalEntry::query()
+                                ->where('source_type', 'ip_billing_advance')
+                                ->where('source_id', (string) $advance->id)
+                                ->where('source_event', 'received')
+                                ->where('status', 'posted')
+                                ->exists()
+                        )
+                        || ! JournalEntry::query()
+                            ->where('source_type', 'ip_billing_account')
+                            ->where('source_id', (string) $account->id)
+                            ->where('source_event', 'advance_applied')
+                            ->where('status', 'posted')
+                            ->exists()
+                    ))
 
                 || $account->mhisAdjustments->where("status", "active")->isNotEmpty()
                 || $account->staffMedicalBenefitTransactions->where("status", "active")->isNotEmpty()
                 || $account->charityAdjustments->where("status", "applied")->isNotEmpty()
                 || $account->refunds->where("status", "active")->isNotEmpty()
             ) {
-                throw new RuntimeException(
-                    "This IPD bill requires an extended accounting workflow."
-                );
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount' =>
+                        'This patient account contains MHIS coverage, advances, '
+                        .'or other adjustments that require Finance reconciliation. '
+                        .'The payment has not been recorded. '
+                        .'Review the Accounting Reconciliation section before '
+                        .'attempting another collection.',
+                ]);
             }
 
             /*

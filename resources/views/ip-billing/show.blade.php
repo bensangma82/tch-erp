@@ -850,6 +850,39 @@ style="background-color: #dc2626;"
                         @endif
 
 
+                        {{-- BILLING PREFLIGHT --}}
+                        @if (isset($billingPreflight) && ! $isFinalized)
+                            <div class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <h3 class="text-sm font-bold text-slate-900">
+                                    Billing Readiness Check
+                                </h3>
+
+                                @if ($billingPreflight->isReady())
+                                    <div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                                        ✓ No blocking deficiencies detected by current checks.
+                                    </div>
+                                @else
+                                    <div class="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800">
+                                        Finalization blocked — deficiencies require correction.
+                                    </div>
+                                @endif
+
+                                @foreach ($billingPreflight->issues() as $issue)
+                                    <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                                        <div class="text-sm font-semibold text-slate-900">
+                                            {{ $issue['message'] }}
+                                        </div>
+                                        <div class="mt-1 text-xs text-slate-600">
+                                            {{ $issue['record'] ?? '' }}
+                                        </div>
+                                        <div class="mt-2 text-sm text-slate-700">
+                                            Correction: {{ $issue['correction'] }}
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
                         @if (! $isFinalized)
 
                             <form
@@ -860,10 +893,15 @@ style="background-color: #dc2626;"
 
                                 <button
                                     type="submit"
+                                    @disabled(isset($billingPreflight) && $billingPreflight->hasBlockingIssues())
                                     onclick="return confirm('Finalize this inpatient bill? After finalization, ordinary charges, bed charges and advances will be locked. MHIS processing can still continue.')"
-                                    class="inline-flex items-center justify-center rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-800"
+                                    class="inline-flex items-center justify-center rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none disabled:opacity-70"
                                 >
-                                    Finalize Bill
+                                    @if (isset($billingPreflight) && $billingPreflight->hasBlockingIssues())
+                                        Resolve Deficiencies First
+                                    @else
+                                        Finalize Bill
+                                    @endif
                                 </button>
                             </form>
 
@@ -1837,6 +1875,157 @@ style="background-color: #dc2626;"
             </div>
 
 
+
+            {{-- ACCOUNTING RECONCILIATION V2 --}}
+            @if ($accountingReconciliation !== null)
+                <div class="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+                    <div class="border-b border-amber-200 bg-amber-50 px-6 py-4">
+                        <h3 class="font-semibold text-slate-900">
+                            Accounting Reconciliation
+                        </h3>
+                        <p class="mt-1 text-sm text-slate-600">
+                            Review receipt journals and advance application.
+                            No financial entries are created here.
+                        </p>
+                    </div>
+
+                    <div class="space-y-3 p-6">
+                        @foreach ($accountingReconciliation['items'] as $item)
+                            <div class="rounded-lg border border-slate-200 p-4 text-sm">
+                                <div class="font-semibold text-slate-900">
+                                    {{ $item['type'] === 'advances' ? 'Advance' : 'Patient Payment' }}
+                                    #{{ $item['id'] }}
+                                    — ₹{{ number_format((float) $item['amount'], 2) }}
+                                </div>
+
+                                <p class="mt-1 text-slate-600">
+                                    Receipt: {{ $item['receipt_no'] }}
+                                </p>
+                                <div class="mt-3 rounded-lg bg-blue-50 p-3 text-sm">
+                                    <p class="font-semibold text-blue-800">
+                                        Proposed Accounting Entry — Review Only
+                                    </p>
+
+                                    @if ($item['proposed_debit_gl'])
+                                        <p class="mt-2 text-slate-700">
+                                            Debit GL {{ $item['proposed_debit_gl'] }}:
+                                            ₹{{ number_format((float) $item['amount'], 2) }}
+                                        </p>
+                                        <p class="text-slate-700">
+                                            Credit GL {{ $item['proposed_credit_gl'] }}:
+                                            ₹{{ number_format((float) $item['amount'], 2) }}
+                                        </p>
+                                    @else
+                                        <p class="mt-2 text-red-700">
+                                            Unsupported payment method. Finance review required.
+                                        </p>
+                                    @endif
+                                </div>
+
+
+                                <p class="mt-1 font-semibold {{ $item['journal_status'] === 'posted' ? 'text-emerald-700' : 'text-red-700' }}">
+                                    Journal: {{ strtoupper($item['journal_status']) }}
+                                    {{ $item['journal_no'] }}
+                                </p>
+                            </div>
+                        @endforeach
+
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+                            <span class="font-semibold">
+                                Advance application:
+                            </span>
+                            {{ strtoupper($accountingReconciliation['advance_application']['status']) }}
+                            {{ $accountingReconciliation['advance_application']['journal_no'] }}
+                        </div>
+
+                        {{-- EXTENDED RECONCILIATION PREVIEW --}}
+                        @if ($accountingCorrectionPreview !== null)
+                            <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                                <h4 class="font-semibold text-blue-900">
+                                    Review Proposed Corrections
+                                </h4>
+
+                                @forelse ($accountingCorrectionPreview['entries'] as $entry)
+                                    <div class="mt-3 border-t border-blue-200 pt-3 text-sm">
+                                        <p class="font-semibold text-slate-900">
+                                            {{ $entry['reference'] }}
+                                        </p>
+                                        <p>Debit GL {{ $entry['debit_gl'] }}:
+                                            ₹{{ number_format((float) $entry['amount'], 2) }}
+                                        </p>
+                                        <p>Credit GL {{ $entry['credit_gl'] }}:
+                                            ₹{{ number_format((float) $entry['amount'], 2) }}
+                                        </p>
+                                    </div>
+                                @empty
+                                    <p class="mt-2 text-sm">
+                                        No receipt corrections proposed.
+                                    </p>
+                                @endforelse
+
+                                @if ($accountingCorrectionPreview['application_preview'])
+                                    @php
+                                        $application = $accountingCorrectionPreview['application_preview'];
+                                    @endphp
+
+                                    <div class="mt-3 border-t border-blue-200 pt-3 text-sm">
+                                        <p class="font-semibold text-slate-900">
+                                            Apply Patient Advance
+                                        </p>
+                                        <p>
+                                            Debit GL {{ $application['debit_gl'] }}:
+                                            ₹{{ number_format((float) $application['amount'], 2) }}
+                                        </p>
+                                        <p>
+                                            Credit GL {{ $application['credit_gl'] }}:
+                                            ₹{{ number_format((float) $application['amount'], 2) }}
+                                        </p>
+                                        <p class="mt-1 text-xs text-slate-500">
+                                            Final bill: {{ $application['reference'] }}
+                                        </p>
+                                    </div>
+                                @endif
+
+                                <div class="mt-5 border-t border-blue-200 pt-4">
+                                    <form
+                                        method="POST"
+                                        action="{{ route('ip-billing.accounting.reconcile', $admission) }}"
+                                        onsubmit="return confirm('Post the verified IPD reconciliation journals? This changes the General Ledger.');"
+                                    >
+                                        @csrf
+                                        <label class="mb-3 flex items-start gap-2 text-sm text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                name="cash_verified"
+                                                value="1"
+                                                required
+                                                class="mt-1"
+                                            >
+                                            <span>
+                                                I have verified these original cash receipts
+                                                against the hospital collection records and
+                                                confirmed they have not already been accounted
+                                                for elsewhere.
+                                            </span>
+                                        </label>
+                                        <button
+                                            type="submit"
+                                            class="rounded-lg bg-violet-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-800"
+                                        >
+                                            Confirm Reconciliation
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @endif
+
+                        <p class="text-xs text-amber-800">
+                            Missing journals require Finance verification.
+                            Do not reverse valid receipts or collect payments again.
+                        </p>
+                    </div>
+                </div>
+            @endif
 
             {{-- MHIS --}}
             <div class="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
@@ -3021,6 +3210,39 @@ style="background-color: #dc2626;"
                 </div>
 
 
+                {{-- MHIS APPROVAL PREFLIGHT --}}
+                @if (isset($mhisPreflight))
+                    <div class="rounded-xl border border-slate-200 bg-white p-4">
+                        <h4 class="text-sm font-bold text-slate-900">
+                            MHIS Approval Readiness
+                        </h4>
+
+                        @if ($mhisPreflight->isReady())
+                            <p class="mt-2 text-sm font-semibold text-emerald-700">
+                                No blocking deficiencies detected by current checks.
+                            </p>
+                        @else
+                            <p class="mt-2 text-sm font-semibold text-red-700">
+                                Approval blocked — resolve these deficiencies:
+                            </p>
+                        @endif
+
+                        @foreach ($mhisPreflight->issues() as $issue)
+                            <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                                <p class="text-sm font-semibold text-red-800">
+                                    {{ $issue['message'] }}
+                                </p>
+                                <p class="mt-1 text-xs text-slate-600">
+                                    {{ $issue['record'] ?? '' }}
+                                </p>
+                                <p class="mt-2 text-sm text-slate-700">
+                                    Correction: {{ $issue['correction'] }}
+                                </p>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
                 <div class="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
                     Approved MHIS reduces the patient balance. Actual MHIS payments are recorded separately and may be received in multiple partial payments over several months.
                 </div>
@@ -3034,6 +3256,15 @@ style="background-color: #dc2626;"
                         class="inline-flex justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                     >
                         Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        id="check-mhis-readiness"
+                        data-url="{{ route('ip-billing.mhis.preflight', $admission) }}"
+                        class="inline-flex justify-center rounded-lg border border-violet-300 bg-white px-5 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+                    >
+                        Check Readiness
                     </button>
 
                     <button
@@ -4530,3 +4761,56 @@ refundModal?.addEventListener(
     </script>
 
 </x-app-layout>
+
+<!-- MHIS_READINESS_BUTTON_FIX_V1 -->
+<script>
+document.addEventListener('click', async function (event) {
+    const button = event.target.closest('#check-mhis-readiness');
+    if (!button) return;
+
+    event.preventDefault();
+
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Checking...';
+
+    try {
+        const response = await fetch(button.dataset.url, {
+            method: 'POST',
+            body: new FormData(
+                button.closest('form')
+            ),
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector(
+                    'meta[name="csrf-token"]'
+                )?.content || ''
+            }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Readiness check failed.');
+        }
+
+        const issues = data.issues || [];
+
+        if (data.ready === true) {
+            alert('MHIS accounting readiness: PASSED. No blocking issues.');
+        } else {
+            alert(
+                'MHIS accounting readiness: NOT READY\n\n' +
+                (issues.length ? issues.join('\n') : 'Review MHIS claim details.')
+            );
+        }
+    } catch (error) {
+        alert('MHIS readiness check failed: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+});
+</script>
