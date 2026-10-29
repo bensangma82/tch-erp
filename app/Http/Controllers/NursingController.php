@@ -116,16 +116,23 @@ class NursingController extends Controller
                 'string',
                 'max:2000',
             ],
-            'mark_seen' => [
-                'sometimes',
-                'boolean',
-            ],
+            'mark_seen' => $encounter->status === 'completed'
+                ? ['prohibited']
+                : ['required', 'accepted'],
         ]);
         DB::transaction(function () use ($encounter, $validated, $request) {
             $locked = Encounter::query()
                 ->lockForUpdate()
                 ->findOrFail($encounter->id);
             abort_unless($locked->encounter_type === 'OPD', 422);
+
+            if ($locked->status !== 'completed') {
+                if (!$request->boolean('mark_seen')) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'mark_seen' => 'Confirm Patient Seen by Doctor before saving vitals.',
+                    ]);
+                }
+            }
             if ($request->boolean('mark_seen')) {
                 abort_unless(
                     auth()->user()?->hasPermission('nursing.vitals'),

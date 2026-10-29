@@ -322,46 +322,85 @@
                     </div>
                 </div>
                 {{-- NURSING NOTES --}}
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <div class="border-b border-gray-200 px-6 py-4">
-                        <h3 class="font-semibold text-gray-800">
-                            Nursing Notes
+                <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-100 px-6 py-4">
+                        <h3 class="text-base font-bold text-slate-900">
+                            Nursing Assessment Notes
                         </h3>
+                        <p class="mt-1 text-xs text-slate-500">
+                            Document relevant observations during the nursing assessment.
+                        </p>
                     </div>
+
                     <div class="p-6">
+                        <label for="nursing_notes" class="mb-2 block text-sm font-medium text-slate-700">
+                            Clinical observations
+                        </label>
                         <textarea
+                            id="nursing_notes"
                             name="notes"
                             rows="3"
-                            placeholder="Optional nursing observations"
-                            class="w-full rounded-lg border-gray-300"
+                            placeholder="Enter optional nursing observations..."
+                            class="w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                         >{{ old('notes') }}</textarea>
                     </div>
-                </div>
-                {{-- ACTIONS --}}
-                <div class="flex justify-end gap-3">
+                </section>
+
+                {{-- CONSULTATION CONFIRMATION --}}
+                @if ($encounter->status !== 'completed')
+                    <section class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor"
+                                     stroke-width="1.8" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                          d="M9 12l2 2 4-4M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"/>
+                                </svg>
+                            </div>
+
+                            <div class="flex-1">
+                                <h3 class="text-sm font-bold text-emerald-900">
+                                    Doctor Consultation Confirmation
+                                </h3>
+                                <p class="mt-1 text-xs leading-5 text-emerald-800">
+                                    This is separate from recording nursing observations.
+                                    Select only when the assigned doctor has examined the patient.
+                                </p>
+
+                                <label class="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-emerald-200 bg-white p-4">
+                                    <input
+                                        type="checkbox"
+                                        id="mark_seen"
+                                        name="mark_seen"
+                                        value="1"
+                                        required
+                                        onchange="document.getElementById('save_vitals_button').disabled = !this.checked"
+                                        @checked(old('mark_seen'))
+                                        class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500"
+                                    >
+                                    <span class="text-sm font-semibold text-slate-800">
+                                        Confirm: Patient Seen by Doctor
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </section>
+                @endif
+
+                {{-- FORM ACTIONS --}}
+                <div class="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 pt-5">
                     <a
                         href="{{ route('nursing.index') }}"
-                        class="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
                         Cancel
                     </a>
-                @if ($encounter->status !== 'completed')
-                    <label class="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                        <input type="checkbox"
-                               name="mark_seen"
-                               value="1"
-                               class="mt-1 rounded border-emerald-400 text-emerald-600">
-                        <span class="text-sm text-emerald-900">
-                            <strong>Patient Seen by Doctor</strong>
-                            <span class="block text-xs mt-1">
-                                Confirm that the assigned doctor has examined this patient.
-                            </span>
-                        </span>
-                    </label>
-                @endif
-<button
+
+                    <button
                         type="submit"
-                        class="rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+                        id="save_vitals_button"
+                        @if ($encounter->status !== 'completed' && !old('mark_seen')) disabled @endif
+                        class="inline-flex items-center justify-center rounded-xl bg-indigo-700 px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
                     >
                         Save Vitals
                     </button>
