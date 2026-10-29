@@ -722,7 +722,7 @@ $refundDue =
             {{-- CURRENT ACTIONS --}}
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex flex-col gap-5">
 
                     <div>
 
@@ -741,7 +741,196 @@ $refundDue =
                     </div>
 
 
-                    <div class="flex flex-wrap gap-2">
+
+<!-- TCH_BILLING_PROFESSIONAL_V1 -->
+
+
+<!-- TCH_BILLING_BOLD_TEXT_V1 -->
+<style>
+#tch-billing-actions-toolbar > button,
+#tch-billing-actions-toolbar > a,
+#tch-billing-actions-toolbar > form > button {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.01em;
+}
+</style>
+
+<!-- TCH_BILLING_COLOURS_V1 -->
+<style>
+/* Bed charges */
+#tch-billing-actions-toolbar > form[action*="generate-bed-charges"] > button {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    border-color: #cbd5e1 !important;
+}
+
+/* Investigations */
+#tch-billing-actions-toolbar > a[href*="investigations"] {
+    background: #f0fdfa !important;
+    color: #0f766e !important;
+    border-color: #99f6e4 !important;
+}
+
+/* Additional charges */
+#tch-billing-actions-toolbar #open-charge-modal {
+    background: #fffbeb !important;
+    color: #b45309 !important;
+    border-color: #fde68a !important;
+}
+
+/* Pharmacy */
+#tch-billing-actions-toolbar > a[href*="pharmacy"] {
+    background: #f5f3ff !important;
+    color: #6d28d9 !important;
+    border-color: #ddd6fe !important;
+}
+
+/* Patient advance */
+#tch-billing-actions-toolbar #open-advance-modal {
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+    border-color: #bfdbfe !important;
+}
+
+/* MHIS */
+#tch-billing-actions-toolbar #open-mhis-modal {
+    background: #eef2ff !important;
+    color: #4338ca !important;
+    border-color: #c7d2fe !important;
+}
+
+/* Consistent hover behaviour */
+#tch-billing-actions-toolbar > button:hover,
+#tch-billing-actions-toolbar > a:hover,
+#tch-billing-actions-toolbar > form:not([action*="/finalize"]) > button:hover {
+    filter: brightness(0.97);
+    transform: translateY(-1px);
+}
+
+/* Keep Finalize Bill prominent */
+#tch-billing-actions-toolbar > form[action*="/finalize"] > button {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #0f172a !important;
+}
+</style>
+
+<style>
+#tch-billing-actions-toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px !important;
+    align-items: start !important;
+}
+
+#tch-billing-actions-toolbar > * {
+    min-width: 0;
+    align-self: start !important;
+}
+
+#tch-billing-actions-toolbar > form:not([action*="/finalize"]),
+#tch-billing-actions-toolbar > form:not([action*="/finalize"]) > button {
+    width: 100%;
+}
+
+#tch-billing-actions-toolbar > button,
+#tch-billing-actions-toolbar > a,
+#tch-billing-actions-toolbar > form > button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100%;
+    min-height: 42px !important;
+    height: 42px !important;
+    padding: 0 12px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    white-space: normal;
+    text-align: center;
+    transition: background .15s, border-color .15s;
+}
+
+#tch-billing-actions-toolbar > button:hover,
+#tch-billing-actions-toolbar > a:hover,
+#tch-billing-actions-toolbar > form > button:hover {
+    background: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+}
+
+#tch-billing-actions-toolbar #open-mhis-modal,
+#tch-billing-actions-toolbar #open-mhis-adjustment-modal-primary {
+    background: #f5f3ff !important;
+    border-color: #ddd6fe !important;
+    color: #6d28d9 !important;
+}
+
+#tch-billing-actions-toolbar #open-mhis-receipt-modal {
+    background: #ecfdf5 !important;
+    border-color: #a7f3d0 !important;
+    color: #047857 !important;
+}
+
+#tch-billing-actions-toolbar #open-refund-modal {
+    background: #fff1f2 !important;
+    border-color: #fecdd3 !important;
+    color: #be123c !important;
+}
+
+#tch-billing-actions-toolbar > div:has(.border-emerald-200, .border-red-300) {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    margin: 6px 0 0 !important;
+    box-shadow: none !important;
+    border-color: #e2e8f0 !important;
+    background: #f8fafc !important;
+}
+
+#tch-billing-actions-toolbar > form[action*="/finalize"] {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    padding-top: 14px !important;
+    border-top: 1px solid #e2e8f0 !important;
+    margin-top: 3px;
+}
+
+#tch-billing-actions-toolbar > form[action*="/finalize"] > button {
+    width: auto !important;
+    min-width: 155px;
+    background: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #fff !important;
+}
+
+#tch-billing-actions-toolbar > form[action*="/finalize"] > button:disabled {
+    background: #94a3b8 !important;
+    border-color: #94a3b8 !important;
+    cursor: not-allowed !important;
+}
+
+@media (max-width: 900px) {
+    #tch-billing-actions-toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    #tch-billing-actions-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+</style>
+
+<!-- TCH_BILLING_LAYOUT_V2 -->
+<div id="tch-billing-actions-toolbar" class="flex w-full flex-wrap gap-3">
 
                           @if (
     $isFinalized
@@ -751,7 +940,7 @@ $refundDue =
     <button
         type="button"
         id="open-refund-modal"
-        class="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+        class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
 style="background-color: #dc2626;"
     >
         Process Refund
@@ -763,50 +952,68 @@ style="background-color: #dc2626;"
                             <form
                                 method="POST"
                                 action="{{ route('ip-billing.generate-bed-charges', $admission) }}"
+                                class="w-full"
                             >
                                 @csrf
 
                                 <button
                                     type="submit"
                                     onclick="return confirm('Generate bed charges for this admission up to the current date? Existing bed-day charges will not be duplicated.')"
-                                    class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-                                >
-                                    Generate Bed Charges
-                                </button>
+                                    class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+                                ><span class="inline-flex items-center gap-2">
+<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 12V7a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v5m0 0h9v5m-9-5v5m-9 0v-5m0 5H2m1 0h18" />
+</svg>
+<span class="tch-action-label">Generate Bed Charges</span>
+</span></button>
                             </form>
 
 
                             <a
                                 href="{{ route('ip-billing.investigations.create', $admission) }}"
-                                class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
-                            >
-                                Add Investigations
-                            </a>
+                                class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700"
+                            ><span class="inline-flex items-center gap-2">
+<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />
+</svg>
+<span class="tch-action-label">Add Investigations</span>
+</span></a>
 
 
                             <button
                                 type="button"
                                 id="open-charge-modal"
-                                class="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
-                            >
-                                Add Charge
-                            </button>
+                                class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+                            ><span class="inline-flex items-center gap-2">
+<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+</svg>
+<span class="tch-action-label">Add Charge</span>
+</span></button>
 
 @if ($account->status === 'open')
     <a
         href="{{ route('pharmacy.dispensing.create', ['admission_id' => $admission->id]) }}"
-        class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
-    >
-        Dispense Medicines
-    </a>
+        class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
+    ><span class="inline-flex items-center gap-2">
+<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6.75 17.25 13.5a3 3 0 1 1-4.243 4.243L6.257 11a3 3 0 0 1 4.243-4.243Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="m8.25 9 6.75 6.75" />
+</svg>
+<span class="tch-action-label">Dispense Medicines</span>
+</span></a>
 @endif
                             <button
                                 type="button"
                                 id="open-advance-modal"
-                                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-                            >
-                                Receive Advance
-                            </button>
+                                class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                            ><span class="inline-flex items-center gap-2">
+<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.25 2.25 0 0 1 5.25 5.25h13.5A2.25 2.25 0 0 1 21 7.5v9A2.25 2.25 0 0 1 18.75 18.75H5.25A2.25 2.25 0 0 1 3 16.5v-9Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25v7.5m0 0 2.25-2.25M12 15.75l-2.25-2.25" />
+</svg>
+<span class="tch-action-label">Receive Advance</span>
+</span></button>
 
                         @endif
 
@@ -814,7 +1021,7 @@ style="background-color: #dc2626;"
                         <button
                             type="button"
                             id="open-mhis-modal"
-                            class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
+                            class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
                         >
                             {{ $mhisClaim ? 'Update MHIS' : 'MHIS' }}
                         </button>
@@ -825,7 +1032,7 @@ style="background-color: #dc2626;"
     <button
         type="button"
         id="open-mhis-adjustment-modal-primary"
-        class="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
+        class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
     >
         Package Adjustment
     </button>
@@ -843,7 +1050,7 @@ style="background-color: #dc2626;"
                             <button
                                 type="button"
                                 id="open-mhis-receipt-modal"
-                                class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+                                class="inline-flex min-h-[46px] w-full items-center justify-center rounded-lg text-center bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
                             >
                                 Record MHIS Payment
                             </button>
@@ -852,7 +1059,7 @@ style="background-color: #dc2626;"
 
                         {{-- BILLING PREFLIGHT --}}
                         @if (isset($billingPreflight) && ! $isFinalized)
-                            <div class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <div class="col-span-full rounded-xl border border-slate-200 bg-slate-50 p-4">
                                 <h3 class="text-sm font-bold text-slate-900">
                                     Billing Readiness Check
                                 </h3>
@@ -885,7 +1092,7 @@ style="background-color: #dc2626;"
 
                         @if (! $isFinalized)
 
-                            <form
+                            <form class="col-span-full flex justify-end border-t border-slate-200 pt-4"
                                 method="POST"
                                 action="{{ route('ip-billing.finalize', $admission) }}"
                             >
@@ -4760,6 +4967,71 @@ refundModal?.addEventListener(
         });
     </script>
 
+
+<!-- TCH_BILLING_ACTIONS_ICON_UPGRADE_V1 -->
+<style>
+#tch-billing-actions-toolbar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+#tch-billing-actions-toolbar > a,
+#tch-billing-actions-toolbar > button,
+#tch-billing-actions-toolbar > form > button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    min-height: 62px !important;
+    padding: 14px 18px !important;
+    border-radius: 14px !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0.01em !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: all 0.18s ease;
+}
+
+#tch-billing-actions-toolbar > a:hover,
+#tch-billing-actions-toolbar > button:hover,
+#tch-billing-actions-toolbar > form > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+#tch-billing-actions-toolbar svg {
+    width: 20px !important;
+    height: 20px !important;
+    flex-shrink: 0 !important;
+    stroke-width: 2.2 !important;
+}
+
+#tch-billing-actions-toolbar .tch-action-label {
+    display: inline-block;
+}
+
+@media (max-width: 1280px) {
+    #tch-billing-actions-toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    #tch-billing-actions-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    #tch-billing-actions-toolbar > a,
+    #tch-billing-actions-toolbar > button,
+    #tch-billing-actions-toolbar > form > button {
+        min-height: 58px !important;
+        font-size: 16px !important;
+    }
+}
+</style>
+
 </x-app-layout>
 
 <!-- MHIS_READINESS_BUTTON_FIX_V1 -->
@@ -4814,3 +5086,124 @@ document.addEventListener('click', async function (event) {
     }
 });
 </script>
+
+
+<!-- TCH_BILLING_FINAL_POLISH_V1 -->
+<style>
+/* Professional billing action grid */
+#tch-billing-actions-toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+    align-items: start !important;
+}
+
+/* All action buttons */
+#tch-billing-actions-toolbar > button,
+#tch-billing-actions-toolbar > a,
+#tch-billing-actions-toolbar > form > button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    padding: 12px 16px !important;
+    border-radius: 12px !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0 !important;
+    box-shadow: 0 1px 3px rgba(15,23,42,.05) !important;
+    transition:
+        background-color .16s ease,
+        box-shadow .16s ease,
+        transform .16s ease;
+}
+
+/* Icons */
+#tch-billing-actions-toolbar svg {
+    width: 22px !important;
+    height: 22px !important;
+    flex-shrink: 0;
+    stroke-width: 2.3;
+}
+
+/* Hover and keyboard accessibility */
+#tch-billing-actions-toolbar > button:hover,
+#tch-billing-actions-toolbar > a:hover,
+#tch-billing-actions-toolbar > form > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(15,23,42,.09) !important;
+}
+
+#tch-billing-actions-toolbar :is(button,a):focus-visible {
+    outline: 3px solid #93c5fd !important;
+    outline-offset: 3px;
+}
+
+/* Readiness section */
+#tch-billing-actions-toolbar > div:has(.border-emerald-200, .border-red-300) {
+    grid-column: 1 / -1 !important;
+    width: 100%;
+    margin-top: 10px !important;
+    padding: 18px 20px !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+}
+
+/* Finalize Bill in its own footer */
+#tch-billing-actions-toolbar > form[action*="/finalize"] {
+    grid-column: 1 / -1 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    width: 100% !important;
+    padding-top: 18px !important;
+    margin-top: 6px !important;
+    border-top: 1px solid #e2e8f0 !important;
+}
+
+#tch-billing-actions-toolbar > form[action*="/finalize"] > button {
+    width: auto !important;
+    min-width: 180px !important;
+    background: #0f172a !important;
+    color: #fff !important;
+    border-color: #0f172a !important;
+}
+
+/* Preserve disabled-state appearance */
+#tch-billing-actions-toolbar button:disabled {
+    cursor: not-allowed !important;
+    opacity: .65 !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+@media (max-width: 1100px) {
+    #tch-billing-actions-toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 600px) {
+    #tch-billing-actions-toolbar {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    #tch-billing-actions-toolbar > button,
+    #tch-billing-actions-toolbar > a,
+    #tch-billing-actions-toolbar > form > button {
+        height: auto !important;
+        min-height: 54px !important;
+        font-size: 15px !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #tch-billing-actions-toolbar * {
+        transition: none !important;
+    }
+}
+</style>
