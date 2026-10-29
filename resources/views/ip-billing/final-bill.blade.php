@@ -1002,7 +1002,7 @@
 
                         <dt>Consultant</dt>
                         <dd>
-                            {{ $admission->consultant?->name ?? '—' }}
+                            {{ $admission->consultant?->full_name ?? '—' }}
                         </dd>
 
                         <dt>Ward / Bed</dt>
