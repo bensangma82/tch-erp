@@ -3251,6 +3251,25 @@ style="background-color: #dc2626;"
 
 
                     <div>
+                        <div class="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                            <label for="mhis_package_search"
+                                   class="block text-sm font-semibold text-slate-700">
+                                Search MHIS Package Master
+                            </label>
+                            <input type="search"
+                                   id="mhis_package_search"
+                                   autocomplete="off"
+                                   placeholder="Enter procedure code or name"
+                                   class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                            <div id="mhis_package_results"
+                                 class="mt-2 max-h-60 overflow-y-auto"
+                                 aria-live="polite"></div>
+                            <p id="mhis_package_reference"
+                               class="mt-2 text-xs text-slate-600">
+                                Select a package to display its reference tariff.
+                            </p>
+                        </div>
+
                         <label for="mhis_package_code" class="block text-sm font-semibold text-slate-700">
                             Package Code
                         </label>
@@ -4266,6 +4285,105 @@ style="background-color: #dc2626;"
 
 
     <script>
+
+        // MHIS_PACKAGE_SEARCH_INTEGRATION_V1
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('mhis_package_search');
+            const results = document.getElementById('mhis_package_results');
+            const reference = document.getElementById('mhis_package_reference');
+            const codeField = document.getElementById('mhis_package_code');
+            const nameField = document.getElementById('mhis_package_name');
+
+            if (!input || !results || !reference || !codeField || !nameField) {
+                return;
+            }
+
+            const searchUrl = @json(route('mhis.procedures.search'));
+            let timer;
+            let controller;
+
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                if (controller) controller.abort();
+
+                results.replaceChildren();
+
+                const query = input.value.trim();
+
+                if (query.length < 2) {
+                    return;
+                }
+
+                timer = setTimeout(async function () {
+                    controller = new AbortController();
+
+                    try {
+                        const url = new URL(searchUrl, window.location.origin);
+                        url.searchParams.set('q', query);
+
+                        const response = await fetch(url, {
+                            signal: controller.signal,
+                            headers: { 'Accept': 'application/json' },
+                            credentials: 'same-origin'
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Search unavailable');
+                        }
+
+                        const data = await response.json();
+                        results.replaceChildren();
+
+                        if (!data.results || data.results.length === 0) {
+                            results.textContent = 'No matching packages found.';
+                            return;
+                        }
+
+                        data.results.forEach(function (item) {
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className =
+                                'block w-full border-b border-slate-200 p-2 text-left text-sm hover:bg-violet-100';
+
+                            const label = [
+                                item.procedure_code,
+                                item.specialty,
+                                item.procedure_name
+                            ].filter(Boolean).join(' | ');
+
+                            button.textContent = label;
+
+                            button.addEventListener('click', function () {
+                                codeField.value = item.procedure_code;
+                                nameField.value =
+                                    (item.procedure_name || item.package_name || '')
+                                    .slice(0, 500);
+
+                                reference.textContent =
+                                    'Reference tariff: ' +
+                                    (item.procedure_price !== null
+                                        ? '₹' + Number(item.procedure_price)
+                                            .toLocaleString('en-IN')
+                                        : (item.source_price_text || 'Not specified')) +
+                                    ' | Specialty: ' + (item.specialty || '—') +
+                                    ' | ERP ID: ' + item.id;
+
+                                input.value = label;
+                                results.replaceChildren();
+                            });
+
+                            results.appendChild(button);
+                        });
+
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            results.textContent = 'Unable to search packages.';
+                        }
+                    }
+                }, 300);
+            });
+        });
+
         document.addEventListener('DOMContentLoaded', function () {
 
             const mhisModal =
@@ -5075,7 +5193,14 @@ document.addEventListener('click', async function (event) {
         } else {
             alert(
                 'MHIS accounting readiness: NOT READY\n\n' +
-                (issues.length ? issues.join('\n') : 'Review MHIS claim details.')
+                (issues.length ? issues.map(issue => {
+                    if (typeof issue === 'string') return issue;
+                    return [
+                        issue.message || 'MHIS readiness issue',
+                        issue.record ? 'Record: ' + issue.record : '',
+                        issue.correction ? 'Correction: ' + issue.correction : ''
+                    ].filter(Boolean).join(' — ');
+                }).join('\\n') : 'Review MHIS claim details.')
             );
         }
     } catch (error) {

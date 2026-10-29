@@ -2324,6 +2324,31 @@ Route::middleware(
     |--------------------------------------------------------------------------
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | MHIS Package Master - Read Only
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('permission:ip-billing.view')
+        ->group(function () {
+
+            Route::get(
+                '/mhis/procedures',
+                [\App\Http\Controllers\MhisProcedureController::class, 'index']
+            )->name('mhis.procedures.index');
+
+            Route::get(
+                '/mhis/procedures/search',
+                [\App\Http\Controllers\MhisProcedureController::class, 'searchForModal']
+            )->name('mhis.procedures.search');
+
+            Route::get(
+                '/mhis/procedures/{procedure}',
+                [\App\Http\Controllers\MhisProcedureController::class, 'show']
+            )->whereNumber('procedure')
+             ->name('mhis.procedures.show');
+        });
+
     Route::middleware(
         'permission:ip-billing.advance'
     )->group(function () {
