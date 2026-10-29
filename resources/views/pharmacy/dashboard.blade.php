@@ -1,40 +1,46 @@
 <x-app-layout>
 
     <x-slot name="header">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">
+                    <svg class="h-7 w-7" fill="none" stroke="currentColor"
+                         stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="m10.5 3.5 10 10a5 5 0 0 1-7 7l-10-10a5 5 0 0 1 7-7ZM8 8l8 8"/>
+                    </svg>
+                </div>
 
-            <div>
-
-                <h2 class="text-2xl font-bold tracking-tight text-slate-900">
-                    Pharmacy Dashboard
-                </h2>
-
-                <p class="mt-1 text-sm text-slate-500">
-                    Pharmacy sales, returns, stock and expiry overview
-                </p>
-
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-widest text-indigo-600">
+                        Pharmacy Operations
+                    </p>
+                    <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                        Pharmacy Dashboard
+                    </h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Sales, inventory, medicine movement and stock monitoring
+                    </p>
+                </div>
             </div>
 
+            <div class="flex flex-wrap items-center gap-3">
+                @if (auth()->user()?->isAdmin() || auth()->user()?->hasAnyRole(['management']))
+                    <a href="{{ route('pharmacy.movement-report') }}"
+                       class="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100">
+                        <span>Medicine Movement Analytics</span>
+                        <span aria-hidden="true">&rarr;</span>
+                    </a>
+                @endif
 
-            @if (auth()->user()?->isAdmin() || auth()->user()?->hasAnyRole(['management']))
-                <a
-                    href="{{ route('pharmacy.movement-report') }}"
-                    class="inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-                >
-                    Medicine Movement Analytics
+                <a href="{{ route('pharmacy.dispensing.create') }}"
+                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
+                    <span aria-hidden="true">+</span>
+                    New Dispensing
                 </a>
-            @endif
-
-            <a
-                href="{{ route('pharmacy.dispensing.create') }}"
-                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-            >
-                New Dispensing
-            </a>
-
+            </div>
         </div>
-
     </x-slot>
 
 
@@ -67,63 +73,81 @@
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 
 
-                    {{-- GROSS SALES --}}
-                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    @php
+                        $salesCards = [
+                            [
+                                'label' => 'Gross Sales',
+                                'amount' => $todaySalesAmount,
+                                'description' => number_format($todayDispensingCount) . ' dispensing transactions',
+                                'color' => 'blue',
+                                'icon' => 'sales',
+                            ],
+                            [
+                                'label' => 'Returns / Refunds',
+                                'amount' => $todayRefundAmount,
+                                'description' => number_format($todayReturnCount) . ' return transactions',
+                                'color' => 'red',
+                                'icon' => 'returns',
+                            ],
+                            [
+                                'label' => 'Net Pharmacy Sales',
+                                'amount' => $todayNetSales,
+                                'description' => 'Gross sales less completed refunds',
+                                'color' => 'emerald',
+                                'icon' => 'net',
+                            ],
+                        ];
 
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Gross Sales
+                        $cardStyles = [
+                            'blue' => ['bg-blue-50', 'text-blue-700', 'ring-blue-100'],
+                            'red' => ['bg-red-50', 'text-red-700', 'ring-red-100'],
+                            'emerald' => ['bg-emerald-50', 'text-emerald-700', 'ring-emerald-100'],
+                        ];
+                    @endphp
+
+                    @foreach ($salesCards as $card)
+                        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl ring-1 {{ implode(' ', [$cardStyles[$card['color']][0], $cardStyles[$card['color']][1], $cardStyles[$card['color']][2]]) }}">
+                                    @if ($card['icon'] === 'sales')
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M3 3v18h18M7 15l4-4 3 2 6-7"/>
+                                        </svg>
+                                    @elseif ($card['icon'] === 'returns')
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M3 10h12a5 5 0 0 1 0 10h-2M3 10l5-5M3 10l5 5"/>
+                                        </svg>
+                                    @else
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M3 17l6-6 4 4 8-9M15 6h6v6"/>
+                                        </svg>
+                                    @endif
+                                </div>
+
+                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+                                    Today
+                                </span>
+                            </div>
+
+                            <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                {{ $card['label'] }}
+                            </p>
+
+                            <p class="mt-2 text-3xl font-bold tracking-tight tabular-nums {{ $cardStyles[$card['color']][1] }}">
+                                ₹{{ number_format((float) $card['amount'], 2) }}
+                            </p>
+
+                            <p class="mt-3 text-sm text-slate-500">
+                                {{ $card['description'] }}
+                            </p>
                         </div>
-
-                        <div class="mt-3 text-3xl font-bold text-slate-900">
-                            ₹{{ number_format((float) $todaySalesAmount, 2) }}
-                        </div>
-
-                        <div class="mt-2 text-sm text-slate-500">
-                            {{ number_format($todayDispensingCount) }}
-                            dispensing transactions
-                        </div>
-
-                    </div>
-
-
-
-                    {{-- RETURNS --}}
-                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Returns / Refunds
-                        </div>
-
-                        <div class="mt-3 text-3xl font-bold text-red-700">
-                            ₹{{ number_format((float) $todayRefundAmount, 2) }}
-                        </div>
-
-                        <div class="mt-2 text-sm text-slate-500">
-                            {{ number_format($todayReturnCount) }}
-                            return transactions
-                        </div>
-
-                    </div>
-
-
-
-                    {{-- NET SALES --}}
-                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Net Pharmacy Sales
-                        </div>
-
-                        <div class="mt-3 text-3xl font-bold text-emerald-700">
-                            ₹{{ number_format((float) $todayNetSales, 2) }}
-                        </div>
-
-                        <div class="mt-2 text-sm text-slate-500">
-                            Gross sales less completed refunds
-                        </div>
-
-                    </div>
-
+                    @endforeach
 
                 </div>
 
@@ -153,108 +177,133 @@
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
 
-                    {{-- LOW STOCK --}}
-                    <a
-                        href="{{ route('pharmacy.stock-batches.index', ['filter' => 'low_stock']) }}"
-                        class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-amber-300 hover:shadow-md"
-                    >
+                    @php
+                        $stockAlerts = [
+                            [
+                                'title' => 'Low Stock',
+                                'count' => $lowStockCount,
+                                'description' => 'At or below reorder level',
+                                'filter' => 'low_stock',
+                                'action' => 'View low stock',
+                                'color' => 'amber',
+                                'icon' => 'low',
+                            ],
+                            [
+                                'title' => 'Out of Stock',
+                                'count' => $outOfStockCount,
+                                'description' => 'Active batches with zero stock',
+                                'filter' => 'out_of_stock',
+                                'action' => 'View out of stock',
+                                'color' => 'red',
+                                'icon' => 'empty',
+                            ],
+                            [
+                                'title' => 'Near Expiry',
+                                'count' => $nearExpiryCount,
+                                'description' => 'Expiring within 90 days',
+                                'filter' => 'near_expiry',
+                                'action' => 'View near expiry',
+                                'color' => 'orange',
+                                'icon' => 'calendar',
+                            ],
+                            [
+                                'title' => 'Expired Stock',
+                                'count' => $expiredCount,
+                                'description' => 'Expired batches with stock remaining',
+                                'filter' => 'expired',
+                                'action' => 'Review expired stock',
+                                'color' => 'rose',
+                                'icon' => 'warning',
+                            ],
+                        ];
 
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Low Stock
-                        </div>
+                        $alertStyles = [
+                            'amber' => [
+                                'bg' => 'bg-amber-50',
+                                'text' => 'text-amber-700',
+                                'ring' => 'ring-amber-100',
+                                'hover' => 'hover:border-amber-300',
+                            ],
+                            'red' => [
+                                'bg' => 'bg-red-50',
+                                'text' => 'text-red-700',
+                                'ring' => 'ring-red-100',
+                                'hover' => 'hover:border-red-300',
+                            ],
+                            'orange' => [
+                                'bg' => 'bg-orange-50',
+                                'text' => 'text-orange-700',
+                                'ring' => 'ring-orange-100',
+                                'hover' => 'hover:border-orange-300',
+                            ],
+                            'rose' => [
+                                'bg' => 'bg-rose-50',
+                                'text' => 'text-rose-700',
+                                'ring' => 'ring-rose-100',
+                                'hover' => 'hover:border-rose-300',
+                            ],
+                        ];
+                    @endphp
 
-                        <div class="mt-3 text-3xl font-bold text-amber-700">
-                            {{ number_format($lowStockCount) }}
-                        </div>
+                    @foreach ($stockAlerts as $alert)
+                        @php $style = $alertStyles[$alert['color']]; @endphp
 
-                        <div class="mt-2 text-sm text-slate-500">
-                            At or below reorder level
-                        </div>
+                        <a href="{{ route('pharmacy.stock-batches.index', ['filter' => $alert['filter']]) }}"
+                           class="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md {{ $style['hover'] }}">
 
-                        <div class="mt-4 text-xs font-semibold text-amber-700">
-                            View low stock →
-                        </div>
+                            <div class="flex items-start justify-between">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl ring-1 {{ $style['bg'] }} {{ $style['text'] }} {{ $style['ring'] }}">
+                                    @if ($alert['icon'] === 'low')
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M4 5h16v5H4zM4 14h16v5H4zM9 8h.01M9 17h.01"/>
+                                        </svg>
+                                    @elseif ($alert['icon'] === 'empty')
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10M7 8l10 8"/>
+                                        </svg>
+                                    @elseif ($alert['icon'] === 'calendar')
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm7 7v4m0 0 2-2"/>
+                                        </svg>
+                                    @else
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M12 3 2 21h20L12 3Zm0 7v5m0 3h.01"/>
+                                        </svg>
+                                    @endif
+                                </div>
 
-                    </a>
+                                <span class="text-slate-300 transition group-hover:text-slate-600">
+                                    &nearr;
+                                </span>
+                            </div>
 
+                            <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                {{ $alert['title'] }}
+                            </p>
 
+                            <p class="mt-2 text-3xl font-bold tabular-nums {{ $style['text'] }}">
+                                {{ number_format($alert['count']) }}
+                            </p>
 
-                    {{-- OUT OF STOCK --}}
-                    <a
-                        href="{{ route('pharmacy.stock-batches.index', ['filter' => 'out_of_stock']) }}"
-                        class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-red-300 hover:shadow-md"
-                    >
+                            <p class="mt-2 min-h-[40px] text-sm text-slate-500">
+                                {{ $alert['description'] }}
+                            </p>
 
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Out of Stock
-                        </div>
-
-                        <div class="mt-3 text-3xl font-bold text-red-700">
-                            {{ number_format($outOfStockCount) }}
-                        </div>
-
-                        <div class="mt-2 text-sm text-slate-500">
-                            Active batches with zero stock
-                        </div>
-
-                        <div class="mt-4 text-xs font-semibold text-red-700">
-                            View out of stock →
-                        </div>
-
-                    </a>
-
-
-
-                    {{-- NEAR EXPIRY --}}
-                    <a
-                        href="{{ route('pharmacy.stock-batches.index', ['filter' => 'near_expiry']) }}"
-                        class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-orange-300 hover:shadow-md"
-                    >
-
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Near Expiry
-                        </div>
-
-                        <div class="mt-3 text-3xl font-bold text-orange-700">
-                            {{ number_format($nearExpiryCount) }}
-                        </div>
-
-                        <div class="mt-2 text-sm text-slate-500">
-                            Expiring within 90 days
-                        </div>
-
-                        <div class="mt-4 text-xs font-semibold text-orange-700">
-                            View near expiry →
-                        </div>
-
-                    </a>
-
-
-
-                    {{-- EXPIRED STOCK --}}
-                    <a
-                        href="{{ route('pharmacy.stock-batches.index', ['filter' => 'expired']) }}"
-                        class="rounded-2xl border border-red-200 bg-red-50/40 p-5 shadow-sm transition hover:border-red-400 hover:shadow-md"
-                    >
-
-                        <div class="text-xs font-semibold uppercase tracking-wide text-red-500">
-                            Expired Stock
-                        </div>
-
-                        <div class="mt-3 text-3xl font-bold text-red-800">
-                            {{ number_format($expiredCount) }}
-                        </div>
-
-                        <div class="mt-2 text-sm text-red-700">
-                            Expired batches with stock remaining
-                        </div>
-
-                        <div class="mt-4 text-xs font-semibold text-red-800">
-                            Review expired stock →
-                        </div>
-
-                    </a>
-
+                            <div class="mt-auto border-t border-slate-100 pt-4">
+                                <span class="text-sm font-semibold {{ $style['text'] }}">
+                                    {{ $alert['action'] }} &rarr;
+                                </span>
+                            </div>
+                        </a>
+                    @endforeach
 
                 </div>
 
@@ -266,67 +315,124 @@
             {{-- QUICK ACTIONS --}}
             {{-- ========================================================= --}}
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-                <h3 class="font-bold text-slate-900">
-                    Quick Actions
-                </h3>
+                <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">
+                            Pharmacy Workspace
+                        </h3>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Quick access to dispensing, medicines, inventory and disposals
+                        </p>
+                    </div>
 
-
-                <div class="mt-4 flex flex-wrap gap-3">
-
-                    <a
-                        href="{{ route('pharmacy.dispensing.create') }}"
-                        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                    >
-                        New Dispensing
-                    </a>
-
-                    <a
-                        href="{{ route('pharmacy.dispensing.index') }}"
-                        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                        Pharmacy Sales
-                    </a>
-
-                    <a
-                        href="{{ route('pharmacy.medicines.index') }}"
-                        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                        Medicine Master
-                    </a>
-
-                    <a
-                        href="{{ route('pharmacy.stock-batches.index') }}"
-                        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                        Pharmacy Stock
-                    </a>
-
-                    <a
-    href="{{ route('pharmacy.disposals.index') }}"
-    class="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
->
-    Disposal Register
-</a>
-
+                    <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                        Quick Actions
+                    </span>
                 </div>
 
-            </div>
+                @php
+                    $pharmacyActions = [
+                        [
+                            'title' => 'New Dispensing',
+                            'description' => 'Create a pharmacy sale',
+                            'route' => 'pharmacy.dispensing.create',
+                            'icon' => 'plus',
+                            'style' => 'bg-blue-50 text-blue-700',
+                        ],
+                        [
+                            'title' => 'Pharmacy Sales',
+                            'description' => 'Review dispensing records',
+                            'route' => 'pharmacy.dispensing.index',
+                            'icon' => 'receipt',
+                            'style' => 'bg-indigo-50 text-indigo-700',
+                        ],
+                        [
+                            'title' => 'Medicine Master',
+                            'description' => 'Manage medicine catalogue',
+                            'route' => 'pharmacy.medicines.index',
+                            'icon' => 'medicine',
+                            'style' => 'bg-violet-50 text-violet-700',
+                        ],
+                        [
+                            'title' => 'Pharmacy Stock',
+                            'description' => 'Review inventory batches',
+                            'route' => 'pharmacy.stock-batches.index',
+                            'icon' => 'stock',
+                            'style' => 'bg-emerald-50 text-emerald-700',
+                        ],
+                        [
+                            'title' => 'Disposal Register',
+                            'description' => 'Review medicine disposals',
+                            'route' => 'pharmacy.disposals.index',
+                            'icon' => 'disposal',
+                            'style' => 'bg-rose-50 text-rose-700',
+                        ],
+                    ];
+                @endphp
 
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    @foreach ($pharmacyActions as $action)
+                        <a href="{{ route($action['route']) }}"
+                           class="group flex min-h-[150px] flex-col rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-slate-50 hover:shadow-md">
 
+                            <div class="flex h-11 w-11 items-center justify-center rounded-xl {{ $action['style'] }}">
+                                @if ($action['icon'] === 'plus')
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                         stroke-width="1.8" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" d="M12 5v14M5 12h14"/>
+                                    </svg>
+                                @elseif ($action['icon'] === 'receipt')
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                         stroke-width="1.8" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="M5 3h14v18l-3-2-4 2-4-2-3 2V3ZM8 8h8M8 12h8"/>
+                                    </svg>
+                                @elseif ($action['icon'] === 'medicine')
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                         stroke-width="1.8" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="M10 4a5 5 0 0 1 7 7l-6 6a5 5 0 0 1-7-7l6-6ZM7 7l7 7"/>
+                                    </svg>
+                                @elseif ($action['icon'] === 'stock')
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                         stroke-width="1.8" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10"/>
+                                    </svg>
+                                @else
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor"
+                                         stroke-width="1.8" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5"/>
+                                    </svg>
+                                @endif
+                            </div>
+
+                            <h4 class="mt-4 text-sm font-bold text-slate-900 group-hover:text-indigo-700">
+                                {{ $action['title'] }}
+                            </h4>
+
+                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                {{ $action['description'] }}
+                            </p>
+                        </a>
+                    @endforeach
+                </div>
+            </section>
 
             {{-- ========================================================= --}}
             {{-- RECENT SALES --}}
             {{-- ========================================================= --}}
 
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                 <div class="flex items-center justify-between border-b border-slate-100 px-6 py-5">
 
                     <div>
 
-                        <h3 class="font-bold text-slate-900">
+                        <h3 class="text-lg font-bold text-slate-900">
                             Recent Pharmacy Sales
                         </h3>
 
@@ -339,7 +445,7 @@
 
                     <a
                         href="{{ route('pharmacy.dispensing.index') }}"
-                        class="text-sm font-semibold text-blue-600 hover:text-blue-800"
+                        class="inline-flex rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                     >
                         View All
                     </a>
@@ -349,9 +455,9 @@
 
                 <div class="overflow-x-auto">
 
-                    <table class="min-w-full divide-y divide-slate-200">
+                    <table class="min-w-[760px] w-full divide-y divide-slate-200 text-sm">
 
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-100/80">
 
                             <tr>
 
@@ -384,11 +490,11 @@
                         </thead>
 
 
-                        <tbody class="divide-y divide-slate-100">
+                        <tbody class="divide-y divide-slate-100 bg-white">
 
                             @forelse ($recentSales as $sale)
 
-                                <tr>
+                                <tr class="transition hover:bg-indigo-50/40">
 
                                     <td class="px-6 py-4 font-semibold text-slate-900">
                                         {{ $sale->sale_no }}
@@ -470,13 +576,13 @@
 
 
                 {{-- LOW STOCK --}}
-                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                     <div class="flex items-center justify-between border-b border-slate-100 px-6 py-5">
 
                         <div>
 
-                            <h3 class="font-bold text-slate-900">
+                            <h3 class="text-lg font-bold text-slate-900">
                                 Low Stock Alerts
                             </h3>
 
@@ -488,7 +594,7 @@
 
                         <a
                             href="{{ route('pharmacy.stock-batches.index', ['filter' => 'low_stock']) }}"
-                            class="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                            class="inline-flex shrink-0 items-center rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
                         >
                             View All
                         </a>
@@ -500,11 +606,11 @@
 
                         @forelse ($lowStockBatches as $batch)
 
-                            <div class="flex items-center justify-between gap-4 px-6 py-4">
+                            <div class="flex items-center justify-between gap-4 px-6 py-4 transition hover:bg-slate-50">
 
                                 <div>
 
-                                    <div class="font-semibold text-slate-900">
+                                    <div class="text-sm font-semibold text-slate-900">
                                         {{ $batch->medicine?->generic_name ?? 'Medicine' }}
                                     </div>
 
@@ -545,13 +651,13 @@
 
 
                 {{-- NEAR EXPIRY --}}
-                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                     <div class="flex items-center justify-between border-b border-slate-100 px-6 py-5">
 
                         <div>
 
-                            <h3 class="font-bold text-slate-900">
+                            <h3 class="text-lg font-bold text-slate-900">
                                 Near Expiry
                             </h3>
 
@@ -563,7 +669,7 @@
 
                         <a
                             href="{{ route('pharmacy.stock-batches.index', ['filter' => 'near_expiry']) }}"
-                            class="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                            class="inline-flex shrink-0 items-center rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
                         >
                             View All
                         </a>
@@ -575,11 +681,11 @@
 
                         @forelse ($nearExpiryBatches as $batch)
 
-                            <div class="flex items-center justify-between gap-4 px-6 py-4">
+                            <div class="flex items-center justify-between gap-4 px-6 py-4 transition hover:bg-slate-50">
 
                                 <div>
 
-                                    <div class="font-semibold text-slate-900">
+                                    <div class="text-sm font-semibold text-slate-900">
                                         {{ $batch->medicine?->generic_name ?? 'Medicine' }}
                                     </div>
 
@@ -644,8 +750,8 @@
 
                         <div>
 
-                            <h3 class="font-bold text-red-900">
-                                Expired Stock Requiring Attention
+                            <h3 class="flex items-center gap-2 text-lg font-bold text-red-900">
+                                <span aria-hidden="true">⚠</span> Expired Stock Requiring Attention
                             </h3>
 
                             <p class="mt-1 text-xs text-red-700">
@@ -669,11 +775,11 @@
 
                         @foreach ($expiredBatches as $batch)
 
-                            <div class="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="flex flex-col gap-3 px-6 py-4 transition hover:bg-red-50/50 sm:flex-row sm:items-center sm:justify-between">
 
                                 <div>
 
-                                    <div class="font-semibold text-slate-900">
+                                    <div class="text-sm font-semibold text-slate-900">
                                         {{ $batch->medicine?->generic_name ?? 'Medicine' }}
                                     </div>
 
@@ -726,11 +832,11 @@
             {{-- RECENT RETURNS --}}
             {{-- ========================================================= --}}
 
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                 <div class="border-b border-slate-100 px-6 py-5">
 
-                    <h3 class="font-bold text-slate-900">
+                    <h3 class="text-lg font-bold text-slate-900">
                         Recent Returns
                     </h3>
 
@@ -743,9 +849,9 @@
 
                 <div class="overflow-x-auto">
 
-                    <table class="min-w-full divide-y divide-slate-200">
+                    <table class="min-w-[860px] w-full divide-y divide-slate-200 text-sm">
 
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-100/80">
 
                             <tr>
 
@@ -778,11 +884,11 @@
                         </thead>
 
 
-                        <tbody class="divide-y divide-slate-100">
+                        <tbody class="divide-y divide-slate-100 bg-white">
 
                             @forelse ($recentReturns as $return)
 
-                                <tr>
+                                <tr class="transition hover:bg-indigo-50/40">
 
                                     <td class="px-6 py-4">
 
@@ -824,7 +930,7 @@
 
                                         <a
                                             href="{{ route('pharmacy.returns.receipt', $return) }}"
-                                            class="text-sm font-semibold text-blue-600 hover:text-blue-800"
+                                            class="inline-flex rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                                         >
                                             Receipt
                                         </a>
