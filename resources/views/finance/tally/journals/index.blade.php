@@ -25,6 +25,68 @@
             </p>
         </div>
 
+        {{-- JOURNAL FILTERS --}}
+        <form id="tally-journal-filters"
+              method="GET"
+              action="{{ route('finance.tally.journals.index') }}"
+              class="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+
+            <div class="grid gap-4 md:grid-cols-4">
+                <div>
+                    <label for="tally-status" class="block text-sm font-medium">Export Status</label>
+                    <select id="tally-status" name="status"
+                            class="mt-1 w-full rounded-lg border-gray-300">
+                        @foreach ([
+                            'not_exported' => 'Not Exported',
+                            'in_progress' => 'In Progress',
+                            'confirmed' => 'Confirmed',
+                            'needs_attention' => 'Needs Attention',
+                            'all' => 'All Journals'
+                        ] as $value => $label)
+                            <option value="{{ $value }}"
+                                @selected($selectedStatus === $value)>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label for="tally-search" class="block text-sm font-medium">Journal Number</label>
+                    <input id="tally-search" type="search" name="search"
+                           value="{{ request('search') }}"
+                           placeholder="Search journal..."
+                           class="mt-1 w-full rounded-lg border-gray-300">
+                </div>
+
+                <div>
+                    <label for="tally-from" class="block text-sm font-medium">From Date</label>
+                    <input id="tally-from" type="date" name="date_from"
+                           value="{{ request('date_from') }}"
+                           class="mt-1 w-full rounded-lg border-gray-300">
+                </div>
+
+                <div>
+                    <label for="tally-to" class="block text-sm font-medium">To Date</label>
+                    <input id="tally-to" type="date" name="date_to"
+                           value="{{ request('date_to') }}"
+                           class="mt-1 w-full rounded-lg border-gray-300">
+                </div>
+            </div>
+
+            <div class="mt-4 flex items-center gap-3">
+                <button type="submit"
+                        class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white">
+                    Apply Filters
+                </button>
+
+                <a href="{{ route('finance.tally.journals.index') }}"
+                   class="rounded-lg border px-5 py-2 text-sm font-semibold">
+                    Reset
+                </a>
+            </div>
+        </form>
+
         {{-- JOURNAL TABLE --}}
         <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 
