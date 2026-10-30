@@ -512,39 +512,39 @@
 
             .meta-panel-title {
                 padding: 6px 9px !important;
-                font-size: 9.5px !important;
+                font-size: 11px !important;
             }
 
             .meta-item {
-                padding: 6px 8px !important;
+                padding: 8px 10px !important;
             }
 
             .meta-label {
                 margin-bottom: 2px !important;
-                font-size: 8.5px !important;
+                font-size: 10px !important;
             }
 
             .meta-value {
-                font-size: 10.5px !important;
-                line-height: 1.2 !important;
+                font-size: 12px !important;
+                line-height: 1.35 !important;
             }
 
             .report-section {
-                margin-top: 10px !important;
+                margin-top: 15px !important;
                 border-radius: 8px !important;
                 break-inside: auto !important;
                 page-break-inside: auto !important;
             }
 
             .section-heading {
-                padding: 6px 9px !important;
-                font-size: 9.5px !important;
+                padding: 8px 10px !important;
+                font-size: 11px !important;
             }
 
             .section-body {
-                padding: 9px 11px !important;
-                font-size: 11.5px !important;
-                line-height: 1.45 !important;
+                padding: 14px 15px !important;
+                font-size: 14px !important;
+                line-height: 1.65 !important;
             }
 
             .impression {
@@ -583,7 +583,7 @@
             .report-footer {
                 grid-template-columns: 1fr 180px !important;
                 gap: 22px !important;
-                margin-top: 32px !important;
+                margin-top: 45px !important;
                 break-inside: avoid !important;
                 page-break-inside: avoid !important;
             }
@@ -594,12 +594,12 @@
 
             .footer-note {
                 margin-top: 7px !important;
-                font-size: 8.5px !important;
+                font-size: 10px !important;
             }
 
             .signature {
                 padding-top: 24px !important;
-                font-size: 9.5px !important;
+                font-size: 11px !important;
             }
         }
     </style>
@@ -942,7 +942,7 @@
                         </div>
 
                         <div class="signature">
-                            {{ $isEcho ? 'Authorized Echocardiography Signatory' : 'Authorized Radiology Signatory' }}
+                            {{ $isEcho ? 'Authorized Echocardiography Signatory' : 'Authorized Sonologist' }}
                         </div>
                     </div>
 
