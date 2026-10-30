@@ -3209,6 +3209,22 @@ throw ValidationException::withMessages([
             $account
         );
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'ip_charge_saved' => true,
+                'charge' => [
+                    'id' => $charge->id,
+                    'description' => $charge->description,
+                    'amount' => $charge->amount,
+                ],
+                'message' => 'Charge added successfully: '
+                    . $charge->description
+                    . ' — ₹'
+                    . number_format((float) $charge->amount, 2),
+            ]);
+        }
+
         return redirect()
             ->route(
                 'ip-billing.show',

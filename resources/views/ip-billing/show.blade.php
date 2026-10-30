@@ -509,7 +509,7 @@ $refundDue =
 
 
             {{-- FINANCIAL SUMMARY --}}
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            <div id="ip-financial-summary" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
 
                 <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
@@ -1763,7 +1763,7 @@ style="background-color: #dc2626;"
 
 </div>
             {{-- CHARGES --}}
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div id="ip-running-charges" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                 <div class="border-b border-slate-200 bg-slate-50 px-6 py-4">
 
@@ -3764,9 +3764,16 @@ style="background-color: #dc2626;"
             <form
                 method="POST"
                 action="{{ route('ip-billing.charges.store', $admission) }}"
+                id="ip-charge-form"
                 class="space-y-5 p-6"
             >
                 @csrf
+
+                <div id="charge-save-message"
+                     role="status"
+                     aria-live="polite"
+                     class="hidden rounded-lg p-3 text-sm font-semibold"></div>
+                
 
 
                 {{-- PATIENT / BILLING ACCOUNT --}}
@@ -4073,6 +4080,7 @@ style="background-color: #dc2626;"
 
                     <button
                         type="submit"
+                        id="ip-charge-submit"
                         class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                         Add Charge
@@ -4865,6 +4873,117 @@ refundModal?.addEventListener(
 
             }
 
+
+            const ipChargeForm = document.getElementById('ip-charge-form');
+            const ipChargeSubmit = document.getElementById('ip-charge-submit');
+            const chargeSaveMessage = document.getElementById('charge-save-message');
+            let ipChargeSaving = false;
+            let ipChargeSavedCount = 0;
+
+            async function refreshIpChargeSections() {
+                const response = await fetch(window.location.href, {
+                    method: 'GET',
+                    headers: { 'Accept': 'text/html' },
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Billing refresh failed.');
+                }
+
+                const html = await response.text();
+                const documentCopy = new DOMParser()
+                    .parseFromString(html, 'text/html');
+
+                for (const id of [
+                    'ip-financial-summary',
+                    'ip-running-charges'
+                ]) {
+                    const current = document.getElementById(id);
+                    const updated = documentCopy.getElementById(id);
+
+                    if (!current || !updated) {
+                        throw new Error('Billing section missing: ' + id);
+                    }
+
+                    current.replaceWith(updated);
+                }
+            }
+
+            let ipChargeUncertain = false;
+
+            ipChargeForm?.addEventListener('submit', async function (event) {
+                event.preventDefault();
+
+                if (ipChargeSaving || ipChargeUncertain || !ipChargeForm.reportValidity()) return;
+
+                ipChargeSaving = true;
+                ipChargeSubmit.disabled = true;
+                ipChargeSubmit.textContent = 'Saving...';
+                chargeSaveMessage.classList.add('hidden');
+
+                try {
+                    const response = await fetch(ipChargeForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: new FormData(ipChargeForm)
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success || !result.ip_charge_saved) {
+                        const errors = result.errors || {};
+                        const message = Object.values(errors).flat().join(' ')
+                            || result.message
+                            || 'Unable to save charge.';
+                        throw new Error(message);
+                    }
+
+                    ipChargeSavedCount++;
+
+                    let refreshWarning = '';
+                    try {
+                        await refreshIpChargeSections();
+                    } catch (refreshError) {
+                        refreshWarning = ' Billing display could not refresh; reload the page after closing this modal.';
+                    }
+
+                    chargeSaveMessage.textContent = result.message
+                        + refreshWarning
+                        + ' | Charges added this session: ' + ipChargeSavedCount;
+                    chargeSaveMessage.className =
+                        'rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-semibold text-green-800';
+
+                    ipChargeForm.reset();
+                    updateChargeMasterDetails();
+                    chargeService?.focus();
+
+                } catch (error) {
+                    if (error instanceof TypeError) {
+                        ipChargeUncertain = true;
+                        chargeSaveMessage.textContent =
+                            'Network error: the charge may have been saved. '
+                            + 'Close the modal and verify Running Charges before retrying.';
+                        chargeSaveMessage.className =
+                            'rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900';
+                        return;
+                    }
+
+                    chargeSaveMessage.textContent = error.message
+                        || 'Charge could not be confirmed. Check the billing account before retrying.';
+                    chargeSaveMessage.className =
+                        'rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800';
+                } finally {
+                    ipChargeSaving = false;
+                    ipChargeSubmit.disabled = ipChargeUncertain;
+                    ipChargeSubmit.textContent = ipChargeUncertain
+                        ? 'Verify Charge Before Retrying'
+                        : 'Add Charge';
+                }
+            });
 
             openChargeButton?.addEventListener(
                 'click',
