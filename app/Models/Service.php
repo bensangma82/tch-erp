@@ -14,6 +14,7 @@ class Service extends Model
         'category',
         'department_id',
         'finance_head_id',
+        'revenue_gl_account_id',
         'price',
         'is_active',
         'requires_sample',
@@ -43,6 +44,14 @@ class Service extends Model
         return $this->belongsTo(
             FinanceHead::class,
             'finance_head_id'
+        );
+    }
+
+    public function revenueGlAccount(): BelongsTo
+    {
+        return $this->belongsTo(
+            GeneralLedgerAccount::class,
+            'revenue_gl_account_id'
         );
     }
 

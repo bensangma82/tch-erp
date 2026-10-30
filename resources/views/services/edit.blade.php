@@ -280,6 +280,34 @@
                                 </p>
 
                             </div>
+                            {{-- REVENUE GL ACCOUNT --}}
+                            <div>
+                                <label for="revenue_gl_account_id"
+                                       class="mb-1 block text-sm font-medium text-gray-700">
+                                    Revenue GL Account
+                                </label>
+
+                                <select id="revenue_gl_account_id"
+                                        name="revenue_gl_account_id"
+                                        class="w-full rounded-lg border-gray-300 shadow-sm">
+                                    <option value="">Select Revenue GL Account</option>
+                                    @foreach ($revenueGlAccounts as $gl)
+                                        <option value="{{ $gl->id }}"
+                                                data-finance-head="{{ $gl->finance_head_id }}"
+                                                @selected(old('revenue_gl_account_id', isset($service) ? $service->revenue_gl_account_id : null) == $gl->id)>
+                                            {{ $gl->account_code }} — {{ $gl->account_name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Select an active Income GL account matching the Finance Head.
+                                </p>
+                                @error('revenue_gl_account_id')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
                             {{-- PRICE --}}
                             <div>
 
