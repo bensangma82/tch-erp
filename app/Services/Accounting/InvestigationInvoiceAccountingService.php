@@ -101,7 +101,23 @@ class InvestigationInvoiceAccountingService
                     );
                 }
 
-                $account = $revenueAccounts->get($service->finance_head_id);
+                if ($service->revenue_gl_account_id) {
+                    $account = GeneralLedgerAccount::query()
+                        ->whereKey($service->revenue_gl_account_id)
+                        ->where('account_type', 'income')
+                        ->where('finance_head_id', $service->finance_head_id)
+                        ->where('is_active', true)
+                        ->where('allow_posting', true)
+                        ->first();
+
+                    if (! $account) {
+                        throw new RuntimeException(
+                            'Invalid revenue GL mapping for service '.$service->code
+                        );
+                    }
+                } else {
+                    $account = $revenueAccounts->get($service->finance_head_id);
+                }
 
                 if (! $account) {
                     throw new RuntimeException(

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Models\FinanceHead;
+use App\Models\GeneralLedgerAccount;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use Illuminate\Http\Request;
@@ -78,6 +79,14 @@ class ServiceController extends Controller
             ->orderBy('name')
             ->get();
 
+        $revenueGlAccounts = GeneralLedgerAccount::query()
+            ->where('account_type', 'income')
+            ->where('is_active', true)
+            ->where('allow_posting', true)
+            ->whereNotNull('finance_head_id')
+            ->orderBy('account_code')
+            ->get();
+
         $categories = ServiceCategory::query()
             ->where('is_active', true)
             ->orderBy('sort_order')
@@ -89,6 +98,7 @@ class ServiceController extends Controller
             compact(
                 'departments',
                 'financeHeads',
+                'revenueGlAccounts',
                 'categories'
             )
         );
@@ -143,6 +153,18 @@ class ServiceController extends Controller
                         fn ($query) => $query
                             ->where('head_type', 'income')
                             ->where('is_active', true)
+                    ),
+            ],
+
+            'revenue_gl_account_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('general_ledger_accounts', 'id')
+                    ->where(fn ($query) => $query
+                        ->where('account_type', 'income')
+                        ->where('is_active', true)
+                        ->where('allow_posting', true)
+                        ->where('finance_head_id', request('finance_head_id'))
                     ),
             ],
 
@@ -247,6 +269,14 @@ class ServiceController extends Controller
             ->orderBy('name')
             ->get();
 
+        $revenueGlAccounts = GeneralLedgerAccount::query()
+            ->where('account_type', 'income')
+            ->where('is_active', true)
+            ->where('allow_posting', true)
+            ->whereNotNull('finance_head_id')
+            ->orderBy('account_code')
+            ->get();
+
         $categories = ServiceCategory::query()
             ->where(function ($query) use ($service) {
                 $query->where('is_active', true)
@@ -262,6 +292,7 @@ class ServiceController extends Controller
                 'service',
                 'departments',
                 'financeHeads',
+                'revenueGlAccounts',
                 'categories'
             )
         );
@@ -322,6 +353,18 @@ class ServiceController extends Controller
                         fn ($query) => $query
                             ->where('head_type', 'income')
                             ->where('is_active', true)
+                    ),
+            ],
+
+            'revenue_gl_account_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('general_ledger_accounts', 'id')
+                    ->where(fn ($query) => $query
+                        ->where('account_type', 'income')
+                        ->where('is_active', true)
+                        ->where('allow_posting', true)
+                        ->where('finance_head_id', request('finance_head_id'))
                     ),
             ],
 
