@@ -27,11 +27,57 @@ class TallyJournalExportController extends Controller
      */
     public function index(): View
     {
-        $journals = JournalEntry::query()
-            ->where('status', 'posted')
+        $request = request();
+
+        $status = $request->query('status', 'not_exported');
+        $allowed = [
+            'not_exported', 'in_progress',
+            'confirmed', 'needs_attention', 'all',
+        ];
+
+        if (! in_array($status, $allowed, true)) {
+            $status = 'not_exported';
+        }
+
+        $query = JournalEntry::query()
+            ->where('status', 'posted');
+
+        match ($status) {
+            'not_exported' => $query->whereDoesntHave('tallyExport'),
+            'in_progress' => $query->whereHas('tallyExport',
+                fn ($q) => $q->whereIn('status', [
+                    'pending', 'sending', 'exported',
+                ])),
+            'confirmed' => $query->whereHas('tallyExport',
+                fn ($q) => $q->where('status', 'confirmed')),
+            'needs_attention' => $query->whereHas('tallyExport',
+                fn ($q) => $q->whereIn('status', [
+                    'failed', 'unknown',
+                ])),
+            default => null,
+        };
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->query('search'));
+            $query->where('journal_no', 'ilike', '%'
+                . addcslashes($search, '%_\\') . '%');
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('journal_date', '>=',
+                $request->query('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('journal_date', '<=',
+                $request->query('date_to'));
+        }
+
+        $journals = $query
             ->orderByDesc('journal_date')
             ->orderByDesc('id')
-            ->paginate(25);
+            ->paginate(25)
+            ->withQueryString();
 
         $journalIds = $journals
             ->getCollection()
@@ -46,6 +92,7 @@ class TallyJournalExportController extends Controller
             'journals' => $journals,
             'exports' => $exports,
             'tallyCompany' => config('tally.company'),
+            'selectedStatus' => $status,
         ]);
     }
 

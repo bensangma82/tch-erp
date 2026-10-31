@@ -509,7 +509,7 @@ $refundDue =
 
 
             {{-- FINANCIAL SUMMARY --}}
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            <div id="ip-financial-summary" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
 
                 <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
@@ -1763,7 +1763,7 @@ style="background-color: #dc2626;"
 
 </div>
             {{-- CHARGES --}}
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div id="ip-running-charges" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                 <div class="border-b border-slate-200 bg-slate-50 px-6 py-4">
 
@@ -3251,6 +3251,25 @@ style="background-color: #dc2626;"
 
 
                     <div>
+                        <div class="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                            <label for="mhis_package_search"
+                                   class="block text-sm font-semibold text-slate-700">
+                                Search MHIS Package Master
+                            </label>
+                            <input type="search"
+                                   id="mhis_package_search"
+                                   autocomplete="off"
+                                   placeholder="Enter procedure code or name"
+                                   class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                            <div id="mhis_package_results"
+                                 class="mt-2 max-h-60 overflow-y-auto"
+                                 aria-live="polite"></div>
+                            <p id="mhis_package_reference"
+                               class="mt-2 text-xs text-slate-600">
+                                Select a package to display its reference tariff.
+                            </p>
+                        </div>
+
                         <label for="mhis_package_code" class="block text-sm font-semibold text-slate-700">
                             Package Code
                         </label>
@@ -3745,9 +3764,16 @@ style="background-color: #dc2626;"
             <form
                 method="POST"
                 action="{{ route('ip-billing.charges.store', $admission) }}"
+                id="ip-charge-form"
                 class="space-y-5 p-6"
             >
                 @csrf
+
+                <div id="charge-save-message"
+                     role="status"
+                     aria-live="polite"
+                     class="hidden rounded-lg p-3 text-sm font-semibold"></div>
+                
 
 
                 {{-- PATIENT / BILLING ACCOUNT --}}
@@ -4054,6 +4080,7 @@ style="background-color: #dc2626;"
 
                     <button
                         type="submit"
+                        id="ip-charge-submit"
                         class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                         Add Charge
@@ -4266,6 +4293,105 @@ style="background-color: #dc2626;"
 
 
     <script>
+
+        // MHIS_PACKAGE_SEARCH_INTEGRATION_V1
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('mhis_package_search');
+            const results = document.getElementById('mhis_package_results');
+            const reference = document.getElementById('mhis_package_reference');
+            const codeField = document.getElementById('mhis_package_code');
+            const nameField = document.getElementById('mhis_package_name');
+
+            if (!input || !results || !reference || !codeField || !nameField) {
+                return;
+            }
+
+            const searchUrl = @json(route('mhis.procedures.search'));
+            let timer;
+            let controller;
+
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                if (controller) controller.abort();
+
+                results.replaceChildren();
+
+                const query = input.value.trim();
+
+                if (query.length < 2) {
+                    return;
+                }
+
+                timer = setTimeout(async function () {
+                    controller = new AbortController();
+
+                    try {
+                        const url = new URL(searchUrl, window.location.origin);
+                        url.searchParams.set('q', query);
+
+                        const response = await fetch(url, {
+                            signal: controller.signal,
+                            headers: { 'Accept': 'application/json' },
+                            credentials: 'same-origin'
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Search unavailable');
+                        }
+
+                        const data = await response.json();
+                        results.replaceChildren();
+
+                        if (!data.results || data.results.length === 0) {
+                            results.textContent = 'No matching packages found.';
+                            return;
+                        }
+
+                        data.results.forEach(function (item) {
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className =
+                                'block w-full border-b border-slate-200 p-2 text-left text-sm hover:bg-violet-100';
+
+                            const label = [
+                                item.procedure_code,
+                                item.specialty,
+                                item.procedure_name
+                            ].filter(Boolean).join(' | ');
+
+                            button.textContent = label;
+
+                            button.addEventListener('click', function () {
+                                codeField.value = item.procedure_code;
+                                nameField.value =
+                                    (item.procedure_name || item.package_name || '')
+                                    .slice(0, 500);
+
+                                reference.textContent =
+                                    'Reference tariff: ' +
+                                    (item.procedure_price !== null
+                                        ? '₹' + Number(item.procedure_price)
+                                            .toLocaleString('en-IN')
+                                        : (item.source_price_text || 'Not specified')) +
+                                    ' | Specialty: ' + (item.specialty || '—') +
+                                    ' | ERP ID: ' + item.id;
+
+                                input.value = label;
+                                results.replaceChildren();
+                            });
+
+                            results.appendChild(button);
+                        });
+
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            results.textContent = 'Unable to search packages.';
+                        }
+                    }
+                }, 300);
+            });
+        });
+
         document.addEventListener('DOMContentLoaded', function () {
 
             const mhisModal =
@@ -4748,6 +4874,117 @@ refundModal?.addEventListener(
             }
 
 
+            const ipChargeForm = document.getElementById('ip-charge-form');
+            const ipChargeSubmit = document.getElementById('ip-charge-submit');
+            const chargeSaveMessage = document.getElementById('charge-save-message');
+            let ipChargeSaving = false;
+            let ipChargeSavedCount = 0;
+
+            async function refreshIpChargeSections() {
+                const response = await fetch(window.location.href, {
+                    method: 'GET',
+                    headers: { 'Accept': 'text/html' },
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Billing refresh failed.');
+                }
+
+                const html = await response.text();
+                const documentCopy = new DOMParser()
+                    .parseFromString(html, 'text/html');
+
+                for (const id of [
+                    'ip-financial-summary',
+                    'ip-running-charges'
+                ]) {
+                    const current = document.getElementById(id);
+                    const updated = documentCopy.getElementById(id);
+
+                    if (!current || !updated) {
+                        throw new Error('Billing section missing: ' + id);
+                    }
+
+                    current.replaceWith(updated);
+                }
+            }
+
+            let ipChargeUncertain = false;
+
+            ipChargeForm?.addEventListener('submit', async function (event) {
+                event.preventDefault();
+
+                if (ipChargeSaving || ipChargeUncertain || !ipChargeForm.reportValidity()) return;
+
+                ipChargeSaving = true;
+                ipChargeSubmit.disabled = true;
+                ipChargeSubmit.textContent = 'Saving...';
+                chargeSaveMessage.classList.add('hidden');
+
+                try {
+                    const response = await fetch(ipChargeForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: new FormData(ipChargeForm)
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success || !result.ip_charge_saved) {
+                        const errors = result.errors || {};
+                        const message = Object.values(errors).flat().join(' ')
+                            || result.message
+                            || 'Unable to save charge.';
+                        throw new Error(message);
+                    }
+
+                    ipChargeSavedCount++;
+
+                    let refreshWarning = '';
+                    try {
+                        await refreshIpChargeSections();
+                    } catch (refreshError) {
+                        refreshWarning = ' Billing display could not refresh; reload the page after closing this modal.';
+                    }
+
+                    chargeSaveMessage.textContent = result.message
+                        + refreshWarning
+                        + ' | Charges added this session: ' + ipChargeSavedCount;
+                    chargeSaveMessage.className =
+                        'rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-semibold text-green-800';
+
+                    ipChargeForm.reset();
+                    updateChargeMasterDetails();
+                    chargeService?.focus();
+
+                } catch (error) {
+                    if (error instanceof TypeError) {
+                        ipChargeUncertain = true;
+                        chargeSaveMessage.textContent =
+                            'Network error: the charge may have been saved. '
+                            + 'Close the modal and verify Running Charges before retrying.';
+                        chargeSaveMessage.className =
+                            'rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900';
+                        return;
+                    }
+
+                    chargeSaveMessage.textContent = error.message
+                        || 'Charge could not be confirmed. Check the billing account before retrying.';
+                    chargeSaveMessage.className =
+                        'rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800';
+                } finally {
+                    ipChargeSaving = false;
+                    ipChargeSubmit.disabled = ipChargeUncertain;
+                    ipChargeSubmit.textContent = ipChargeUncertain
+                        ? 'Verify Charge Before Retrying'
+                        : 'Add Charge';
+                }
+            });
+
             openChargeButton?.addEventListener(
                 'click',
                 openChargeModal
@@ -5075,7 +5312,14 @@ document.addEventListener('click', async function (event) {
         } else {
             alert(
                 'MHIS accounting readiness: NOT READY\n\n' +
-                (issues.length ? issues.join('\n') : 'Review MHIS claim details.')
+                (issues.length ? issues.map(issue => {
+                    if (typeof issue === 'string') return issue;
+                    return [
+                        issue.message || 'MHIS readiness issue',
+                        issue.record ? 'Record: ' + issue.record : '',
+                        issue.correction ? 'Correction: ' + issue.correction : ''
+                    ].filter(Boolean).join(' — ');
+                }).join('\\n') : 'Review MHIS claim details.')
             );
         }
     } catch (error) {
