@@ -13,6 +13,8 @@ class TallyLedgerMapping extends Model
     protected $fillable = [
         'finance_head_id',
         'finance_account_id',
+        'supplier_id',
+        'tally_company',
         'tally_ledger_name',
         'tally_group_name',
         'is_active',
@@ -44,4 +46,13 @@ class TallyLedgerMapping extends Model
             'finance_account_id'
         );
     }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(
+            Supplier::class,
+            'supplier_id'
+        );
+    }
+
 }

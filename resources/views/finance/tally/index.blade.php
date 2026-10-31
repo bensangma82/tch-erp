@@ -538,6 +538,107 @@
                 </div>
             </div>
 
+
+            {{-- Supplier Ledger Mapping --}}
+            <div class="mt-8 rounded-lg bg-white p-6 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    Supplier Ledger Mapping
+                </h3>
+
+                <p class="mt-2 text-sm text-gray-600">
+                    Map each ERP supplier to a verified TallyPrime
+                    Sundry Creditors ledger.
+                    Company: {{ $tallyCompany }}
+                </p>
+
+                @if (! $supplierLedgerSyncCurrent)
+                    <div class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                        Tally ledger synchronization is outdated.
+                        Refresh the ledger master before saving supplier mappings.
+                    </div>
+                @endif
+
+                <div class="mt-4 overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Supplier</th>
+                                <th class="px-4 py-3 text-left">Code</th>
+                                <th class="px-4 py-3 text-left">Tally Creditor Ledger</th>
+                                <th class="px-4 py-3 text-left">Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody class="divide-y divide-gray-200">
+                            @forelse ($suppliers as $supplier)
+                                @php
+                                    $mapping = $supplier->tallyLedgerMappings->first();
+                                    $formId = 'supplier-tally-'.$supplier->id;
+                                @endphp
+
+                                <tr>
+                                    <td class="px-4 py-3">
+                                        {{ $supplier->supplier_name }}
+                                    </td>
+
+                                    <td class="px-4 py-3">
+                                        {{ $supplier->supplier_code }}
+                                    </td>
+
+                                    <td class="px-4 py-3">
+                                        <select
+                                            form="{{ $formId }}"
+                                            name="tally_ledger_name"
+                                            required
+                                            @disabled(! $supplierLedgerSyncCurrent)
+                                            class="w-64 rounded-md border-gray-300 text-sm"
+                                        >
+                                            <option value="">
+                                                Select creditor ledger
+                                            </option>
+
+                                            @foreach ($creditorLedgers as $ledger)
+                                                <option
+                                                    value="{{ $ledger->ledger_name }}"
+                                                    @selected($mapping?->tally_ledger_name === $ledger->ledger_name)
+                                                >
+                                                    {{ $ledger->ledger_name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </td>
+
+                                    <td class="px-4 py-3">
+                                        <form
+                                            id="{{ $formId }}"
+                                            method="POST"
+                                            action="{{ route('finance.tally.suppliers.update', $supplier) }}"
+                                        >
+                                            @csrf
+                                            @method('PUT')
+
+                                            <button
+                                                type="submit"
+                                                @disabled(! $supplierLedgerSyncCurrent)
+                                                class="rounded-md bg-gray-800 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                            >
+                                                Save
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-4 text-gray-500">
+                                        No active suppliers registered.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </div>
 </x-app-layout>

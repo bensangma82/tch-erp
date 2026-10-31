@@ -97,6 +97,26 @@ class TallyIntegrationController extends Controller
         | Render Tally Integration Dashboard
         |--------------------------------------------------------------------------
         */
+        $suppliers = \App\Models\Supplier::query()
+            ->where('is_active', true)
+            ->with(['tallyLedgerMappings' => function ($query) use ($company) {
+                $query->where('tally_company', $company);
+            }])
+            ->orderBy('supplier_name')
+            ->get();
+
+        $creditorLedgers = $ledgerMasters
+            ->filter(fn ($ledger) =>
+                $ledger->parent_group === 'Sundry Creditors'
+            )
+            ->values();
+
+        $latestLedgerSync = $ledgerMasters->max('last_synced_at');
+
+        $supplierLedgerSyncCurrent = $latestLedgerSync
+            && \Illuminate\Support\Carbon::parse($latestLedgerSync)
+                ->gte(now()->subHours(24));
+
         return view('finance.tally.index', [
             'financeHeads' => $financeHeads,
             'financeAccounts' => $financeAccounts,
@@ -104,6 +124,9 @@ class TallyIntegrationController extends Controller
             'activeMappings' => $activeMappings,
             'tallyCompany' => $company,
             'departments' => $departments,
+            'suppliers' => $suppliers,
+            'creditorLedgers' => $creditorLedgers,
+            'supplierLedgerSyncCurrent' => $supplierLedgerSyncCurrent,
         ]);
     }
 
@@ -415,6 +438,100 @@ class TallyIntegrationController extends Controller
         return back()->with(
             'success',
             'Tally ledger department mapping saved successfully.'
+        );
+    }
+
+
+    /**
+     * Save a company-specific supplier creditor ledger mapping.
+     */
+    public function saveSupplier(
+        Request $request,
+        \App\Models\Supplier $supplier
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'tally_ledger_name' => ['required', 'string', 'max:200'],
+            'remarks' => ['nullable', 'string'],
+        ]);
+
+        if (! $supplier->is_active) {
+            return back()->withErrors([
+                'supplier' => 'Supplier is inactive.',
+            ]);
+        }
+
+        $company = trim((string) config('tally.company'));
+        $ledgerName = trim($validated['tally_ledger_name']);
+
+        if ($company === '' || $ledgerName === '') {
+            return back()->withErrors([
+                'tally_ledger_name' => 'Company or ledger is missing.',
+            ]);
+        }
+
+        $latestSync = TallyLedgerMaster::query()
+            ->where('tally_company', $company)
+            ->max('last_synced_at');
+
+        if (
+            ! $latestSync
+            || \Illuminate\Support\Carbon::parse($latestSync)
+                ->lt(now()->subHours(24))
+        ) {
+            return back()->withErrors([
+                'tally_ledger_name' =>
+                    'Synchronize Tally ledgers before saving.',
+            ]);
+        }
+
+        $ledger = TallyLedgerMaster::query()
+            ->where('tally_company', $company)
+            ->where('ledger_name', $ledgerName)
+            ->where('parent_group', 'Sundry Creditors')
+            ->first();
+
+        if (! $ledger) {
+            return back()->withErrors([
+                'tally_ledger_name' =>
+                    'Select a verified Sundry Creditors ledger.',
+            ]);
+        }
+
+        $conflict = TallyLedgerMapping::query()
+            ->where('tally_company', $company)
+            ->where('tally_ledger_name', $ledgerName)
+            ->where('is_active', true)
+            ->where(function ($query) use ($supplier) {
+                $query->whereNull('supplier_id')
+                    ->orWhere('supplier_id', '!=', $supplier->id);
+            })
+            ->exists();
+
+        if ($conflict) {
+            return back()->withErrors([
+                'tally_ledger_name' =>
+                    'Ledger is already mapped to another account or supplier.',
+            ]);
+        }
+
+        TallyLedgerMapping::updateOrCreate(
+            [
+                'supplier_id' => $supplier->id,
+                'tally_company' => $company,
+            ],
+            [
+                'finance_head_id' => null,
+                'finance_account_id' => null,
+                'tally_ledger_name' => $ledgerName,
+                'tally_group_name' => 'Sundry Creditors',
+                'is_active' => true,
+                'remarks' => $validated['remarks'] ?? null,
+            ]
+        );
+
+        return back()->with(
+            'success',
+            'Supplier Tally ledger mapping saved successfully.'
         );
     }
 

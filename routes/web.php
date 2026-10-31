@@ -1138,6 +1138,13 @@ Route::post(
             ->name('finance.tally.heads.update');
 
         Route::put(
+            '/admin/finance/tally/suppliers/{supplier}',
+            [TallyIntegrationController::class, 'saveSupplier']
+        )
+            ->whereNumber('supplier')
+            ->name('finance.tally.suppliers.update');
+
+        Route::put(
             '/admin/finance/tally/accounts/{financeAccount}',
             [TallyIntegrationController::class, 'saveAccount']
         )

@@ -30,4 +30,10 @@ class PharmacySupplier extends Model
         'credit_days' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    public function supplier(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
 }
