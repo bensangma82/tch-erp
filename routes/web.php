@@ -2181,6 +2181,27 @@ Route::middleware(
             ->name('ip-billing.mhis-adjustments.store');
 
         Route::post(
+            '/mhis-settlement-adjustments',
+            [\App\Http\Controllers\MhisSettlementAdjustmentController::class, 'store']
+        )
+            ->middleware('permission:finance.mhis-adjustment.submit')
+            ->name('mhis-settlement-adjustments.store');
+
+        Route::post(
+            '/mhis-settlement-adjustments/{adjustment}/approve',
+            [\App\Http\Controllers\MhisSettlementAdjustmentController::class, 'approve']
+        )
+            ->middleware('permission:finance.mhis-adjustment.approve')
+            ->name('mhis-settlement-adjustments.approve');
+
+        Route::post(
+            '/mhis-settlement-adjustments/{adjustment}/post',
+            [\App\Http\Controllers\MhisSettlementAdjustmentController::class, 'post']
+        )
+            ->middleware('permission:finance.mhis-adjustment.post')
+            ->name('mhis-settlement-adjustments.post');
+
+        Route::post(
             '/ip-billing/{admission}/mhis/receipts',
             [IpBillingController::class, 'storeMhisReceipt']
         )

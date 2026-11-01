@@ -103,6 +103,15 @@ class MhisReceiptAccountingService
             };
 
             $amountPaise = $toPaise($receipt->amount);
+            $tdsPaise = $toPaise($receipt->tds_amount ?? '0.00');
+
+            if ($tdsPaise > $amountPaise) {
+                throw new RuntimeException(
+                    'TDS cannot exceed gross MHIS reimbursement.'
+                );
+            }
+
+            $netBankPaise = $amountPaise - $tdsPaise;
 
             $approvedPaise = $toPaise(
                 $claim->approved_amount
@@ -156,12 +165,12 @@ class MhisReceiptAccountingService
             $accounts = GeneralLedgerAccount::query()
                 ->whereIn(
                     'account_code',
-                    ['1130', '1200', '1210']
+                    ['1130', '1200', '1210', '1220']
                 )
                 ->get()
                 ->keyBy('account_code');
 
-            foreach (['1130', '1200', '1210'] as $code) {
+            foreach (['1130', '1200', '1210', '1220'] as $code) {
 
                 $gl = $accounts->get($code);
 
@@ -248,6 +257,16 @@ class MhisReceiptAccountingService
                     );
                 }
 
+                $previousTdsPaise = $toPaise(
+                    $previous->tds_amount ?? '0.00'
+                );
+
+                if ($previousTdsPaise > $previousPaise) {
+                    throw new RuntimeException(
+                        'Previous MHIS receipt has invalid TDS.'
+                    );
+                }
+
                 $activeReceiptsPaise += $previousPaise;
 
                 if (
@@ -284,6 +303,8 @@ class MhisReceiptAccountingService
 
                 $bankDr = 0;
                 $bankCr = 0;
+                $tdsDr = 0;
+                $tdsCr = 0;
                 $mhisDr = 0;
                 $mhisCr = 0;
 
@@ -299,6 +320,14 @@ class MhisReceiptAccountingService
 
                     if (
                         (int) $line->general_ledger_account_id
+                        === (int) $accounts['1220']->id
+                    ) {
+                        $tdsDr += $toPaise($line->debit);
+                        $tdsCr += $toPaise($line->credit);
+                    }
+
+                    if (
+                        (int) $line->general_ledger_account_id
                         === (int) $accounts['1210']->id
                     ) {
                         $mhisDr += $toPaise($line->debit);
@@ -307,9 +336,12 @@ class MhisReceiptAccountingService
                 }
 
                 if (
-                    $priorJournal->lines->count() !== 2
-                    || $bankDr !== $previousPaise
+                    $priorJournal->lines->count()
+                        !== ($previousTdsPaise > 0 ? 3 : 2)
+                    || $bankDr !== ($previousPaise - $previousTdsPaise)
                     || $bankCr !== 0
+                    || $tdsDr !== $previousTdsPaise
+                    || $tdsCr !== 0
                     || $mhisCr !== $previousPaise
                     || $mhisDr !== 0
                 ) {
@@ -401,29 +433,38 @@ class MhisReceiptAccountingService
                 'created_by' => auth()->id(),
             ]);
 
-            // Debit Bank Settlement Account.
-            JournalEntryLine::create([
-                'journal_entry_id' => $journal->id,
-                'line_no' => 1,
+            // Debit Bank for actual net reimbursement.
+            if ($netBankPaise > 0) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journal->id,
+                    'line_no' => 1,
+                    'general_ledger_account_id' => $accounts['1130']->id,
+                    'department_id' => null,
+                    'debit' => number_format($netBankPaise / 100, 2, '.', ''),
+                    'credit' => '0.00',
+                    'reference_no' => $reference,
+                    'description' => 'Net MHIS reimbursement credited to bank',
+                ]);
+            }
 
-                'general_ledger_account_id' =>
-                    $accounts['1130']->id,
-
-                'department_id' => null,
-
-                'debit' => $amount,
-                'credit' => '0.00',
-
-                'reference_no' => $reference,
-
-                'description' =>
-                    'MHIS reimbursement received in bank',
-            ]);
+            // Debit recoverable TDS withheld from this reimbursement.
+            if ($tdsPaise > 0) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journal->id,
+                    'line_no' => 2,
+                    'general_ledger_account_id' => $accounts['1220']->id,
+                    'department_id' => null,
+                    'debit' => number_format($tdsPaise / 100, 2, '.', ''),
+                    'credit' => '0.00',
+                    'reference_no' => $reference,
+                    'description' => 'TDS withheld on MHIS reimbursement',
+                ]);
+            }
 
             // Credit MHIS Receivables.
             JournalEntryLine::create([
                 'journal_entry_id' => $journal->id,
-                'line_no' => 2,
+                'line_no' => $tdsPaise > 0 ? 3 : 2,
 
                 'general_ledger_account_id' =>
                     $accounts['1210']->id,

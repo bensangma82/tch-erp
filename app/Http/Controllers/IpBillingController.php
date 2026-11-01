@@ -3984,6 +3984,14 @@ throw ValidationException::withMessages([
                 'max:99999999.99',
             ],
 
+            'tds_amount' => [
+                'required',
+                'numeric',
+                'min:0',
+                'decimal:0,2',
+                'lte:amount',
+            ],
+
             'payment_reference' => [
                 'nullable',
                 'string',
@@ -4132,6 +4140,8 @@ throw ValidationException::withMessages([
                         'receipt_date' => $validated['receipt_date'],
 
                         'amount' => $receiptAmount,
+
+                        'tds_amount' => $validated['tds_amount'],
 
                         'payment_reference' => $validated['payment_reference']
                             ?? null,

@@ -18,6 +18,7 @@ class IpBillingMhisReceipt extends Model
         'patient_id',
         'receipt_date',
         'amount',
+        'tds_amount',
         'payment_reference',
         'transaction_reference',
         'bank_reference',
@@ -32,6 +33,7 @@ class IpBillingMhisReceipt extends Model
     protected $casts = [
         'receipt_date' => 'date',
         'amount' => 'decimal:2',
+        'tds_amount' => 'decimal:2',
         'cancelled_at' => 'datetime',
     ];
 

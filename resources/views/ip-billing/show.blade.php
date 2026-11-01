@@ -3632,6 +3632,34 @@ style="background-color: #dc2626;"
                 <div class="grid gap-4 sm:grid-cols-2">
 
                     <div>
+                        <label for="mhis_tds_amount" class="block text-sm font-semibold text-slate-700">
+                            TDS Withheld (₹)
+                        </label>
+                        <input
+                            id="mhis_tds_amount"
+                            type="number"
+                            name="tds_amount"
+                            value="{{ old('tds_amount', '0.00') }}"
+                            min="0"
+                            step="0.01"
+                            required
+                            class="mt-1 block w-full rounded-lg border-slate-300"
+                        >
+                        <p class="mt-1 text-xs text-slate-500">
+                            TDS deducted from this reimbursement, not the total approved claim.
+                        </p>
+                        <div class="mt-3 rounded-lg bg-emerald-50 p-3">
+                            <span class="text-xs font-semibold text-emerald-700">
+                                Net Bank Credit
+                            </span>
+                            <div id="mhis_net_bank_credit"
+                                 class="text-lg font-bold text-emerald-800">
+                                ₹0.00
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
                         <label for="mhis_payment_reference" class="block text-sm font-semibold text-slate-700">
                             Payment Reference
                         </label>
@@ -3725,6 +3753,226 @@ style="background-color: #dc2626;"
 
         </div>
     </div>
+
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const gross = document.getElementById('mhis_receipt_amount');
+    const tds = document.getElementById('mhis_tds_amount');
+    const net = document.getElementById('mhis_net_bank_credit');
+
+    if (!gross || !tds || !net) return;
+
+    function updateNetCredit() {
+        const grossPaise = Math.round(Number(gross.value || 0) * 100);
+        const tdsPaise = Math.round(Number(tds.value || 0) * 100);
+
+        const valid = Number.isFinite(grossPaise)
+            && Number.isFinite(tdsPaise)
+            && grossPaise >= 0
+            && tdsPaise >= 0
+            && tdsPaise <= grossPaise;
+
+        net.textContent = valid
+            ? '₹' + ((grossPaise - tdsPaise) / 100).toFixed(2)
+            : 'Invalid TDS amount';
+    }
+
+    gross.addEventListener('input', updateNetCredit);
+    tds.addEventListener('input', updateNetCredit);
+    updateNetCredit();
+});
+</script>
+
+    {{-- MHIS SETTLEMENT HISTORY --}}
+    @php
+        $settlementAdjustments = \App\Models\MhisSettlementAdjustment::query()
+            ->whereHas('claim', fn ($q) =>
+                $q->where('ip_billing_account_id', $account->id)
+            )
+            ->orderByDesc('id')
+            ->get();
+    @endphp
+
+    @if ($settlementAdjustments->isNotEmpty())
+        <section class="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">
+                MHIS Settlement History
+            </h3>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="border-b text-left">
+                            <th class="p-2">Reference</th>
+                            <th class="p-2">TDS</th>
+                            <th class="p-2">Deduction</th>
+                            <th class="p-2">Status</th>
+                            <th class="p-2">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($settlementAdjustments as $adjustment)
+                            <tr class="border-b">
+                                <td class="p-2">
+                                    {{ $adjustment->adjustment_reference }}
+                                </td>
+                                <td class="p-2">
+                                    ₹{{ number_format((float) $adjustment->tds_amount, 2) }}
+                                </td>
+                                <td class="p-2">
+                                    ₹{{ number_format((float) $adjustment->accepted_deduction_amount, 2) }}
+                                </td>
+                                <td class="p-2">
+                                    {{ ucfirst($adjustment->status) }}
+                                </td>
+                                <td class="p-2">
+                                    @if ($adjustment->status === 'submitted'
+                                        && auth()->user()?->hasPermission('finance.mhis-adjustment.approve')
+                                        && (int) $adjustment->created_by !== (int) auth()->id())
+                                        <form method="POST"
+                                            action="{{ route('mhis-settlement-adjustments.approve', $adjustment) }}">
+                                            @csrf
+                                            <button type="submit"
+                                                class="rounded bg-amber-600 px-3 py-1 text-white">
+                                                Approve
+                                            </button>
+                                        </form>
+                                    @elseif ($adjustment->status === 'approved'
+                                        && auth()->user()?->hasPermission('finance.mhis-adjustment.post'))
+                                        <form method="POST"
+                                            action="{{ route('mhis-settlement-adjustments.post', $adjustment) }}">
+                                            @csrf
+                                            <button type="submit"
+                                                class="rounded bg-emerald-600 px-3 py-1 text-white">
+                                                Post to GL
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="text-slate-500">—</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endif
+
+    {{-- MHIS SETTLEMENT ADJUSTMENTS --}}
+    @if (
+        $isFinalized
+        && auth()->user()?->hasPermission('finance.mhis-adjustment.submit')
+        && \App\Models\IpBillingMhisClaim::query()
+            ->where('ip_billing_account_id', $account->id)
+            ->where('status', 'approved')
+            ->exists()
+    )
+        <section class="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">
+                MHIS Settlement Adjustments
+            </h3>
+
+            <p class="mt-2 text-sm text-slate-600">
+                Record TDS deducted by MHIS and accepted claim deductions.
+                These adjustments require independent approval before posting.
+            </p>
+
+            <form
+                method="POST"
+                action="{{ route('mhis-settlement-adjustments.store') }}"
+                class="mt-5 space-y-4"
+            >
+                @csrf
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">
+                        MHIS Claim
+                    </label>
+                    <select
+                        name="ip_billing_mhis_claim_id"
+                        required
+                        class="mt-1 w-full rounded-lg border-slate-300"
+                    >
+                        <option value="">Select approved claim</option>
+                        @foreach (\App\Models\IpBillingMhisClaim::where('ip_billing_account_id', $account->id)->where('status', 'approved')->get() as $claim)
+                            <option value="{{ $claim->id }}">
+                                Claim #{{ $claim->id }} — ₹{{ number_format((float) $claim->approved_amount, 2) }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">
+                            Adjustment Reference
+                        </label>
+                        <input name="adjustment_reference" required maxlength="100"
+                            class="mt-1 w-full rounded-lg border-slate-300">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">
+                            Adjustment Date
+                        </label>
+                        <input type="date" name="adjustment_date"
+                            value="{{ now()->format('Y-m-d') }}" required
+                            class="mt-1 w-full rounded-lg border-slate-300">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">
+                            TDS Amount (₹)
+                        </label>
+                        <input type="number" name="tds_amount" min="0"
+                            step="0.01" value="0.00" required
+                            class="mt-1 w-full rounded-lg border-slate-300">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">
+                            Accepted Deduction (₹)
+                        </label>
+                        <input type="number" name="accepted_deduction_amount"
+                            min="0" step="0.01" value="0.00" required
+                            class="mt-1 w-full rounded-lg border-slate-300">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">
+                        Settlement Reference
+                    </label>
+                    <input name="settlement_reference" maxlength="255" required
+                        class="mt-1 w-full rounded-lg border-slate-300">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">
+                        Reason for Accepted Deduction
+                    </label>
+                    <textarea name="reason" rows="2"
+                        class="mt-1 w-full rounded-lg border-slate-300"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">
+                        Supporting Evidence / Payment Advice Reference
+                    </label>
+                    <textarea name="supporting_evidence" rows="2" required
+                        class="mt-1 w-full rounded-lg border-slate-300"></textarea>
+                </div>
+
+                <button type="submit"
+                    class="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
+                    Submit for Independent Approval
+                </button>
+            </form>
+        </section>
+    @endif
 
 
     @if (! $isFinalized)
