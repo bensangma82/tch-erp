@@ -28,6 +28,49 @@ class MhisSettlementAdjustment extends Model
         'posted_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::updating(function (self $adjustment): void {
+            $protected = [
+                'ip_billing_mhis_claim_id',
+                'adjustment_reference',
+                'adjustment_date',
+                'tds_amount',
+                'accepted_deduction_amount',
+                'settlement_reference',
+                'reason',
+                'supporting_evidence',
+                'created_by',
+            ];
+
+            if (
+                $adjustment->getOriginal('status') !== 'draft'
+                && $adjustment->isDirty($protected)
+            ) {
+                throw new \RuntimeException(
+                    'Submitted MHIS adjustment financial details are immutable.'
+                );
+            }
+
+            if (
+                $adjustment->getOriginal('status') === 'posted'
+                && $adjustment->isDirty()
+            ) {
+                throw new \RuntimeException(
+                    'Posted MHIS adjustments cannot be modified.'
+                );
+            }
+        });
+
+        static::deleting(function (self $adjustment): void {
+            if ($adjustment->status !== 'draft') {
+                throw new \RuntimeException(
+                    'Submitted or posted MHIS adjustments cannot be deleted.'
+                );
+            }
+        });
+    }
+
     public function claim(): BelongsTo
     {
         return $this->belongsTo(
