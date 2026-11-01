@@ -29,7 +29,7 @@ class TallyVoucherXmlRouter
 
         'ip_billing_mhis_claim:approved' => TallyJournalXmlBuilder::class,
         'mhis_settlement_adjustment:posted' => TallyJournalXmlBuilder::class,
-        'ip_billing_account:advance_applied' => TallyJournalXmlBuilder::class,
+        'ip_billing_account:advance_applied' => TallyIpdAdvanceApplicationXmlBuilder::class,
         'pharmacy_sale:cogs' => TallyJournalXmlBuilder::class,
     ];
 
