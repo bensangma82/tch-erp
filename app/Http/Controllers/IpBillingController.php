@@ -4085,10 +4085,15 @@ throw ValidationException::withMessages([
                     2
                 );
 
+                $postedAdjustmentsPaise = app(
+                    \App\Services\Accounting\MhisSettlementBalanceService::class
+                )->postedAdjustmentsPaise((int) $claim->id);
+
                 $outstandingBeforeReceipt = round(
                     max(
                         $approvedAmount
-                        - $alreadyReceived,
+                        - $alreadyReceived
+                        - ($postedAdjustmentsPaise / 100),
                         0
                     ),
                     2
@@ -4154,8 +4159,9 @@ throw ValidationException::withMessages([
                 );
 
                 $fullySettled =
-                    $totalReceived
-                    >= $approvedAmount;
+                    (int) round($totalReceived * 100)
+                    + $postedAdjustmentsPaise
+                    === (int) round($approvedAmount * 100);
 
                 $claim->update([
                     /*

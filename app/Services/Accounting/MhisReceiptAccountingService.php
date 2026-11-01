@@ -328,8 +328,14 @@ class MhisReceiptAccountingService
             }
 
             // Outstanding claim-specific GL 1210 balance.
+            $postedAdjustmentsPaise = app(
+                MhisSettlementBalanceService::class
+            )->postedAdjustmentsPaise((int) $claim->id);
+
             $outstandingPaise =
-                $recognition1210Dr - $priorCreditsPaise;
+                $recognition1210Dr
+                - $priorCreditsPaise
+                - $postedAdjustmentsPaise;
 
             if (
                 $outstandingPaise <= 0
@@ -343,7 +349,8 @@ class MhisReceiptAccountingService
 
             // Validate partial versus final settlement.
             $shouldBeSettled =
-                $activeReceiptsPaise === $approvedPaise;
+                ($activeReceiptsPaise + $postedAdjustmentsPaise)
+                === $approvedPaise;
 
             if (
                 ($claim->status === 'settled')
