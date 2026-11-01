@@ -3895,7 +3895,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </h3>
 
             <p class="mt-2 text-sm text-slate-600">
-                Record TDS deducted by MHIS and accepted claim deductions.
+                Record approved MHIS claim deductions and write-offs.
                 These adjustments require independent approval before posting.
             </p>
 
@@ -3942,14 +3942,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             class="mt-1 w-full rounded-lg border-slate-300">
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">
-                            TDS Amount (₹)
-                        </label>
-                        <input type="number" name="tds_amount" min="0"
-                            step="0.01" value="0.00" required
-                            class="mt-1 w-full rounded-lg border-slate-300">
-                    </div>
+                    <input type="hidden" name="tds_amount" value="0.00">
 
                     <div>
                         <label class="block text-sm font-medium text-slate-700">

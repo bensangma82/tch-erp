@@ -80,6 +80,12 @@ class MhisSettlementAdjustmentAccountingService
                 $a->accepted_deduction_amount
             );
 
+            if ($tds > 0) {
+                throw new RuntimeException(
+                    'Record MHIS TDS against the reimbursement receipt, not a settlement adjustment.'
+                );
+            }
+
             if ($tds + $deduction <= 0) {
                 throw new RuntimeException(
                     'Adjustment must be positive.'
@@ -211,6 +217,13 @@ class MhisSettlementAdjustmentAccountingService
             }
 
             $tds = $this->paise($a->tds_amount);
+            if ($tds > 0) {
+                throw new RuntimeException(
+                    'MHIS TDS must be recorded through the reimbursement receipt.'
+                );
+            }
+
+
             $deduction = $this->paise(
                 $a->accepted_deduction_amount
             );
