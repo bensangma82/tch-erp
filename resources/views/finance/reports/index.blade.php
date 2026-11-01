@@ -27,6 +27,26 @@
 
         </div>
 
+        {{-- MHIS Receivables Reconciliation --}}
+        <div class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-900">
+                        MHIS Receivables Reconciliation
+                    </h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Reconcile approved MHIS claims, reimbursements, TDS,
+                        deductions and outstanding balances with GL 1210.
+                    </p>
+                </div>
+
+                <a href="{{ route('finance.reports.mhis-receivables') }}"
+                   class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                    View MHIS Report
+                </a>
+            </div>
+        </div>
+
         {{-- Department-wise OPD Revenue Report --}}
         <div class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

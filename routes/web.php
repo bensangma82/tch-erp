@@ -1311,6 +1311,17 @@ Route::post(
     ]
 )->name('finance.reports.opd-department');
 
+        Route::get(
+            '/admin/finance/reports/mhis-receivables',
+            [
+                \App\Http\Controllers\Finance\MhisReceivablesReportController::class,
+                'index'
+            ]
+        )
+            ->middleware('permission:finance.reports.view')
+            ->name('finance.reports.mhis-receivables');
+
+
     });
     /*
     |--------------------------------------------------------------------------
