@@ -2897,6 +2897,15 @@ style="background-color: #dc2626;"
                     @endphp
 
 
+                    @php
+                        $mhisTdsTotal = $activeMhisReceipts->sum(
+                            fn ($receipt) => (float) ($receipt->tds_amount ?? 0)
+                        );
+
+                        $mhisNetBankTotal =
+                            (float) $mhisReceivedAmount - $mhisTdsTotal;
+                    @endphp
+
                     @if ($activeMhisReceipts->isEmpty())
 
                         <div class="px-6 py-10 text-center">
@@ -2931,9 +2940,11 @@ style="background-color: #dc2626;"
                                             Transaction / Bank Ref.
                                         </th>
 
-                                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            Amount
-                                        </th>
+                                        @foreach (['Gross Reimbursement', 'TDS Withheld', 'Net Bank Credit'] as $heading)
+                                            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                {{ $heading }}
+                                            </th>
+                                        @endforeach
 
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                             Received By
@@ -2970,8 +2981,17 @@ style="background-color: #dc2626;"
                                                 @endif
                                             </td>
 
-                                            <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-emerald-700">
+                                            <td class="whitespace-nowrap px-4 py-3 text-right text-sm text-slate-700">
                                                 ₹{{ number_format((float) $receipt->amount, 2) }}
+                                            </td>
+                                            <td class="whitespace-nowrap px-4 py-3 text-right text-sm text-amber-700">
+                                                ₹{{ number_format((float) ($receipt->tds_amount ?? 0), 2) }}
+                                            </td>
+                                            <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-emerald-700">
+                                                ₹{{ number_format(
+                                                    (float) $receipt->amount - (float) ($receipt->tds_amount ?? 0),
+                                                    2
+                                                ) }}
                                             </td>
 
                                             <td class="px-4 py-3 text-sm text-slate-700">
@@ -2988,31 +3008,30 @@ style="background-color: #dc2626;"
                                 </tbody>
 
                                 <tfoot class="border-t border-slate-200 bg-slate-50">
-
                                     <tr>
-                                        <td colspan="3" class="px-4 py-3 text-right text-sm font-semibold text-slate-700">
-                                            Total MHIS Received
+                                        <td colspan="3" class="px-4 py-3 text-right text-sm font-semibold">
+                                            Total Reimbursements
                                         </td>
-
-                                        <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-bold text-emerald-700">
+                                        <td class="px-4 py-3 text-right font-bold">
                                             ₹{{ number_format((float) $mhisReceivedAmount, 2) }}
                                         </td>
-
+                                        <td class="px-4 py-3 text-right font-bold">
+                                            ₹{{ number_format($mhisTdsTotal, 2) }}
+                                        </td>
+                                        <td class="px-4 py-3 text-right font-bold text-emerald-700">
+                                            ₹{{ number_format($mhisNetBankTotal, 2) }}
+                                        </td>
                                         <td colspan="2"></td>
                                     </tr>
-
                                     <tr>
-                                        <td colspan="3" class="px-4 py-3 text-right text-sm font-semibold text-slate-700">
+                                        <td colspan="3" class="px-4 py-3 text-right text-sm font-semibold">
                                             Outstanding MHIS Receivable
                                         </td>
-
-                                        <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-bold text-amber-700">
+                                        <td class="px-4 py-3 text-right font-bold text-amber-700">
                                             ₹{{ number_format((float) $mhisOutstandingAmount, 2) }}
                                         </td>
-
-                                        <td colspan="2"></td>
+                                        <td colspan="4"></td>
                                     </tr>
-
                                 </tfoot>
 
                             </table>
