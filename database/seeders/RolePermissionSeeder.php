@@ -204,6 +204,13 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Review and authorize corrections to existing accounting transactions.',
             ],
 
+            [
+                'name' => 'finance.reports.view',
+                'label' => 'View Finance Reports',
+                'module' => 'finance',
+                'description' => 'View Finance reports including MHIS receivables reconciliation.',
+            ],
+
             // FINANCE
             [
                 'name' => 'finance.dashboard',
@@ -567,6 +574,7 @@ class RolePermissionSeeder extends Seeder
                 'finance.vouchers.post',
                 'finance.vouchers.cancel',
                 'finance.reports',
+                'finance.reports.view',
                 'pharmacy.gst-report',
                 'finance.master',
             ],
