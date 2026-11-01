@@ -382,6 +382,16 @@ class FinanceVoucherController extends Controller
             ]);
         }
 
+        if ($financeVoucher->voucher_type === 'transfer') {
+            app(\App\Services\Accounting\FinanceTransferAccountingService::class)
+                ->post($financeVoucher);
+
+            return back()->with(
+                'success',
+                'Transfer and balanced GL journal posted successfully.'
+            );
+        }
+
         DB::transaction(function () use ($financeVoucher) {
             $voucher = FinanceVoucher::query()
                 ->whereKey($financeVoucher->id)

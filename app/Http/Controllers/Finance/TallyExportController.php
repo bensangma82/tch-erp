@@ -119,6 +119,14 @@ class TallyExportController extends Controller
 |--------------------------------------------------------------------------
 */
 
+
+            if ($voucher->voucher_type === 'transfer') {
+                return [
+                    'ok' => false,
+                    'errors' => ['Contra transfers must use GL Journal Export.'],
+                ];
+            }
+
 TallyExportLock::acquireForFinanceVoucher($voucher);
 
             $voucher->load([
@@ -216,6 +224,16 @@ TallyExportLock::acquireForFinanceVoucher($voucher);
                 ->whereKey($financeVoucher->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            if ($voucher->voucher_type === 'transfer') {
+                return [
+                    'ok' => false,
+                    'message' => 'Internal transfers must be exported through '
+                        .'the General Ledger Journal Export workflow.',
+                ];
+            }
+
+
 /*
 |--------------------------------------------------------------------------
 | Prevent Duplicate Supplier Payment Exports
@@ -563,6 +581,14 @@ TallyExportLock::acquireForFinanceVoucher($voucher);
 |--------------------------------------------------------------------------
 */
 
+
+            if ($voucher->voucher_type === 'transfer') {
+                return [
+                    'ok' => false,
+                    'errors' => ['Contra transfers must use GL Journal Export.'],
+                ];
+            }
+
 TallyExportLock::acquireForFinanceVoucher($voucher);
 
             $voucher->load([
@@ -685,6 +711,14 @@ TallyExportLock::acquireForFinanceVoucher($voucher);
 | the same underlying accounting event.
 |--------------------------------------------------------------------------
 */
+
+
+            if ($voucher->voucher_type === 'transfer') {
+                return [
+                    'ok' => false,
+                    'message' => 'Contra transfers must use GL Journal Export.',
+                ];
+            }
 
 TallyExportLock::acquireForFinanceVoucher($voucher);
 

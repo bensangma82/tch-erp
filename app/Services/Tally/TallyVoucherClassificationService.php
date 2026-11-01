@@ -8,16 +8,21 @@ use RuntimeException;
 class TallyVoucherClassificationService
 {
     private const RULES = [
+        'finance_voucher:transfer_posted' => 'Contra',
         'ip_billing_account:finalized' => 'Sales',
         'ip_billing_mhis_claim:approved' => 'Journal',
         'ip_billing_payment:received' => 'Receipt',
         'ip_billing_advance:received' => 'Receipt',
         'ip_billing_refund:paid' => 'Payment',
+        'investigation_cancellation_request:revenue_reversed' => 'Credit Note',
+        'investigation_cancellation_refund:paid' => 'Payment',
         'hospital_expense_payment:supplier_payment' => 'Payment',
+        'hospital_expense:accrual_posted' => 'Journal',
         'invoice:issued' => 'Sales',
         'payment:received' => 'Receipt',
         'ip_billing_account:advance_applied' => 'Journal',
         'ip_billing_mhis_receipt:received' => 'Receipt',
+        'mhis_settlement_adjustment:posted' => 'Journal',
         'pharmacy_grn:received' => 'Purchase',
         'pharmacy_sale:completed' => 'Sales',
         'pharmacy_sale:cogs' => 'Journal',

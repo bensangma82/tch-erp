@@ -9,7 +9,7 @@ use App\Services\Tally\TallyHttpClient;
 use App\Services\Tally\TallyExportLock;
 use App\Services\Tally\TallyJournalExportService;
 use App\Services\Tally\TallyJournalReconciliationService;
-use App\Services\Tally\TallyJournalXmlBuilder;
+use App\Services\Tally\TallyVoucherXmlRouter;
 use App\Services\Tally\TallyResponseParser;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -105,7 +105,7 @@ class TallyJournalExportController extends Controller
     public function preview(
         JournalEntry $journalEntry,
         TallyJournalExportService $service,
-        TallyJournalXmlBuilder $builder
+        TallyVoucherXmlRouter $builder
     ): JsonResponse {
 
         $eligibility = $service->checkEligibility(
@@ -190,7 +190,7 @@ class TallyJournalExportController extends Controller
         Request $request,
         JournalEntry $journalEntry,
         TallyJournalExportService $service,
-        TallyJournalXmlBuilder $builder,
+        TallyVoucherXmlRouter $builder,
         TallyHttpClient $client,
         TallyResponseParser $parser
     ): RedirectResponse {
