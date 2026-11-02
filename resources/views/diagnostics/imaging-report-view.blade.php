@@ -401,6 +401,17 @@
         }
 
         @media print {
+            /* Keep the print audit with the A4 report */
+            #imaging-report .print-audit {
+                margin-top: 2px !important;
+                padding: 0 !important;
+                font-size: 9px !important;
+                line-height: 1.15 !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+
+
             html,
             body {
                 margin: 0 !important;
@@ -582,8 +593,8 @@
 
             .report-footer {
                 grid-template-columns: 1fr 180px !important;
-                gap: 22px !important;
-                margin-top: 45px !important;
+                gap: 12px !important;
+                margin-top: 10px !important;
                 break-inside: avoid !important;
                 page-break-inside: avoid !important;
             }
@@ -593,12 +604,12 @@
             }
 
             .footer-note {
-                margin-top: 7px !important;
+                margin-top: 4px !important;
                 font-size: 10px !important;
             }
 
             .signature {
-                padding-top: 24px !important;
+                padding-top: 12px !important;
                 font-size: 11px !important;
             }
         }
@@ -907,7 +918,14 @@
                                 <div>
                                     <div class="meta-label">Reported By</div>
                                     <div class="meta-value">
-                                        {{ $report?->enteredBy?->name ?? '—' }}
+                                        @if ($report?->reportingSonologist)
+                                            {{ $report->reportingSonologist->name }}
+                                            <div>
+                                                {{ $report->reportingSonologist->qualification }}
+                                            </div>
+                                        @else
+                                            —
+                                        @endif
                                     </div>
                                 </div>
 
@@ -948,7 +966,7 @@
 
                 </div>
 
-                           <x-print-audit />
+
                 <div class="screen-actions screen-only">
                     <a
                         href="{{ route('imaging.index') }}"

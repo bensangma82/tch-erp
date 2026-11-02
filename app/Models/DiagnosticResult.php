@@ -16,6 +16,7 @@ class DiagnosticResult extends Model
         'structured_data',
         'attachment_path',
         'status',
+        'reporting_sonologist_id',
         'entered_by',
         'entered_at',
         'verified_by',
@@ -46,6 +47,15 @@ class DiagnosticResult extends Model
         return $this->belongsTo(
             User::class,
             'entered_by'
+        );
+    }
+
+
+    public function reportingSonologist(): BelongsTo
+    {
+        return $this->belongsTo(
+            Sonologist::class,
+            'reporting_sonologist_id'
         );
     }
 

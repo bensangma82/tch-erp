@@ -131,9 +131,14 @@ class DiagnosticWorklistController extends Controller
         }
 
 
+        $sonologists = \App\Models\Sonologist::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
         return view(
             'diagnostics.imaging-report-entry',
-            compact('serviceOrderItem')
+            compact('serviceOrderItem', 'sonologists')
         );
     }
 
@@ -172,6 +177,20 @@ class DiagnosticWorklistController extends Controller
             ]);
         }
 
+        $studyText = strtolower(
+            trim(
+                ($serviceOrderItem->service_name ?? '') . ' ' .
+                ($serviceOrderItem->service_code ?? '')
+            )
+        );
+
+        $isAbdominalUsg =
+            str_contains($studyText, 'ultrasound abdomen')
+            || str_contains($studyText, 'ultrasound whole abdomen')
+            || str_contains($studyText, 'usg abdomen')
+            || str_contains($studyText, 'usg whole abdomen')
+            || str_contains($studyText, 'usgabd');
+
         $validated = $request->validate([
             'action' => [
                 'required',
@@ -186,6 +205,14 @@ class DiagnosticWorklistController extends Controller
                 'nullable',
                 'string',
                 'max:10000',
+            ],
+            'reporting_sonologist_id' => [
+                $request->input('action') === 'finalize' && $isAbdominalUsg
+                    ? 'required'
+                    : 'nullable',
+                'integer',
+                \Illuminate\Validation\Rule::exists('sonologists', 'id')
+                    ->where('is_active', true),
             ],
             'structured_data' => [
                 'nullable',
@@ -215,6 +242,10 @@ class DiagnosticWorklistController extends Controller
                     'impression' => $validated['impression'] ?? null,
                     'structured_data' => $validated['structured_data'] ?? null,
                     'status' => 'draft',
+                    'reporting_sonologist_id' =>
+                        $isAbdominalUsg
+                            ? ($validated['reporting_sonologist_id'] ?? null)
+                            : null,
                     'entered_by' => auth()->id(),
                     'entered_at' => now(),
                     'verified_by' => null,
@@ -235,7 +266,8 @@ class DiagnosticWorklistController extends Controller
 
         DB::transaction(function () use (
             $validated,
-            $serviceOrderItem
+            $serviceOrderItem,
+            $isAbdominalUsg
         ) {
             DiagnosticResult::updateOrCreate(
                 [
@@ -246,6 +278,10 @@ class DiagnosticWorklistController extends Controller
                     'impression' => $validated['impression'] ?? null,
                     'structured_data' => $validated['structured_data'] ?? null,
                     'status' => 'final',
+                    'reporting_sonologist_id' =>
+                        $isAbdominalUsg
+                            ? ($validated['reporting_sonologist_id'] ?? null)
+                            : null,
                     'entered_by' => auth()->id(),
                     'entered_at' => now(),
                     'verified_by' => null,
@@ -273,6 +309,7 @@ class DiagnosticWorklistController extends Controller
             'serviceOrder.encounter.department',
             'serviceOrder.encounter.doctor',
             'diagnosticResult.enteredBy',
+            'diagnosticResult.reportingSonologist',
             'diagnosticResult.verifiedBy',
         ]);
 

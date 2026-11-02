@@ -546,6 +546,34 @@ Bilateral ovaries are normal in position, size and echotexture. Right ovary meas
                         </div>
                     @endif
 
+                    {{-- REPORTING SONOLOGIST --}}
+                    @if ($isAbdominalUsg)
+                        <div class="mb-6">
+                            <label for="reporting_sonologist_id"
+                                   class="block text-sm font-semibold text-gray-700">
+                                Reporting Sonologist
+                            </label>
+
+                            <select
+                                id="reporting_sonologist_id"
+                                name="reporting_sonologist_id"
+                                class="mt-2 block w-full rounded-lg border-gray-300 shadow-sm"
+                            >
+                                <option value="">Select Reporting Sonologist</option>
+                                @foreach ($sonologists as $sonologist)
+                                    <option value="{{ $sonologist->id }}"
+                                        @selected(old('reporting_sonologist_id', $existingResult?->reporting_sonologist_id) == $sonologist->id)>
+                                        {{ $sonologist->name }} — {{ $sonologist->qualification }}
+                                    </option>
+                                @endforeach
+                            </select>
+
+                            @error('reporting_sonologist_id')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    @endif
+
                     {{-- EXISTING ERP FINDINGS --}}
                     <div>
                         <label for="findings" class="block text-sm font-semibold text-gray-700">Findings</label>
