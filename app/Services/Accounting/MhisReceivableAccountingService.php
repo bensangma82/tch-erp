@@ -145,7 +145,7 @@ class MhisReceivableAccountingService
                 $account->refunds->isNotEmpty()
                 || $account->mhisReceipts->isNotEmpty()
                 || $account->mhisAdjustments->isNotEmpty()
-                || $account->staffMedicalBenefitTransactions->isNotEmpty()
+                
                 || $account->charityAdjustments->isNotEmpty()
                 || $account->mhisClaims->count() !== 1
             ) {
@@ -153,6 +153,10 @@ class MhisReceivableAccountingService
                     'This bill requires extended MHIS reconciliation.'
                 );
             }
+
+            $staffBenefitPaise = app(
+                StaffMedicalBenefitReconciliationService::class
+            )->reconcile($account);
 
             // Verify existing patient payment journals.
             foreach ($account->payments as $payment) {
@@ -369,7 +373,8 @@ class MhisReceivableAccountingService
 
             // MHIS GL 1200 balance reconciliation.
             $remainingPaise = $originalDebitPaise
-                - $appliedAdvancePaise;
+                - $appliedAdvancePaise
+                - $staffBenefitPaise;
 
             foreach ($account->payments as $payment) {
                 $paymentJournal = JournalEntry::query()

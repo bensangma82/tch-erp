@@ -82,7 +82,7 @@ final class MhisPreflightService
             || $account->refunds->isNotEmpty()
             || $account->mhisReceipts->isNotEmpty()
             || $account->mhisAdjustments->isNotEmpty()
-            || $account->staffMedicalBenefitTransactions->isNotEmpty()
+            || ! $this->staffBenefitsReconciled($account)
             || $account->charityAdjustments->isNotEmpty()
             || $account->mhisClaims->count() > 1
         ) {
@@ -154,6 +154,18 @@ final class MhisPreflightService
         }
 
         return $result;
+    }
+
+
+    private function staffBenefitsReconciled(IpBillingAccount $account): bool
+    {
+        try {
+            app(\App\Services\Accounting\StaffMedicalBenefitReconciliationService::class)
+                ->reconcile($account);
+            return true;
+        } catch (\RuntimeException $e) {
+            return false;
+        }
     }
 
     // MHIS_RECONCILED_ADVANCES_V1
