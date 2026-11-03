@@ -1063,6 +1063,14 @@
                                             MHIS
                                         </option>
 
+                                    
+                                        <option
+                                            value="staff_medical_benefit"
+                                            @selected(old('payment_mode') === 'staff_medical_benefit')
+                                        >
+                                            Staff Medical Benefit
+                                        </option>
+
                                     </select>
 
                                 </div>
@@ -4096,7 +4104,11 @@ function addRow(
                                     paymentMode?.value === 'mhis'
                                 )
                                     ? 'Authorized credit'
-                                    : 'Ready for payment';
+                                    : (
+                                        paymentMode?.value === 'staff_medical_benefit'
+                                            ? 'Staff benefit — eligibility verification required'
+                                            : 'Ready for payment'
+                                    );
 
 
                             paymentStatusBadge.className =

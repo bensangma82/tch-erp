@@ -559,26 +559,10 @@ class StaffMedicalBenefitUtilizationService
             }
 
             /*
-             * Keep the reversal inside the same financial-year
-             * benefit account.
+             * Cross-financial-year reversals retain the original
+             * benefit_account_id. They must never consume or restore
+             * entitlement in a different financial-year account.
              */
-            if (
-                $transactionDate->lt(
-                    $account->financial_year_start
-                        ->copy()
-                        ->startOfDay()
-                ) ||
-                $transactionDate->gt(
-                    $account->financial_year_end
-                        ->copy()
-                        ->endOfDay()
-                )
-            ) {
-                throw new RuntimeException(
-                    'Reversal date falls outside the benefit '
-                    . 'financial year.'
-                );
-            }
 
             return StaffMedicalBenefitTransaction::create([
                 'benefit_account_id' =>

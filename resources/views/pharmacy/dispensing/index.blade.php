@@ -149,245 +149,171 @@
 
                 <div class="overflow-x-auto">
 
-                    <table class="min-w-full divide-y divide-slate-200">
+                    
+<div class="divide-y divide-slate-200">
+
+    @forelse ($sales as $sale)
+
+        <div class="p-5 transition hover:bg-slate-50 sm:p-6">
+
+            <div class="flex flex-col gap-4">
+
+                {{-- Sale number, date and status --}}
+                <div class="flex flex-wrap items-start justify-between gap-3">
+
+                    <div class="min-w-0">
+                        <div class="break-all text-sm font-bold text-slate-900">
+                            {{ $sale->sale_no }}
+                        </div>
+
+                        <div class="mt-1 text-xs text-slate-500">
+                            {{ $sale->sale_at?->format('d M Y · h:i A') }}
+                        </div>
+                    </div>
+
+                    <div>
+                        @if ($sale->status === 'completed')
+                            <span class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                Completed
+                            </span>
+                        @elseif ($sale->status === 'credit')
+                            <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                Credit
+                            </span>
+                        @else
+                            <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                {{ ucwords(str_replace('_', ' ', $sale->status)) }}
+                            </span>
+                        @endif
+                    </div>
+
+                </div>
+
+                {{-- Patient and encounter --}}
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                    <div class="min-w-0">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Patient
+                        </div>
+
+                        <div class="mt-1 font-semibold text-slate-900">
+                            {{ $sale->patient->full_name }}
+                        </div>
+
+                        <div class="mt-1 break-words text-xs text-slate-500">
+                            UHID: {{ $sale->patient->uhid }}
+                            @if ($sale->patient->mrd_number)
+                                · MRD: {{ $sale->patient->mrd_number }}
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="min-w-0">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Encounter
+                        </div>
+
+                        @if ($sale->encounter)
+                            <div class="mt-1 break-words text-sm font-semibold text-slate-700">
+                                {{ $sale->encounter->encounter_no }}
+                            </div>
+
+                            <div class="mt-1 text-xs text-slate-500">
+                                {{ $sale->encounter->department?->name ?? '—' }}
+                            </div>
+                        @else
+                            <div class="mt-1 text-sm text-slate-500">
+                                Walk-in / No encounter
+                            </div>
+                        @endif
+                    </div>
+
+                </div>
+
+                {{-- Payment and actions --}}
+                <div class="flex flex-col gap-4 border-t border-slate-100 pt-4 lg:flex-row lg:items-end lg:justify-between">
+
+                    <div class="flex flex-wrap items-center gap-x-8 gap-y-3">
+
+                        <div>
+                            <div class="text-xs text-slate-400">Total</div>
+                            <div class="text-lg font-bold text-slate-900">
+                                ₹{{ number_format((float) $sale->total_amount, 2) }}
+                            </div>
+
+                            @if ((float) $sale->discount > 0)
+                                <div class="text-xs text-slate-500">
+                                    Discount ₹{{ number_format((float) $sale->discount, 2) }}
+                                </div>
+                            @endif
+                        </div>
+
+                        <div>
+                            <div class="text-xs text-slate-400">Payment</div>
+                            <div class="mt-1 break-words text-sm font-semibold text-slate-700">
+                                {{ ucwords(str_replace('_', ' ', $sale->payment_mode ?? '—')) }}
+                            </div>
 
-                        <thead class="bg-slate-50">
+                            @if ((float) $sale->balance_amount > 0)
+                                <div class="text-xs font-semibold text-amber-600">
+                                    Balance ₹{{ number_format((float) $sale->balance_amount, 2) }}
+                                </div>
+                            @else
+                                <div class="text-xs text-emerald-600">Paid</div>
+                            @endif
+                        </div>
 
-                            <tr>
+                    </div>
 
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Sale No.
-                                </th>
+                    <div class="flex flex-wrap items-center gap-2">
 
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Date / Time
-                                </th>
+                        <a href="{{ route('pharmacy.dispensing.show', $sale) }}"
+                           class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                            View
+                        </a>
 
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Patient
-                                </th>
+                        <a href="{{ route('pharmacy.dispensing.receipt', $sale) }}"
+                           class="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
+                            Receipt
+                        </a>
 
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Encounter
-                                </th>
+                        @if (in_array($sale->status, ['completed', 'credit'], true))
+                            <a href="{{ route('pharmacy.returns.create', $sale) }}"
+                               class="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">
+                                Return Medicines
+                            </a>
+                        @endif
 
-                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Total
-                                </th>
+                    </div>
 
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Payment
-                                </th>
+                </div>
 
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Status
-                                </th>
+            </div>
 
-                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Actions
-                                </th>
+        </div>
 
-                            </tr>
+    @empty
 
-                        </thead>
+        <div class="px-6 py-14 text-center">
+            <div class="font-semibold text-slate-700">
+                No pharmacy sales found.
+            </div>
 
+            <div class="mt-2 text-sm text-slate-500">
+                Start by creating a new dispensing transaction.
+            </div>
 
-                        <tbody class="divide-y divide-slate-100 bg-white">
+            <a href="{{ route('pharmacy.dispensing.create') }}"
+               class="mt-5 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                New Dispensing
+            </a>
+        </div>
 
-                            @forelse ($sales as $sale)
+    @endforelse
 
-                                <tr class="transition hover:bg-slate-50">
+</div>
 
-
-                                    <td class="whitespace-nowrap px-6 py-4">
-
-                                        <div class="text-sm font-semibold text-slate-900">
-                                            {{ $sale->sale_no }}
-                                        </div>
-
-                                    </td>
-
-
-                                    <td class="whitespace-nowrap px-6 py-4">
-
-                                        <div class="text-sm text-slate-800">
-                                            {{ $sale->sale_at?->format('d M Y') }}
-                                        </div>
-
-                                        <div class="mt-1 text-xs text-slate-400">
-                                            {{ $sale->sale_at?->format('h:i A') }}
-                                        </div>
-
-                                    </td>
-
-
-                                    <td class="px-6 py-4">
-
-                                        <div class="font-semibold text-slate-900">
-                                            {{ $sale->patient->full_name }}
-                                        </div>
-
-                                        <div class="mt-1 text-xs text-slate-500">
-                                            UHID: {{ $sale->patient->uhid }}
-
-                                            @if ($sale->patient->mrd_number)
-                                                · MRD: {{ $sale->patient->mrd_number }}
-                                            @endif
-                                        </div>
-
-                                    </td>
-
-
-                                    <td class="px-6 py-4">
-
-                                        @if ($sale->encounter)
-
-                                            <div class="text-sm font-semibold text-slate-700">
-                                                {{ $sale->encounter->encounter_no }}
-                                            </div>
-
-                                            <div class="mt-1 text-xs text-slate-500">
-                                                {{ $sale->encounter->department?->name ?? '—' }}
-                                            </div>
-
-                                        @else
-
-                                            <span class="text-sm text-slate-400">
-                                                Walk-in / No encounter
-                                            </span>
-
-                                        @endif
-
-                                    </td>
-
-
-                                    <td class="whitespace-nowrap px-6 py-4 text-right">
-
-                                        <div class="font-bold text-slate-900">
-                                            ₹{{ number_format((float) $sale->total_amount, 2) }}
-                                        </div>
-
-                                        @if ((float) $sale->discount > 0)
-
-                                            <div class="mt-1 text-xs text-slate-400">
-                                                Discount ₹{{ number_format((float) $sale->discount, 2) }}
-                                            </div>
-
-                                        @endif
-
-                                    </td>
-
-
-                                    <td class="px-6 py-4">
-
-                                        <div class="text-sm font-semibold text-slate-700">
-                                            {{ strtoupper($sale->payment_mode ?? '—') }}
-                                        </div>
-
-                                        @if ((float) $sale->balance_amount > 0)
-
-                                            <div class="mt-1 text-xs font-semibold text-amber-600">
-                                                Balance ₹{{ number_format((float) $sale->balance_amount, 2) }}
-                                            </div>
-
-                                        @else
-
-                                            <div class="mt-1 text-xs text-emerald-600">
-                                                Paid
-                                            </div>
-
-                                        @endif
-
-                                    </td>
-
-
-                                    <td class="px-6 py-4">
-
-                                        @if ($sale->status === 'completed')
-
-                                            <span class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                                Completed
-                                            </span>
-
-                                        @elseif ($sale->status === 'credit')
-
-                                            <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                                Credit
-                                            </span>
-
-                                        @else
-
-                                            <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                                                {{ ucwords(str_replace('_', ' ', $sale->status)) }}
-                                            </span>
-
-                                        @endif
-
-                                    </td>
-
-
-                                    <td class="px-6 py-4">
-
-                                        <div class="flex items-center justify-end gap-2">
-
-                                            <a
-                                                href="{{ route('pharmacy.dispensing.show', $sale) }}"
-                                                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                                            >
-                                                View
-                                            </a>
-
-
-                                            <a
-                                                href="{{ route('pharmacy.dispensing.receipt', $sale) }}"
-                                                class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
-                                            >
-                                                Receipt
-                                            </a>
-
-                                        </div>
-
-                                    </td>
-
-                                </tr>
-
-                            @empty
-
-                                <tr>
-
-                                    <td
-                                        colspan="8"
-                                        class="px-6 py-14 text-center"
-                                    >
-
-                                        <div class="text-sm font-semibold text-slate-700">
-                                            No pharmacy sales found.
-                                        </div>
-
-                                        <div class="mt-2 text-xs text-slate-400">
-                                            Start by creating a new dispensing transaction.
-                                        </div>
-
-                                        <div class="mt-5">
-
-                                            <a
-                                                href="{{ route('pharmacy.dispensing.create') }}"
-                                                class="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                                            >
-                                                New Dispensing
-                                            </a>
-
-                                        </div>
-
-                                    </td>
-
-                                </tr>
-
-                            @endforelse
-
-                        </tbody>
-
-                    </table>
 
                 </div>
 

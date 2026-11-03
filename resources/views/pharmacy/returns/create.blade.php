@@ -345,12 +345,18 @@
                                         class="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                     >
 
-                                        <option value="cash">Cash</option>
+                                        @if ($sale->payment_mode === 'staff_medical_benefit')
+                                            <option value="none" selected>
+                                                Staff Medical Benefit Adjustment — No Cash Refund
+                                            </option>
+                                        @else
+                                            <option value="cash">Cash</option>
                                         <option value="upi">UPI</option>
                                         <option value="card">Card</option>
                                         <option value="credit">Credit Adjustment</option>
                                         <option value="mhis">MHIS Adjustment</option>
-                                        <option value="none">No Immediate Refund</option>
+                                            <option value="none">No Immediate Refund</option>
+                                        @endif
 
                                     </select>
 

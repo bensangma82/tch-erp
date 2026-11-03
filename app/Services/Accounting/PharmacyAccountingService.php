@@ -177,7 +177,46 @@ class PharmacyAccountingService
                 throw new RuntimeException('Pharmacy sale totals, GST, payments and balance do not reconcile.');
             }
 
-            $settlementCodes = ['cash' => '1100', 'upi' => '1110', 'card' => '1120'];
+            if ($sale->payment_mode === 'staff_medical_benefit') {
+                $utilizations = \App\Models\StaffMedicalBenefitTransaction::query()
+                    ->where('source_type', 'pharmacy_sale')
+                    ->where('source_id', $sale->id)
+                    ->where('patient_id', $sale->patient_id)
+                    ->where('transaction_type', 'utilization')
+                    ->where('status', 'active')
+                    ->lockForUpdate()
+                    ->get();
+
+                if ($utilizations->count() !== 1) {
+                    throw new RuntimeException(
+                        'Pharmacy Staff Medical Benefit utilization is missing or ambiguous.'
+                    );
+                }
+
+                $utilization = $utilizations->first();
+
+                $reversed = \App\Models\StaffMedicalBenefitTransaction::query()
+                    ->where('reverses_transaction_id', $utilization->id)
+                    ->where('transaction_type', 'reversal')
+                    ->where('status', 'active')
+                    ->sum('amount');
+
+                $netBenefit = $this->cents($utilization->amount)
+                    - $this->cents($reversed);
+
+                if ($netBenefit <= 0 || $netBenefit !== $paid) {
+                    throw new RuntimeException(
+                        'Pharmacy Staff Medical Benefit settlement does not match verified utilization.'
+                    );
+                }
+            }
+
+            $settlementCodes = [
+                'cash' => '1100',
+                'upi' => '1110',
+                'card' => '1120',
+                'staff_medical_benefit' => '6113',
+            ];
             if ($paid > 0) {
                 $mode = strtolower((string) $sale->payment_mode);
                 if (! isset($settlementCodes[$mode])) {
@@ -303,7 +342,117 @@ class PharmacyAccountingService
 
                 $refundMode = strtolower((string) $return->refund_mode);
                 $refundCode = ['cash' => '1100', 'upi' => '1110', 'card' => '1120'][$refundMode] ?? null;
-                if ($refund > 0 && $refundCode) {
+                if ($sale->payment_mode === 'staff_medical_benefit') {
+                    if ($refundMode !== 'none') {
+                        throw new RuntimeException(
+                            'Staff Medical Benefit returns cannot generate cash or bank refunds.'
+                        );
+                    }
+
+                    $utilization = \App\Models\StaffMedicalBenefitTransaction::query()
+                        ->where('source_type', 'pharmacy_sale')
+                        ->where('source_id', $sale->id)
+                        ->where('transaction_type', 'utilization')
+                        ->where('status', 'active')
+                        ->sole();
+
+                    $reversals = \App\Models\StaffMedicalBenefitTransaction::query()
+                        ->where('reverses_transaction_id', $utilization->id)
+                        ->where('transaction_type', 'reversal')
+                        ->where('status', 'active')
+                        ->where('reason', 'pharmacy_return:' . $return->id)
+                        ->get();
+
+                    if ($reversals->count() > 1) {
+                        throw new RuntimeException(
+                            'Duplicate Staff Medical Benefit return reversals.'
+                        );
+                    }
+
+                    $benefitCredit = $reversals->isEmpty()
+                        ? 0
+                        : $this->cents($reversals->first()->amount);
+
+                    $saleCents = $this->cents($sale->total_amount);
+                    $benefitCents = $this->cents($utilization->amount);
+
+                    $previousReturnCents = $this->cents(
+                        \App\Models\PharmacyReturn::query()
+                            ->where('pharmacy_sale_id', $sale->id)
+                            ->where('status', 'completed')
+                            ->where('id', '!=', $return->id)
+                            ->sum('refund_amount')
+                    );
+
+                    $cumulativeReturnCents = $previousReturnCents
+                        + $this->cents($return->refund_amount);
+
+                    if (
+                        $saleCents <= 0 ||
+                        $cumulativeReturnCents > $saleCents
+                    ) {
+                        throw new RuntimeException(
+                            'Staff Medical Benefit return exceeds original sale.'
+                        );
+                    }
+
+                    $expectedCumulativeBenefit = (int) round(
+                        $benefitCents * $cumulativeReturnCents / $saleCents
+                    );
+
+                    $actualCumulativeBenefit = $this->cents(
+                        \App\Models\StaffMedicalBenefitTransaction::query()
+                            ->where('reverses_transaction_id', $utilization->id)
+                            ->where('transaction_type', 'reversal')
+                            ->where('status', 'active')
+                            ->sum('amount')
+                    );
+
+                    if ($actualCumulativeBenefit !== $expectedCumulativeBenefit) {
+                        throw new RuntimeException(
+                            'Staff Medical Benefit reversal reconciliation failed.'
+                        );
+                    }
+
+                    $previousBenefitReversed = $this->cents(
+                        \App\Models\StaffMedicalBenefitTransaction::query()
+                            ->where('reverses_transaction_id', $utilization->id)
+                            ->where('transaction_type', 'reversal')
+                            ->where('status', 'active')
+                            ->where('reason', '!=', 'pharmacy_return:' . $return->id)
+                            ->sum('amount')
+                    );
+
+                    $expectedThisReturn = $expectedCumulativeBenefit
+                        - $previousBenefitReversed;
+
+                    if (
+                        $expectedThisReturn < 0 ||
+                        $benefitCredit !== $expectedThisReturn
+                    ) {
+                        throw new RuntimeException(
+                            'Pharmacy return benefit allocation does not reconcile.'
+                        );
+                    }
+
+                    if ($benefitCredit < 0 || $benefitCredit > $gross) {
+                        throw new RuntimeException(
+                            'Staff Medical Benefit return reversal does not reconcile.'
+                        );
+                    }
+
+                    if ($benefitCredit > 0) {
+                        $this->line(
+                            $lines, '6113', 0, $benefitCredit,
+                            'Restore Staff Medical Benefit entitlement'
+                        );
+                    }
+
+                    $this->line(
+                        $lines, '1200', 0, $gross - $benefitCredit,
+                        'Reverse patient receivable for Pharmacy return'
+                    );
+                } elseif ($refund > 0 && $refundCode) {
                     $this->line($lines, $refundCode, 0, $refund, 'Pharmacy return refund paid');
                     $this->line($lines, '1200', 0, $gross - $refund, 'Patient credit for unrefunded Pharmacy return amount');
                 } elseif (in_array($refundMode, ['credit', 'mhis', 'none'], true)) {

@@ -729,7 +729,10 @@ class PharmacyReturnController extends Controller
                                 $refundTotal,
 
                             'refund_mode' =>
-                                $lockedSale->admission_id
+                                (
+                                    $lockedSale->admission_id
+                                    || $lockedSale->payment_mode === 'staff_medical_benefit'
+                                )
                                     ? 'none'
                                     : (
                                         $validated[
@@ -739,7 +742,10 @@ class PharmacyReturnController extends Controller
                                     ),
 
                             'transaction_reference' =>
-                                $lockedSale->admission_id
+                                (
+                                    $lockedSale->admission_id
+                                    || $lockedSale->payment_mode === 'staff_medical_benefit'
+                                )
                                     ? null
                                     : (
                                         $validated[
@@ -1224,6 +1230,79 @@ class PharmacyReturnController extends Controller
                         );
                     }
 
+
+                    if ($lockedSale->payment_mode === 'staff_medical_benefit') {
+                        $utilization = \App\Models\StaffMedicalBenefitTransaction::query()
+                            ->where('source_type', 'pharmacy_sale')
+                            ->where('source_id', $lockedSale->id)
+                            ->where('patient_id', $lockedSale->patient_id)
+                            ->where('transaction_type', 'utilization')
+                            ->where('status', 'active')
+                            ->sole();
+
+                        $previousReturns = \App\Models\PharmacyReturn::query()
+                            ->where('pharmacy_sale_id', $lockedSale->id)
+                            ->where('status', 'completed')
+                            ->where('id', '!=', $return->id)
+                            ->sum('refund_amount');
+
+                        $saleTotal = (int) round(
+                            (float) $lockedSale->total_amount * 100
+                        );
+
+                        $benefitTotal = (int) round(
+                            (float) $utilization->amount * 100
+                        );
+
+                        $cumulativeReturns = (int) round(
+                            ((float) $previousReturns + (float) $refundTotal) * 100
+                        );
+
+                        if (
+                            $saleTotal <= 0 ||
+                            $benefitTotal <= 0 ||
+                            $cumulativeReturns > $saleTotal
+                        ) {
+                            throw new \RuntimeException(
+                                'Staff Medical Benefit return totals do not reconcile.'
+                            );
+                        }
+
+                        $targetReversal = (int) round(
+                            $benefitTotal * $cumulativeReturns / $saleTotal
+                        );
+
+                        $alreadyReversed = (int) round(
+                            (float) \App\Models\StaffMedicalBenefitTransaction::query()
+                                ->where('reverses_transaction_id', $utilization->id)
+                                ->where('transaction_type', 'reversal')
+                                ->where('status', 'active')
+                                ->sum('amount') * 100
+                        );
+
+                        $reversalCents = $targetReversal - $alreadyReversed;
+
+                        if (
+                            $reversalCents < 0 ||
+                            $reversalCents > $benefitTotal - $alreadyReversed ||
+                            $reversalCents > (int) round($refundTotal * 100)
+                        ) {
+                            throw new \RuntimeException(
+                                'Invalid Staff Medical Benefit return allocation.'
+                            );
+                        }
+
+                        if ($reversalCents > 0) {
+                            app(\App\Services\StaffMedicalBenefitUtilizationService::class)
+                                ->reverse(
+                                    utilization: $utilization,
+                                    amount: $reversalCents / 100,
+                                    transactionDate: now(),
+                                    reason: 'pharmacy_return:' . $return->id,
+                                    userId: $request->user()?->id
+                                );
+                        }
+                    }
 
                     $this->accountingService->postSaleReturn($return);
 

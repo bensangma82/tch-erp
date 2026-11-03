@@ -16,6 +16,8 @@ use App\Models\PharmacyStockLocation;
 use App\Models\PharmacyStockLocationBalance;
 use App\Models\PharmacyStockMovement;
 use App\Services\Accounting\PharmacyAccountingService;
+use App\Services\StaffMedicalBenefitUtilizationService;
+use App\Services\StaffMedicalBenefitService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -525,7 +527,7 @@ $activeAdmissions =
                     'nullable',
                     'required_without:admission_id',
                     'string',
-                    'in:cash,upi,card,credit,mhis',
+                    'in:cash,upi,card,credit,mhis,staff_medical_benefit',
                 ],
 
                 'cash_received' => [
@@ -683,6 +685,27 @@ $activeAdmissions =
         }
 
 
+        // Validate Staff Medical Benefit before dispensing.
+        $staffMedicalBenefit = null;
+
+        if (
+            ! $admission
+            && ($validated['payment_mode'] ?? null) === 'staff_medical_benefit'
+        ) {
+            $staffMedicalBenefit = app(StaffMedicalBenefitService::class)
+                ->resolvePatientBenefit($patient, now());
+
+            if (
+                ! $staffMedicalBenefit
+                || (float) $staffMedicalBenefit['balance'] <= 0
+            ) {
+                throw ValidationException::withMessages([
+                    'payment_mode' =>
+                        'Patient is not eligible or has no available Staff Medical Benefit balance.',
+                ]);
+            }
+        }
+
         $sale =
             DB::transaction(
                 function () use (
@@ -693,7 +716,8 @@ $activeAdmissions =
                     $admission,
                     $requestedMedicines,
                     $discount,
-                    $pharmacyLocation
+                    $pharmacyLocation,
+                    $staffMedicalBenefit
                 ) {
 
                     $ipBillingAccount =
@@ -1479,6 +1503,11 @@ $activeAdmissions =
                         }
 
 
+                        if ($paymentMode === 'staff_medical_benefit') {
+                            $paidAmount = 0;
+                            $balanceAmount = $totalAmount;
+                        }
+
                         $saleStatus =
                             $balanceAmount > 0
                                 ? 'credit'
@@ -1595,6 +1624,59 @@ $activeAdmissions =
                                     ->user()
                                     ?->id,
                         ]);
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Staff Medical Benefit Utilization
+                    |--------------------------------------------------------------------------
+                    */
+                    if (
+                        ! $admission
+                        && $paymentMode === 'staff_medical_benefit'
+                    ) {
+                        $benefitTransaction = app(
+                            StaffMedicalBenefitUtilizationService::class
+                        )->utilize(
+                            benefitAccount: $staffMedicalBenefit['account'],
+                            patient: $patient,
+                            beneficiaryType: $staffMedicalBenefit['beneficiary_type'],
+                            requestedAmount: $totalAmount,
+                            sourceType: 'pharmacy_sale',
+                            sourceId: $sale->id,
+                            sourceReference: $sale->sale_no,
+                            transactionDate: now(),
+                            dependent: $staffMedicalBenefit['dependent'],
+                            grossBillAmount: $totalAmount,
+                            mhisApprovedAmount: 0,
+                            residualBeforeBenefit: $totalAmount,
+                            remarks: $validated['remarks'] ?? null,
+                            userId: $request->user()?->id
+                        );
+
+                        $benefitAmount = round(
+                            (float) $benefitTransaction->amount,
+                            2
+                        );
+
+                        if ($benefitAmount <= 0) {
+                            throw ValidationException::withMessages([
+                                'payment_mode' =>
+                                    'No Staff Medical Benefit amount is available.',
+                            ]);
+                        }
+
+                        $sale->update([
+                            'paid_amount' => $benefitAmount,
+                            'balance_amount' => round(
+                                $totalAmount - $benefitAmount,
+                                2
+                            ),
+                            'status' => $benefitAmount >= $totalAmount
+                                ? 'completed'
+                                : 'credit',
+                        ]);
+                    }
 
 
                     /*
