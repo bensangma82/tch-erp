@@ -15,12 +15,7 @@ return new class extends Migration
                 ->change();
         });
 
-        // Correct the historical test record without deleting audit history.
-        DB::table('mhis_registration_id_audits')
-            ->where('ip_billing_mhis_claim_id', 10)
-            ->where('old_registration_id', 'TESTREG001')
-            ->where('new_registration_id', '')
-            ->update(['new_registration_id' => null]);
+
     }
 
     public function down(): void
