@@ -11,6 +11,7 @@ class TallyVoucherClassificationService
         'finance_voucher:transfer_posted' => 'Contra',
         'ip_billing_account:finalized' => 'Sales',
         'ip_billing_mhis_claim:approved' => 'Journal',
+        'staff_medical_benefit_transaction:utilized' => 'Journal',
         'ip_billing_payment:received' => 'Receipt',
         'ip_billing_advance:received' => 'Receipt',
         'ip_billing_refund:paid' => 'Payment',
