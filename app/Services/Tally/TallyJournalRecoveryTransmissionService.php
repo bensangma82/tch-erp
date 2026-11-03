@@ -26,7 +26,7 @@ class TallyJournalRecoveryTransmissionService
         }
 
         try {
-            $xml = app(TallyJournalXmlBuilder::class)
+            $xml = app(TallyVoucherXmlRouter::class)
                 ->build($journal, $attempt->remote_id);
         } catch (Throwable $exception) {
             app(TallyJournalRecoveryOutcomeService::class)
