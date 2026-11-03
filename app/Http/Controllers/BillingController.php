@@ -677,7 +677,7 @@ if ($alreadyChargedToIpd) {
                         'received_by' => auth()->id(),
                     ]);
                     if (
-                        in_array($paymentMode, ['cash', 'upi', 'card'], true)
+                        in_array($paymentMode, ['cash', 'upi', 'card', 'staff_medical_benefit'], true)
                     ) {
                         app(
                             PaymentAccountingService::class
@@ -1193,7 +1193,7 @@ if ($alreadyChargedToIpd) {
 
                     if (
                         in_array($invoiceType, ['opd', 'investigation'], true)
-                        && in_array($paymentMode, ['cash', 'upi', 'card'], true)
+                        && in_array($paymentMode, ['cash', 'upi', 'card', 'staff_medical_benefit'], true)
                     ) {
                         app(
                             PaymentAccountingService::class
