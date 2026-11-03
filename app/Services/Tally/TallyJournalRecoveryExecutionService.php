@@ -46,6 +46,8 @@ class TallyJournalRecoveryExecutionService
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            LegacyMhisTallyExportPolicy::assertJournalAllowed($journal);
+
             if ($journal->status !== 'posted') {
                 throw ValidationException::withMessages([
                     'recovery' => 'The journal must be posted.',

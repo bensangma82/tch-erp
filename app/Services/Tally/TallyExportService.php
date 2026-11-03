@@ -20,6 +20,10 @@ class TallyExportService
     bool $forRetry = false
 ): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($voucher->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         $voucher->loadMissing([
             'financeHead.tallyMapping',
             'financeAccount.tallyMapping',

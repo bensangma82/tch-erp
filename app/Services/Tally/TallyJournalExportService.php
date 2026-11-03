@@ -20,6 +20,10 @@ class TallyJournalExportService
      */
     public function checkEligibility(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         $errors = [];
 
         $journal->loadMissing([

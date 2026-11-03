@@ -13,6 +13,10 @@ class TallyJournalTransmissionService
 
     public function validate(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         $result = $this->eligibilityService
             ->checkEligibility($journal);
 
@@ -24,6 +28,10 @@ class TallyJournalTransmissionService
 
     public function preview(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         $validation = $this->validate($journal);
 
         if (! $validation['eligible']) {
@@ -106,6 +114,10 @@ class TallyJournalTransmissionService
 
     public function previewLocalSales(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
 
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
@@ -155,6 +167,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalReceipt(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
 
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
@@ -207,6 +223,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalSupplierVoucher(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($journal->status !== 'posted') {
             return [
                 'eligible' => false,
@@ -278,6 +298,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalHospitalVoucher(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($journal->status !== 'posted') {
             return [
                 'eligible' => false,
@@ -353,6 +377,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalCreditNote(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }
@@ -381,6 +409,10 @@ class TallyJournalTransmissionService
 
     public function previewLocalVoucher(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         $event = $journal->source_type.':'.$journal->source_event;
 
         return match ($event) {
@@ -443,6 +475,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalMhisReceipt(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }
@@ -487,6 +523,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalMhisJournal(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }
@@ -538,6 +578,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalOpdSales(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }
@@ -583,6 +627,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalOpdReceipt(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }
@@ -625,6 +673,10 @@ class TallyJournalTransmissionService
 
     public function previewLocalAdvanceReceipt(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }
@@ -668,6 +720,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalPharmacySales(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }
@@ -711,6 +767,10 @@ class TallyJournalTransmissionService
      */
     public function previewLocalIpRefund(JournalEntry $journal): array
     {
+        if (LegacyMhisTallyExportPolicy::isBlockedSource($journal->source_type)) {
+            return LegacyMhisTallyExportPolicy::ineligible();
+        }
+
         if ($blocked = $this->checkLocalExportHistory($journal)) {
             return $blocked;
         }

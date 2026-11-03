@@ -1322,6 +1322,93 @@ Route::post(
             ->name('finance.reports.mhis-receivables');
 
 
+
+        /*
+        | MHIS Settlement Excel Import
+        */
+
+        Route::get(
+            '/admin/finance/mhis-settlement-import',
+            [\App\Http\Controllers\Finance\MhisSettlementImportController::class, 'index']
+        )
+            ->middleware('permission:finance.mhis-settlement-import.view')
+            ->name('finance.mhis-settlement-import.index');
+
+        Route::post(
+            '/admin/finance/mhis-settlement-import',
+            [\App\Http\Controllers\Finance\MhisSettlementImportController::class, 'store']
+        )
+            ->middleware('permission:finance.mhis-settlement-import.upload')
+            ->name('finance.mhis-settlement-import.store');
+
+        Route::get(
+            '/admin/finance/mhis-settlement-import/{batch}',
+            [\App\Http\Controllers\Finance\MhisSettlementImportController::class, 'show']
+        )
+            ->whereNumber('batch')
+            ->middleware('permission:finance.mhis-settlement-import.view')
+            ->name('finance.mhis-settlement-import.show');
+
+        Route::post(
+            '/admin/finance/mhis-settlement-import/{batch}/match',
+            [\App\Http\Controllers\Finance\MhisSettlementImportController::class, 'match']
+        )
+            ->whereNumber('batch')
+            ->middleware('permission:finance.mhis-settlement-import.match')
+            ->name('finance.mhis-settlement-import.match');
+
+        Route::post(
+            '/admin/finance/mhis-legacy-settlements/{settlement}/verify',
+            [\App\Http\Controllers\Finance\MhisLegacySettlementController::class, 'verify']
+        )
+            ->whereNumber('settlement')
+            ->middleware('permission:finance.mhis-legacy-settlement.verify')
+            ->name('finance.mhis-legacy-settlement.verify');
+
+        // Historical MHIS settlement intake; verification route above remains unchanged.
+        Route::get('/admin/finance/mhis-legacy-settlements',
+            [\App\Http\Controllers\Finance\MhisLegacySettlementEntryController::class, 'index'])
+            ->middleware('permission:finance.mhis-legacy-settlement.view')
+            ->name('finance.mhis-legacy-settlements.index');
+
+        Route::post('/admin/finance/mhis-legacy-settlements',
+            [\App\Http\Controllers\Finance\MhisLegacySettlementEntryController::class, 'store'])
+            ->middleware('permission:finance.mhis-legacy-settlement.create')
+            ->name('finance.mhis-legacy-settlements.store');
+
+
+        /*
+        | MHIS Opening Receivables
+        | Draft creation only — no accounting posting
+        */
+
+        Route::get(
+            '/admin/finance/mhis-opening-receivables',
+            [\App\Http\Controllers\Finance\MhisOpeningReceivableController::class, 'index']
+        )
+            ->middleware('permission:finance.mhis-opening.view')
+            ->name('finance.mhis-opening-receivables.index');
+
+        Route::post(
+            '/admin/finance/mhis-opening-receivables',
+            [\App\Http\Controllers\Finance\MhisOpeningReceivableController::class, 'store']
+        )
+            ->middleware('permission:finance.mhis-opening.create')
+            ->name('finance.mhis-opening-receivables.store');
+
+        Route::post(
+            '/admin/finance/mhis-opening-receivables/{opening}/approve',
+            [\App\Http\Controllers\Finance\MhisOpeningReceivableController::class, 'approve']
+        )
+            ->whereNumber('opening')
+            ->middleware('permission:finance.mhis-opening.approve')
+            ->name('finance.mhis-opening-receivables.approve');
+
+
+
+
+
+
     });
     /*
     |--------------------------------------------------------------------------
@@ -2184,6 +2271,9 @@ Route::middleware(
             ->whereNumber('admission')
             ->name('ip-billing.mhis.store');
 
+
+
+
         Route::post(
             '/ip-billing/{admission}/mhis/adjustments',
             [IpBillingController::class, 'storeMhisAdjustment']
@@ -2226,6 +2316,14 @@ Route::middleware(
             ->whereNumber('admission')
             ->name('ip-billing.finalize');
     });
+
+        Route::patch(
+            '/ip-billing/{admission}/mhis/registration-id',
+            [IpBillingController::class, 'updateMhisRegistrationId']
+        )
+            ->whereNumber('admission')
+            ->middleware('permission:finance.mhis-registration.update')
+            ->name('ip-billing.mhis-registration.update');
 
     /*
 |--------------------------------------------------------------------------

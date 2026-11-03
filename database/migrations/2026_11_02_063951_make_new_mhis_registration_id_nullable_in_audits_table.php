@@ -1,0 +1,43 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('mhis_registration_id_audits', function (Blueprint $table) {
+            $table->string('new_registration_id')
+                ->nullable()
+                ->change();
+        });
+
+        // Correct the historical test record without deleting audit history.
+        DB::table('mhis_registration_id_audits')
+            ->where('ip_billing_mhis_claim_id', 10)
+            ->where('old_registration_id', 'TESTREG001')
+            ->where('new_registration_id', '')
+            ->update(['new_registration_id' => null]);
+    }
+
+    public function down(): void
+    {
+        // Preserve NULL audit records rather than silently converting them.
+        if (DB::table('mhis_registration_id_audits')
+            ->whereNull('new_registration_id')
+            ->exists()) {
+            throw new RuntimeException(
+                'Cannot restore NOT NULL constraint while NULL audit values exist.'
+            );
+        }
+
+        Schema::table('mhis_registration_id_audits', function (Blueprint $table) {
+            $table->string('new_registration_id')
+                ->nullable(false)
+                ->change();
+        });
+    }
+};

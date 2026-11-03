@@ -3336,6 +3336,12 @@ throw ValidationException::withMessages([
                 'in:free,semi_private,private',
             ],
 
+            'mhis_registration_id' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
             'claim_no' => [
                 'nullable',
                 'string',
@@ -3640,6 +3646,11 @@ throw ValidationException::withMessages([
 
                     'patient_id' => $admission->patient_id,
 
+                    'mhis_registration_id' =>
+                        filled($validated['mhis_registration_id'] ?? null)
+                            ? trim($validated['mhis_registration_id'])
+                            : $existingClaim?->mhis_registration_id,
+
                     'claim_no' => $validated['claim_no']
                         ?? null,
 
@@ -3780,6 +3791,70 @@ throw ValidationException::withMessages([
     | Record MHIS Package Adjustment
     |--------------------------------------------------------------------------
     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update MHIS Registration ID — No Accounting Impact
+    |--------------------------------------------------------------------------
+    */
+
+    public function updateMhisRegistrationId(
+        Request $request,
+        Admission $admission
+    ) {
+        $validated = $request->validate([
+            'mhis_registration_id' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:/^[A-Za-z0-9]+$/',
+            ],
+        ]);
+
+        $registrationId = trim(
+            $validated['mhis_registration_id']
+        );
+
+        DB::transaction(function () use ($admission, $registrationId) {
+            $claim = IpBillingMhisClaim::query()
+                ->where('admission_id', $admission->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $conflict = IpBillingMhisClaim::query()
+                ->where('mhis_registration_id', $registrationId)
+                ->whereKeyNot($claim->id)
+                ->exists();
+
+            if ($conflict) {
+                throw ValidationException::withMessages([
+                    'mhis_registration_id' =>
+                        'This MHIS Registration ID is already assigned to another claim.',
+                ]);
+            }
+
+            if ($claim->mhis_registration_id === $registrationId) {
+                return;
+            }
+
+            $previousId = $claim->mhis_registration_id;
+
+            $claim->mhis_registration_id = $registrationId;
+            $claim->save();
+
+            DB::table('mhis_registration_id_audits')->insert([
+                'ip_billing_mhis_claim_id' => $claim->id,
+                'old_registration_id' => $previousId,
+                'new_registration_id' => $registrationId,
+                'changed_by' => auth()->id(),
+                'created_at' => now(),
+            ]);
+        });
+
+        return redirect()
+            ->route('ip-billing.show', $admission)
+            ->with('success', 'MHIS Registration ID updated successfully.');
+    }
 
     public function storeMhisAdjustment(
         Request $request,

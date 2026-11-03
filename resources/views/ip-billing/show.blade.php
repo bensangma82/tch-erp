@@ -3238,6 +3238,30 @@ style="background-color: #dc2626;"
                     </div>
 
                     <div>
+                        <label for="mhis_registration_id"
+                               class="block text-sm font-semibold text-slate-700">
+                            MHIS Registration ID
+                        </label>
+
+                        <input
+                            id="mhis_registration_id"
+                            type="text"
+                            name="mhis_registration_id"
+                            value="{{ old('mhis_registration_id', $mhisClaim?->mhis_registration_id) }}"
+                            maxlength="255"
+                            autocomplete="off"
+                            class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        >
+
+                        @error('mhis_registration_id')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+
+
+
+                    <div>
                         <label for="mhis_claim_no" class="block text-sm font-semibold text-slate-700">
                             Claim No.
                         </label>
@@ -3526,6 +3550,60 @@ style="background-color: #dc2626;"
         </div>
     </div>
 
+
+
+    {{-- Independent MHIS Registration ID update --}}
+    @if($mhisClaim && auth()->user()?->can('finance.mhis-registration.update'))
+        <div class="mx-auto mb-6 max-w-7xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">
+                Update MHIS Registration ID
+            </h3>
+
+            <p class="mt-1 mb-4 text-sm text-slate-500">
+                Update the registration identifier without changing
+                the claim approval or accounting records.
+            </p>
+
+            <form
+                id="mhis-registration-update-form"
+                method="POST"
+                action="{{ route('ip-billing.mhis-registration.update', $admission) }}"
+            >
+                @csrf
+                @method('PATCH')
+
+                <div class="mt-4 space-y-3">
+                    <div>
+                        <label for="dedicated_mhis_registration_id"
+                               class="block text-sm font-medium text-slate-700">
+                            MHIS Registration ID
+                        </label>
+
+                        <input
+                            id="dedicated_mhis_registration_id"
+                            name="mhis_registration_id"
+                            type="text"
+                            maxlength="255"
+                            required
+                            value="{{ old('mhis_registration_id', $mhisClaim->mhis_registration_id) }}"
+                            class="mt-1 block w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 shadow-sm focus:border-violet-500 focus:ring-violet-500"
+                        >
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold shadow-sm" style="background-color: #6d28d9; color: #ffffff;"
+                    >
+                        Update Registration ID
+                    </button>
+                </div>
+
+                @error('mhis_registration_id')
+                    <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </form>
+        </div>
+    @endif
 
     {{-- MHIS RECEIPT MODAL --}}
     <div
@@ -3889,7 +3967,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ->where('status', 'approved')
             ->exists()
     )
-        <section class="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section class="mx-auto max-w-7xl mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 class="text-lg font-semibold text-slate-900">
                 MHIS Settlement Adjustments
             </h3>

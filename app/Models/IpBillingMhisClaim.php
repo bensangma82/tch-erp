@@ -18,6 +18,7 @@ class IpBillingMhisClaim extends Model
         'admission_id',
         'patient_id',
         'claim_no',
+        'mhis_registration_id',
         'authorization_no',
         'package_code',
         'package_name',

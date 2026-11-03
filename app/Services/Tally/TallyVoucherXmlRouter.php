@@ -38,6 +38,8 @@ class TallyVoucherXmlRouter
         ?string $remoteId = null,
         ?string $testDate = null
     ): string {
+        LegacyMhisTallyExportPolicy::assertJournalAllowed($journal);
+
         if ($journal->source_type === 'ip_billing_payment') {
             $result = app(TallyCancelledReceiptGuard::class)
                 ->check($journal);

@@ -31,6 +31,8 @@ class TallyVoucherClassificationService
 
     public function classify(JournalEntry $journal): string
     {
+        LegacyMhisTallyExportPolicy::assertJournalAllowed($journal);
+
         if ($journal->status !== 'posted') {
             throw new RuntimeException(
                 'Only posted journals can be classified for export.'
