@@ -28,6 +28,7 @@ class TallyVoucherXmlRouter
         'hospital_expense_payment:supplier_payment' => TallyHospitalSupplierPaymentXmlBuilder::class,
 
         'ip_billing_mhis_claim:approved' => TallyJournalXmlBuilder::class,
+        'staff_medical_benefit_transaction:utilized' => TallyJournalXmlBuilder::class,
         'mhis_settlement_adjustment:posted' => TallyJournalXmlBuilder::class,
         'ip_billing_account:advance_applied' => TallyIpdAdvanceApplicationXmlBuilder::class,
         'pharmacy_sale:cogs' => TallyJournalXmlBuilder::class,
