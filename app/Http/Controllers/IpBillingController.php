@@ -2943,6 +2943,10 @@ throw ValidationException::withMessages([
                     |--------------------------------------------------------------------------
                     */
 
+                    app(
+                        \App\Services\Accounting\IpBillingAccountingService::class
+                    )->postStaffBenefitSettlement($benefitTransaction);
+
                     $this->recalculateAccount(
                         $lockedAccount
                     );

@@ -17,6 +17,112 @@ class IpBillingAccountingService
         private JournalPostingService $postingService
     ) {}
 
+
+    public function postStaffBenefitSettlement(
+        \App\Models\StaffMedicalBenefitTransaction $benefitTransaction
+    ): JournalEntry {
+        return DB::transaction(function () use ($benefitTransaction) {
+            $benefitTransaction = \App\Models\StaffMedicalBenefitTransaction::query()
+                ->whereKey($benefitTransaction->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (
+                $benefitTransaction->source_type !== 'ip_billing_account'
+                || $benefitTransaction->transaction_type !== 'utilization'
+                || $benefitTransaction->status !== 'active'
+            ) {
+                throw new RuntimeException('Invalid IPD Staff Medical Benefit utilization.');
+            }
+
+            $existing = JournalEntry::query()
+                ->where('source_type', 'staff_medical_benefit_transaction')
+                ->where('source_id', (string) $benefitTransaction->id)
+                ->where('source_event', 'utilized')
+                ->first();
+
+            if ($existing) {
+                if ($existing->status !== 'posted') {
+                    throw new RuntimeException('An unposted Staff Medical Benefit journal already exists.');
+                }
+
+                return $existing;
+            }
+
+            $finalBill = JournalEntry::query()
+                ->where('source_type', 'ip_billing_account')
+                ->where('source_id', (string) $benefitTransaction->source_id)
+                ->where('source_event', 'finalized')
+                ->where('status', 'posted')
+                ->first();
+
+            if (! $finalBill) {
+                throw new RuntimeException('IPD final bill must be journalized before Staff Medical Benefit settlement.');
+            }
+
+            $amount = (string) $benefitTransaction->amount;
+
+            if (
+                ! preg_match('/^\d+(?:\.\d{1,2})?$/', $amount)
+                || (float) $amount <= 0
+            ) {
+                throw new RuntimeException('Invalid Staff Medical Benefit settlement amount.');
+            }
+
+            $accounts = GeneralLedgerAccount::query()
+                ->whereIn('account_code', ['6113', '1200'])
+                ->get()
+                ->keyBy('account_code');
+
+            foreach (['6113', '1200'] as $code) {
+                $gl = $accounts->get($code);
+
+                if (! $gl || ! $gl->is_active || ! $gl->allow_posting) {
+                    throw new RuntimeException('GL account '.$code.' is unavailable.');
+                }
+            }
+
+            $reference = $benefitTransaction->source_reference
+                ?: $finalBill->reference_no;
+
+            $journal = JournalEntry::create([
+                'journal_no' => 'JRN-IPD-SMB-'.$benefitTransaction->id,
+                'journal_date' => $benefitTransaction->transaction_date,
+                'source_type' => 'staff_medical_benefit_transaction',
+                'source_id' => (string) $benefitTransaction->id,
+                'source_event' => 'utilized',
+                'reference_no' => $reference,
+                'narration' => 'IPD Staff Medical Benefit settlement '.$reference,
+                'status' => 'draft',
+                'created_by' => auth()->id(),
+            ]);
+
+            JournalEntryLine::create([
+                'journal_entry_id' => $journal->id,
+                'line_no' => 1,
+                'general_ledger_account_id' => $accounts['6113']->id,
+                'department_id' => null,
+                'debit' => $amount,
+                'credit' => '0.00',
+                'reference_no' => $reference,
+                'description' => 'IPD Staff Medical Benefit expense',
+            ]);
+
+            JournalEntryLine::create([
+                'journal_entry_id' => $journal->id,
+                'line_no' => 2,
+                'general_ledger_account_id' => $accounts['1200']->id,
+                'department_id' => null,
+                'debit' => '0.00',
+                'credit' => $amount,
+                'reference_no' => $reference,
+                'description' => 'IPD patient receivable settled by Staff Medical Benefit',
+            ]);
+
+            return $this->postingService->post($journal);
+        });
+    }
+
     public function postFinalBill(
         IpBillingAccount $account
     ): ?JournalEntry {
