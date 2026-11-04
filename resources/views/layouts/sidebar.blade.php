@@ -1845,6 +1845,34 @@
     </a>
 @endif
 
+{{-- MHIS Opening Receivables --}}
+@if (auth()->user()->hasPermission('finance.mhis-opening.view'))
+    <a
+        href="{{ route('finance.mhis-opening-receivables.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+            {{ request()->routeIs('finance.mhis-opening-receivables.*')
+                ? 'bg-slate-800/90 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
+    >
+        MHIS Opening Receivables
+    </a>
+@endif
+
+{{-- Legacy MHIS Settlements --}}
+@if (auth()->user()->hasPermission('finance.mhis-legacy-settlement.view'))
+    <a
+        href="{{ route('finance.mhis-legacy-settlements.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+            {{ request()->routeIs('finance.mhis-legacy-settlements.*')
+                ? 'bg-slate-800/90 text-white'
+                : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
+    >
+        Legacy MHIS Settlements
+    </a>
+@endif
+
+
+
                                 <a
                                     href="{{ route('finance.tally.index') }}"
                                     class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
