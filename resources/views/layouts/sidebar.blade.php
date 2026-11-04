@@ -1827,6 +1827,24 @@
     Accounting Reports
 </a>
 
+
+{{-- MHIS Settlement Import --}}
+@if (
+    auth()->user()->hasPermission('finance.mhis-settlement-import.view')
+)
+    <a
+        href="{{ route('finance.mhis-settlement-import.index') }}"
+        class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+            {{
+                request()->routeIs('finance.mhis-settlement-import.*')
+                    ? 'bg-slate-800/90 text-white'
+                    : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100'
+            }}"
+    >
+        MHIS Settlement Import
+    </a>
+@endif
+
                                 <a
                                     href="{{ route('finance.tally.index') }}"
                                     class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
