@@ -97,6 +97,12 @@ class IpBillingMhisClaim extends Model
         );
     }
 
+    public function packages(): HasMany
+    {
+        return $this->hasMany(IpBillingMhisClaimPackage::class, 'ip_billing_mhis_claim_id')
+            ->orderBy('sort_order');
+    }
+
     public function receipts(): HasMany
 {
     return $this->hasMany(

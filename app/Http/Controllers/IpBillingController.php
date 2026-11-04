@@ -3330,6 +3330,80 @@ throw ValidationException::withMessages([
             );
     }
 
+    /**
+     * Persist procedure snapshots within the enclosing claim DB transaction.
+     * This never changes claim, approved, or receivable amounts.
+     */
+    private function syncMhisClaimPackages(
+        \App\Models\IpBillingMhisClaim $claim,
+        array $validated
+    ): void {
+        $primaryCode = trim((string) ($validated['package_code'] ?? ''));
+        $primaryName = trim((string) ($validated['package_name'] ?? ''));
+        $extraIds = array_map('intval', $validated['additional_package_ids'] ?? []);
+        $primaryId = (int) ($validated['primary_package_id'] ?? 0);
+
+        if ($extraIds && ($primaryCode === '' || $primaryName === '')) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'package_code' => 'Select the primary package before adding more packages.',
+            ]);
+        }
+
+        $records = [];
+        $seenCodes = [];
+        if ($primaryCode !== '' || $primaryName !== '') {
+            if ($primaryCode === '' || $primaryName === '') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'package_code' => 'Both primary package code and name are required.',
+                ]);
+            }
+            $master = $primaryId
+                ? \App\Models\MhisProcedure::query()->findOrFail($primaryId)
+                : null;
+            if ($master && strcasecmp(trim((string) $master->procedure_code), $primaryCode) !== 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'primary_package_id' => 'Selected primary package does not match its code.',
+                ]);
+            }
+            $seenCodes[strtolower($primaryCode)] = true;
+            $records[] = [
+                'mhis_procedure_id' => $master?->id,
+                'procedure_code' => $primaryCode,
+                'procedure_name' => $primaryName,
+                'reference_tariff' => $master?->procedure_price,
+            ];
+        }
+
+        $masters = \App\Models\MhisProcedure::query()
+            ->whereIn('id', $extraIds)->get()->keyBy('id');
+        foreach ($extraIds as $id) {
+            $master = $masters->get($id);
+            if (! $master || ! $master->is_active) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'additional_package_ids' => 'An additional package is unavailable.',
+                ]);
+            }
+            $code = trim((string) $master->procedure_code);
+            if ($code === '' || isset($seenCodes[strtolower($code)])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'additional_package_ids' => 'Duplicate or invalid package code.',
+                ]);
+            }
+            $seenCodes[strtolower($code)] = true;
+            $records[] = [
+                'mhis_procedure_id' => $master->id,
+                'procedure_code' => $code,
+                'procedure_name' => (string) ($master->procedure_name ?: $master->package_name ?: $code),
+                'reference_tariff' => $master->procedure_price,
+            ];
+        }
+
+        $claim->packages()->delete();
+        foreach ($records as $index => $record) {
+            $claim->packages()->create($record + ['sort_order' => $index + 1]);
+        }
+    }
+
     public function storeMhisClaim(
         Request $request,
         Admission $admission
@@ -3369,6 +3443,10 @@ throw ValidationException::withMessages([
                 'string',
                 'max:500',
             ],
+
+            'primary_package_id' => ['nullable', 'integer', 'exists:mhis_procedures,id'],
+            'additional_package_ids' => ['nullable', 'array', 'max:25'],
+            'additional_package_ids.*' => ['required', 'integer', 'distinct', 'exists:mhis_procedures,id'],
 
             'claim_amount' => [
                 'required',
@@ -3745,6 +3823,8 @@ throw ValidationException::withMessages([
                         $data
                     );
 
+                    $this->syncMhisClaimPackages($existingClaim, $validated);
+
                     if ($existingClaim->status === 'approved'
                         && $lockedAccount->status === 'finalized') {
                         app(MhisReceivableAccountingService::class)
@@ -3764,6 +3844,8 @@ throw ValidationException::withMessages([
                         ]
                     )
                 );
+
+                $this->syncMhisClaimPackages($newClaim, $validated);
 
                 if (
                     $newClaim->status === 'approved'

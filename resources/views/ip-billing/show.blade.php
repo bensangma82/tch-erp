@@ -3304,6 +3304,14 @@ style="background-color: #dc2626;"
                                    autocomplete="off"
                                    placeholder="Enter procedure code or name"
                                    class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                            <input type="hidden" name="primary_package_id" id="mhis_primary_package_id"
+                                   value="{{ old('primary_package_id', $mhisClaim?->packages?->first()?->mhis_procedure_id) }}">
+                            <button type="button" id="mhis_add_package"
+                                    class="mt-2 inline-flex items-center rounded-lg border border-violet-500 bg-white px-3 py-1.5 text-sm font-semibold text-violet-700 hover:bg-violet-100">
+                                + Add Package
+                            </button>
+                            <div id="mhis_additional_packages" class="mt-3 space-y-2"></div>
+                            <p id="mhis_package_total" class="mt-2 text-xs font-semibold text-violet-800"></p>
                             <div id="mhis_package_results"
                                  class="mt-2 max-h-60 overflow-y-auto"
                                  aria-live="polite"></div>
@@ -4632,6 +4640,260 @@ document.addEventListener('DOMContentLoaded', function () {
 
     <script>
 
+        // MHIS_PACKAGE_CARDS_V2
+        document.addEventListener('DOMContentLoaded', function () {
+            const list = document.getElementById('mhis_additional_packages');
+            const addButton = document.getElementById('mhis_add_package');
+            const totalLabel = document.getElementById('mhis_package_total');
+            const primaryId = document.getElementById('mhis_primary_package_id');
+            const primaryCode = document.getElementById('mhis_package_code');
+            const primaryName = document.getElementById('mhis_package_name');
+            const primarySearch = document.getElementById('mhis_package_search');
+            // Legacy inputs remain enabled for existing backend validation,
+            // but their labels and controls are hidden in the new card UI.
+            for (const id of ['mhis_package_code', 'mhis_package_name']) {
+                const field = document.getElementById(id);
+                const label = document.querySelector('label[for="' + id + '"]');
+                if (field) field.classList.add('hidden');
+                if (label) label.classList.add('hidden');
+            }
+            if (!list || !addButton || !totalLabel || !primaryId || !primaryCode || !primaryName || !primarySearch) return;
+
+            const searchUrl = @json(route('mhis.procedures.search'));
+            @php
+                $additionalForJs = $mhisClaim
+                    ? $mhisClaim->packages->skip(1)->map(function ($p) {
+                        return [
+                            'id' => $p->mhis_procedure_id,
+                            'code' => $p->procedure_code,
+                            'name' => $p->procedure_name,
+                            'price' => $p->reference_tariff,
+                        ];
+                    })->values()->all()
+                    : [];
+            @endphp
+            const existing = {{ \Illuminate\Support\Js::from($additionalForJs) }};
+            const oldIds = @json(old('additional_package_ids'));
+            const savedPrimaryTariff = @json($mhisClaim?->packages?->first()?->reference_tariff);
+            const money = n => '₹' + Number(n || 0).toLocaleString('en-IN', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            });
+            let primaryTariff = savedPrimaryTariff === null ? null : Number(savedPrimaryTariff);
+            const primaryCard = document.createElement('div');
+            primaryCard.className = 'mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3';
+            primaryCard.setAttribute('aria-live', 'polite');
+            const changePrimary = document.createElement('button');
+            changePrimary.type = 'button';
+            changePrimary.className = 'mt-2 text-xs font-semibold text-violet-700';
+            changePrimary.textContent = 'Change first package';
+            changePrimary.addEventListener('click', () => {
+                primarySearch.classList.remove('hidden');
+                primarySearch.focus();
+            });
+            primaryCard.appendChild(changePrimary);
+            addButton.parentNode.insertBefore(primaryCard, addButton);
+            // Selected packages appear above the add control rather than below it.
+            addButton.parentNode.insertBefore(list, addButton);
+            addButton.textContent = '+ Add Another Package';
+            addButton.classList.add('mt-3');
+            totalLabel.setAttribute('aria-live', 'polite');
+            totalLabel.className = 'mt-3 text-sm font-semibold text-violet-900';
+            const submit = document.querySelector('#mhis-modal button[type="submit"]');
+            const defaultSubmitText = submit ? submit.textContent.trim() : 'Save MHIS';
+
+            function selectedCount() {
+                return (primaryCode.value.trim() && primaryName.value.trim() ? 1 : 0)
+                    + list.querySelectorAll('input[name="additional_package_ids[]"]:not(:disabled)').length;
+            }
+            function chosenCodes(exceptRow = null) {
+                const codes = new Set();
+                if (primaryCode.value.trim()) codes.add(primaryCode.value.trim().toLowerCase());
+                list.querySelectorAll('[data-package-code]').forEach(row => {
+                    if (row !== exceptRow) codes.add(row.dataset.packageCode.toLowerCase());
+                });
+                return codes;
+            }
+            function refreshPrimary() {
+                primaryCard.replaceChildren();
+                if (!primaryCode.value.trim() || !primaryName.value.trim()) {
+                    primaryCard.classList.add('hidden');
+                    primarySearch.classList.remove('hidden');
+                    return;
+                }
+                primaryCard.classList.remove('hidden');
+                const heading = document.createElement('div');
+                heading.className = 'flex items-center justify-between gap-2 text-sm font-semibold text-emerald-900';
+                heading.textContent = '✓ Package 1 · ' + primaryCode.value.trim();
+                const name = document.createElement('div');
+                name.className = 'mt-1 text-sm text-slate-800';
+                name.textContent = primaryName.value.trim();
+                const tariff = document.createElement('div');
+                tariff.className = 'mt-1 text-xs text-slate-600';
+                tariff.textContent = primaryTariff === null ? 'Reference tariff: not available' : 'Reference tariff: ' + money(primaryTariff);
+                primaryCard.append(heading, name, tariff, changePrimary);
+                primarySearch.classList.add('hidden');
+            }
+            function updateTotal() {
+                refreshPrimary();
+                const extra = [...list.querySelectorAll('[data-package-tariff]')]
+                    .reduce((sum, el) => sum + Number(el.dataset.packageTariff || 0), 0);
+                const count = selectedCount();
+                const complete = primaryTariff !== null && [...list.querySelectorAll('input[name="additional_package_ids[]"]:not(:disabled)')]
+                    .every(el => el.closest('[data-package-code]')?.dataset.tariffKnown === 'yes');
+                totalLabel.textContent = count + ' ' + (count === 1 ? 'package' : 'packages') + ' selected · Combined reference tariff: '
+                    + (complete ? money(extra + primaryTariff) : 'partially unavailable')
+                    + ' · Reference only, not approved MHIS amount.';
+                if (submit) submit.textContent = count ? 'Save MHIS — ' + count + ' ' + (count === 1 ? 'Package' : 'Packages') : defaultSubmitText;
+                list.querySelectorAll('[data-package-code]').forEach((row, i) => {
+                    const title = row.querySelector('[data-package-title]');
+                    if (title) title.textContent = '✓ Package ' + (i + 2) + ' · ' + row.dataset.packageCode;
+                });
+            }
+
+            function makeRow(initial = null) {
+                const row = document.createElement('div');
+                row.className = 'rounded-lg border border-slate-200 bg-white p-3';
+                const title = document.createElement('div');
+                title.className = 'text-sm font-semibold text-emerald-800';
+                title.dataset.packageTitle = '1';
+                const name = document.createElement('div');
+                name.className = 'mt-1 text-sm text-slate-800';
+                const caption = document.createElement('div');
+                caption.className = 'mt-1 text-xs text-slate-600';
+                const search = document.createElement('input');
+                search.type = 'search';
+                search.autocomplete = 'off';
+                search.placeholder = 'Search package by code or name';
+                search.className = 'mt-2 w-full rounded-lg border-slate-300 text-sm';
+                const results = document.createElement('div');
+                results.className = 'mt-1 max-h-44 overflow-y-auto';
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'additional_package_ids[]';
+                hidden.disabled = true;
+                const actions = document.createElement('div');
+                actions.className = 'mt-2 flex gap-4';
+                const change = document.createElement('button');
+                change.type = 'button';
+                change.className = 'hidden text-xs font-semibold text-violet-700';
+                change.textContent = 'Change';
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'text-xs font-semibold text-red-600';
+                remove.textContent = 'Remove';
+                actions.append(change, remove);
+                row.append(title, name, caption, search, results, hidden, actions);
+                list.appendChild(row);
+
+                function setSelected(item) {
+                    const code = String(item.procedure_code || '').trim();
+                    if (!item.id || !code) return;
+                    if (chosenCodes(row).has(code.toLowerCase())) {
+                        window.alert('This MHIS package has already been selected.');
+                        return;
+                    }
+                    hidden.value = String(item.id);
+                    hidden.disabled = false;
+                    row.dataset.packageCode = code;
+                    const known = item.procedure_price !== null && item.procedure_price !== undefined && item.procedure_price !== '';
+                    row.dataset.tariffKnown = known ? 'yes' : 'no';
+                    row.dataset.packageTariff = known ? Number(item.procedure_price) : 0;
+                    name.textContent = item.procedure_name || item.package_name || code;
+                    caption.textContent = 'Reference tariff: ' + (known ? money(item.procedure_price) : 'not available');
+                    search.value = '';
+                    search.classList.add('hidden');
+                    change.classList.remove('hidden');
+                    results.replaceChildren();
+                    updateTotal();
+                }
+                function beginSearch() {
+                    hidden.disabled = true;
+                    hidden.value = '';
+                    delete row.dataset.packageCode;
+                    delete row.dataset.packageTariff;
+                    delete row.dataset.tariffKnown;
+                    title.textContent = 'Select a package';
+                    name.textContent = '';
+                    caption.textContent = '';
+                    search.classList.remove('hidden');
+                    search.value = '';
+                    change.classList.add('hidden');
+                    results.replaceChildren();
+                    updateTotal();
+                    search.focus();
+                }
+                change.addEventListener('click', beginSearch);
+                remove.addEventListener('click', () => { row.remove(); updateTotal(); });
+                if (initial && initial.id) {
+                    setSelected({
+                        id: initial.id,
+                        procedure_code: initial.code,
+                        procedure_name: initial.name,
+                        procedure_price: initial.price
+                    });
+                } else {
+                    title.textContent = 'Search for another package';
+                    updateTotal();
+                }
+                let timer, controller;
+                search.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    if (controller) controller.abort();
+                    results.replaceChildren();
+                    const query = search.value.trim();
+                    if (query.length < 2) return;
+                    timer = setTimeout(async () => {
+                        controller = new AbortController();
+                        try {
+                            const url = new URL(searchUrl, window.location.origin);
+                            url.searchParams.set('q', query);
+                            const response = await fetch(url, {
+                                signal: controller.signal,
+                                headers: {'Accept':'application/json'},
+                                credentials: 'same-origin'
+                            });
+                            if (!response.ok) throw new Error('Search failed');
+                            const data = await response.json();
+                            results.replaceChildren();
+                            (data.results || []).forEach(item => {
+                                const button = document.createElement('button');
+                                button.type = 'button';
+                                button.className = 'block w-full border-b p-2 text-left text-xs hover:bg-violet-100';
+                                button.textContent = [item.procedure_code, item.specialty, item.procedure_name].filter(Boolean).join(' | ');
+                                button.addEventListener('click', () => setSelected(item));
+                                results.appendChild(button);
+                            });
+                            if (!(data.results || []).length) results.textContent = 'No matching packages found.';
+                        } catch(e) {
+                            if (e.name !== 'AbortError') results.textContent = 'Package search unavailable.';
+                        }
+                    }, 300);
+                });
+            }
+            addButton.addEventListener('click', () => makeRow());
+            if (oldIds !== null && Array.isArray(oldIds)) {
+                oldIds.forEach(() => makeRow());
+            } else {
+                existing.forEach(pkg => makeRow(pkg));
+            }
+            primaryCode.addEventListener('input', () => {
+                primaryId.value = '';
+                primaryTariff = null;
+                updateTotal();
+            });
+            primaryName.addEventListener('input', () => {
+                primaryId.value = '';
+                primaryTariff = null;
+                updateTotal();
+            });
+            document.addEventListener('mhis-primary-package-selected', event => {
+                primaryId.value = event.detail.id;
+                primaryTariff = event.detail.price == null ? null : Number(event.detail.price);
+                queueMicrotask(updateTotal);
+            });
+            updateTotal();
+        });
+
         // MHIS_PACKAGE_SEARCH_INTEGRATION_V1
         document.addEventListener('DOMContentLoaded', function () {
             const input = document.getElementById('mhis_package_search');
@@ -4700,6 +4962,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             button.textContent = label;
 
                             button.addEventListener('click', function () {
+                                document.dispatchEvent(new CustomEvent('mhis-primary-package-selected', {
+                                    detail: {id: item.id, price: item.procedure_price}
+                                }));
                                 codeField.value = item.procedure_code;
                                 nameField.value =
                                     (item.procedure_name || item.package_name || '')
