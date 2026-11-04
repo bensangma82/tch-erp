@@ -49,6 +49,49 @@ class PharmacySale extends Model
         ];
     }
 
+
+    /**
+     * Current unpaid receivable after completed pharmacy returns.
+     * Preserve original sale balance for accounting reconciliation.
+     */
+    public function getCurrentOutstandingAttribute(): float
+    {
+        $returns = $this->relationLoaded('returns')
+            ? $this->returns
+            : $this->returns()->get();
+
+        $creditReversed = 0;
+
+        foreach ($returns as $return) {
+            if ($return->status !== 'completed') {
+                continue;
+            }
+
+            $amount = (int) round(
+                (float) $return->refund_amount * 100
+            );
+
+            $mode = strtolower((string) $return->refund_mode);
+
+            // A cash/bank refund is not a receivable reversal.
+            if (in_array($mode, ['cash', 'upi', 'card'], true)) {
+                continue;
+            }
+
+            if (! in_array($mode, ['none', 'credit', 'mhis'], true)) {
+                continue;
+            }
+
+            $creditReversed += $amount;
+        }
+
+        $originalBalance = (int) round(
+            (float) $this->balance_amount * 100
+        );
+
+        return max(0, $originalBalance - $creditReversed) / 100;
+    }
+
     public function patient(): BelongsTo
     {
         return $this->belongsTo(

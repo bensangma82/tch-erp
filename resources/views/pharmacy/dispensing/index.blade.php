@@ -255,9 +255,9 @@
                                 {{ ucwords(str_replace('_', ' ', $sale->payment_mode ?? '—')) }}
                             </div>
 
-                            @if ((float) $sale->balance_amount > 0)
+                            @if ((float) $sale->current_outstanding > 0)
                                 <div class="text-xs font-semibold text-amber-600">
-                                    Balance ₹{{ number_format((float) $sale->balance_amount, 2) }}
+                                    Balance ₹{{ number_format((float) $sale->current_outstanding, 2) }}
                                 </div>
                             @else
                                 <div class="text-xs text-emerald-600">Paid</div>

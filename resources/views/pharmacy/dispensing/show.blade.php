@@ -1234,7 +1234,7 @@
 
                                 <span class="font-semibold text-red-700">
                                     ₹{{ number_format(
-                                        (float) $sale->balance_amount,
+                                        (float) $sale->current_outstanding,
                                         2
                                     ) }}
                                 </span>

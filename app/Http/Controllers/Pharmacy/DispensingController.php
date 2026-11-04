@@ -50,6 +50,7 @@ class DispensingController extends Controller
                     'patient',
                     'encounter.department',
                     'createdBy',
+                    'returns',
                 ])
                 ->when(
                     $search !== '',
@@ -2147,6 +2148,7 @@ $activeAdmissions =
             'encounter.doctor',
             'items.medicine',
             'createdBy',
+            'returns',
         ]);
 
 

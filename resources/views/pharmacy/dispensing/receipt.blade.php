@@ -801,7 +801,7 @@
             </div>
 
 
-            @if ((float) $sale->balance_amount > 0)
+            @if ((float) $sale->current_outstanding > 0)
 
                 <div class="summary-row">
 
@@ -810,7 +810,7 @@
                     </span>
 
                     <span>
-                        ₹{{ number_format((float) $sale->balance_amount, 2) }}
+                        ₹{{ number_format((float) $sale->current_outstanding, 2) }}
                     </span>
 
                 </div>

@@ -73,6 +73,63 @@ class PharmacyAccountingIntegrityTest extends TestCase
         $this->assertSame('118.00', $lines['2200']->credit);
     }
 
+
+    public function test_pharmacy_return_adjusts_outstanding_without_changing_original_sale(): void
+    {
+        $sale = new \App\Models\PharmacySale();
+        $sale->forceFill([
+            'total_amount' => '130.50',
+            'paid_amount' => '0.00',
+            'balance_amount' => '130.50',
+            'payment_mode' => 'credit',
+        ]);
+
+        $makeReturn = function (string $amount, string $mode) {
+            $return = new \App\Models\PharmacyReturn();
+            $return->forceFill([
+                'refund_amount' => $amount,
+                'refund_mode' => $mode,
+                'status' => 'completed',
+            ]);
+            return $return;
+        };
+
+        // No return: original credit remains outstanding.
+        $sale->setRelation('returns', collect());
+        $this->assertEqualsWithDelta(
+            130.50, $sale->current_outstanding, 0.001
+        );
+
+        // Partial credit return.
+        $sale->setRelation('returns', collect([
+            $makeReturn('50.00', 'none'),
+        ]));
+        $this->assertEqualsWithDelta(
+            80.50, $sale->current_outstanding, 0.001
+        );
+
+        // Full credit return.
+        $sale->setRelation('returns', collect([
+            $makeReturn('130.50', 'none'),
+        ]));
+        $this->assertEqualsWithDelta(
+            0.00, $sale->current_outstanding, 0.001
+        );
+
+        // Cash refund must not independently reduce receivables.
+        $sale->setRelation('returns', collect([
+            $makeReturn('50.00', 'cash'),
+        ]));
+        $this->assertEqualsWithDelta(
+            130.50, $sale->current_outstanding, 0.001
+        );
+
+        // Original accounting snapshot is unchanged.
+        $this->assertSame('130.50', $sale->balance_amount);
+        $this->assertSame('130.50', $sale->total_amount);
+        $this->assertSame('0.00', $sale->paid_amount);
+    }
+
     private function makeAccount(string $code, string $name, string $type, string $normalBalance): GeneralLedgerAccount
     {
         return GeneralLedgerAccount::query()->firstOrCreate(
