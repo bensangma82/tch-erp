@@ -27,6 +27,7 @@ class TallyVoucherClassificationService
         'pharmacy_grn:received' => 'Purchase',
         'pharmacy_sale:completed' => 'Sales',
         'pharmacy_sale:cogs' => 'Journal',
+        'pharmacy_return:completed' => 'Journal',
         'pharmacy_supplier_payment:paid' => 'Payment',
     ];
 
