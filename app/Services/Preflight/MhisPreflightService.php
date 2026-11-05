@@ -14,21 +14,17 @@ final class MhisPreflightService
     ): PreflightResult {
         $result = new PreflightResult();
 
-        if ($account->status !== 'finalized' || ! $account->final_bill_no) {
-            $result->add(new PreflightIssue(
-                'BILL_NOT_FINALIZED',
-                'blocking',
-                'The IPD bill is not finalized.',
-                'Complete IP Billing finalization before MHIS approval.',
-                'Billing account #'.$account->id
-            ));
-        }
+        $packageVarianceAllowed = config('mhis_package_variance.enabled', false)
+            && $account->mhis_category === 'free';
 
-        if ($approvedAmount <= 0 || $approvedAmount > (float) $account->net_amount) {
+        if ($approvedAmount <= 0 || (
+            ! $packageVarianceAllowed
+            && $approvedAmount > (float) $account->net_amount
+        )) {
             $result->add(new PreflightIssue(
                 'INVALID_MHIS_APPROVAL',
                 'blocking',
-                'The MHIS approved amount must be greater than zero and must not exceed the eligible hospital bill.',
+                'The MHIS approved amount must be positive; amounts exceeding charges require enabled MHIS Free package variance.',
                 'Verify the official MHIS approval against the hospital bill.',
                 'Billing account #'.$account->id
             ));
@@ -41,7 +37,9 @@ final class MhisPreflightService
             ->where('status', 'posted')
             ->exists();
 
-        if (! $finalJournal) {
+        // Before finalization, the final-bill journal does not yet exist.
+        // Retain the posted-journal requirement for finalized accounts.
+        if ($account->status === 'finalized' && ! $finalJournal) {
             $result->add(new PreflightIssue(
                 'FINAL_JOURNAL_NOT_POSTED',
                 'blocking',

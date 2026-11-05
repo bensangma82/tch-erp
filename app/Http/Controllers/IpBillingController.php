@@ -3618,7 +3618,10 @@ throw ValidationException::withMessages([
         if ($validated['status'] === 'approved') {
             $eligibleAmount = round((float) $account->net_amount, 2);
 
-            if ($approvedAmount > $eligibleAmount) {
+            if ($approvedAmount > $eligibleAmount && ! (
+                config('mhis_package_variance.enabled', false)
+                && $validated['mhis_category'] === 'free'
+            )) {
                 throw ValidationException::withMessages([
                     'approved_amount' =>
                         'MHIS approved amount cannot exceed the eligible hospital bill of ₹'
@@ -3631,7 +3634,12 @@ throw ValidationException::withMessages([
         if ($validated['status'] === 'approved') {
             $mhisPreflight = app(
                 \App\Services\Preflight\MhisPreflightService::class
-            )->checkApproval($account, $approvedAmount);
+            )->checkApproval(
+                tap(clone $account, function ($candidate) use ($validated) {
+                    $candidate->mhis_category = $validated['mhis_category'];
+                }),
+                $approvedAmount
+            );
 
             if ($mhisPreflight->hasBlockingIssues()) {
                 $messages = array_map(
@@ -3665,15 +3673,6 @@ throw ValidationException::withMessages([
                         )
                         ->lockForUpdate()
                         ->firstOrFail();
-
-                if (
-                    in_array($validated['status'], ['approved', 'settled'], true)
-                    && $lockedAccount->status !== 'finalized'
-                ) {
-                    throw ValidationException::withMessages([
-                        'status' => 'Formal MHIS approval requires a finalized IPD bill.',
-                    ]);
-                }
 
                 $lockedAccount->mhis_category =
                     $validated['mhis_category'];
@@ -3827,12 +3826,6 @@ throw ValidationException::withMessages([
                 // MHIS_APPROVAL_PREFLIGHT_V1
                 // Recheck inside the existing locked DB transaction.
                 if ($effectiveStatus === 'approved') {
-                    if ($lockedAccount->status !== 'finalized') {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'status' => 'Finalize the IPD bill before approving MHIS.',
-                        ]);
-                    }
-
                     $approvalCheck = app(
                         \App\Services\Preflight\MhisPreflightService::class
                     )->checkApproval($lockedAccount, $approvedAmount)
@@ -4595,6 +4588,16 @@ throw ValidationException::withMessages([
 
                 app(IpBillingAccountingService::class)
                     ->postFinalBill($lockedAccount);
+
+                // Recognition is deferred until the final-bill receivable exists.
+                // Any missing/stale variance authorisation throws and rolls back
+                // both the final bill and its journal in this transaction.
+                $stage = 'recognizing_approved_mhis_claims';
+                foreach ($lockedAccount->mhisClaims()
+                    ->where('status', 'approved')->get() as $approvedClaim) {
+                    app(MhisReceivableAccountingService::class)
+                        ->recognize($approvedClaim);
+                }
 
                 $stage = 'loading_settlement_records';
 

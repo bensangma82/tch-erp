@@ -39,10 +39,11 @@ class MhisPackageVarianceApprovalService
     private static function snapshot(IpBillingMhisClaim $claim, IpBillingAccount $account): array
     {
         if ((int) $claim->ip_billing_account_id !== (int) $account->id
-            || $account->status !== 'finalized' || ! $account->final_bill_no
+            || ! in_array($account->status, ['open', 'finalized'], true)
+            || ($account->status === 'finalized' && ! $account->final_bill_no)
             || $account->mhis_category !== 'free'
             || $claim->status !== 'approved' || ! $claim->approval_date) {
-            throw new RuntimeException('Finalized MHIS Free bill and formally approved claim required.');
+            throw new RuntimeException('Open or finalized MHIS Free bill and formally approved claim required.');
         }
         $bill = self::paise($account->net_amount);
         $approved = self::paise($claim->approved_amount);
