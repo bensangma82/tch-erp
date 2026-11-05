@@ -12,7 +12,7 @@ class MhisPackageVarianceApprovalService
 {
     private function requirePermission(string $permission): int
     {
-        if (! auth()->check() || ! auth()->user()->can($permission)) {
+        if (! auth()->check() || ! auth()->user()->hasPermission($permission)) {
             throw new RuntimeException('Finance permission required: '.$permission);
         }
         return (int) auth()->id();

@@ -96,7 +96,7 @@ td button:hover{background:#047857}
 <p>Approved MHIS Free claims with non-zero package differences require independent Finance authorisation before GL posting.</p>
 @if(session('status'))<p role="status">{{ session('status') }}</p>@endif
 @if($errors->any())<div class="error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
-@if(auth()->user()->can('finance.mhis-adjustment.post'))
+@if(auth()->user()->hasPermission('finance.mhis-adjustment.post'))
 <section><h2>Submit a claim variance</h2>
 <form method="post" action="{{ route('finance.mhis-package-variance.store') }}">@csrf
 <label>MHIS claim ID<input type="number" name="claim_id" min="1" required value="{{ old('claim_id') }}"></label>
@@ -108,6 +108,6 @@ td button:hover{background:#047857}
 <section><h2>Variance approval register</h2>
 <table><thead><tr><th>Claim</th><th>Bill</th><th>Approved</th><th>Variance</th><th>Treatment</th><th>Reference</th><th>Maker</th><th>Checker</th><th>Status</th><th>Action</th></tr></thead><tbody>
 @foreach($items as $a)<tr><td>{{ $a->ip_billing_mhis_claim_id }}</td><td>{{ $a->bill_amount }}</td><td>{{ $a->approved_amount }}</td><td>{{ $a->variance_amount }}</td><td>{{ $a->treatment }}</td><td>{{ $a->supporting_reference }}</td><td>{{ $a->created_by }}</td><td>{{ $a->approved_by ?? '—' }}</td><td>{{ $a->status }}</td><td>
-@if($a->status === 'submitted' && auth()->user()->can('finance.mhis-adjustment.approve') && (int)auth()->id() !== (int)$a->created_by)
+@if($a->status === 'submitted' && auth()->user()->hasPermission('finance.mhis-adjustment.approve') && (int)auth()->id() !== (int)$a->created_by)
 <form method="post" action="{{ route('finance.mhis-package-variance.approve', $a) }}">@csrf<button>Approve</button></form>
 @endif</td></tr>@endforeach</tbody></table>{{ $items->links() }}</section></body></html>
