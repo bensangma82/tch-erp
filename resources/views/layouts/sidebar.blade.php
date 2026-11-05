@@ -32,7 +32,9 @@
         $isAdmin || $user->hasPermission('finance.dashboard')
         || $user->hasPermission('finance.vouchers.view')
         || $user->hasPermission('finance.reports')
-        || $user->hasPermission('finance.master');
+        || $user->hasPermission('finance.master')
+        || $user->hasPermission('finance.mhis-adjustment.post')
+        || $user->hasPermission('finance.mhis-adjustment.approve');
 
     $canLaboratory =
         $isAdmin || $user->hasPermission('laboratory.view');
@@ -169,6 +171,10 @@
         $canUsePermission(
             'finance.vouchers.view'
         );
+
+    $canMhisVariance =
+        $canUsePermission('finance.mhis-adjustment.post')
+        || $canUsePermission('finance.mhis-adjustment.approve');
 
     $canFinanceReports =
         $canUsePermission(
@@ -1722,6 +1728,15 @@
                             @endif
 
 
+
+                            @if ($canMhisVariance)
+                                <a
+                                    href="{{ route('finance.mhis-package-variance.index') }}"
+                                    class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150 {{ request()->routeIs('finance.mhis-package-variance.*') ? 'bg-slate-800/90 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}"
+                                >
+                                    MHIS Package Variance
+                                </a>
+                            @endif
 
                             @if ($canFinanceReports)
 
