@@ -153,6 +153,135 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
         );
     }
 
+    public function test_mhis_free_submitted_claim_passes_finalization_preflight(): void
+    {
+        $f = $this->setupBill();
+
+        $f['account']->update([
+            'status' => 'open',
+            'final_bill_no' => null,
+            'finalized_at' => null,
+            'mhis_category' => 'free',
+        ]);
+
+        $claim = IpBillingMhisClaim::create([
+            'ip_billing_account_id' => $f['account']->id,
+            'admission_id' => $f['admission']->id,
+            'patient_id' => $f['patient']->id,
+            'claim_no' => 'MHIS-'.$f['k'],
+            'status' => 'submitted',
+            'claim_amount' => '1000.00',
+            'expected_amount' => '1000.00',
+            'approved_amount' => '0.00',
+            'created_by' => $f['user']->id,
+        ]);
+
+        $preflight = app(
+            \App\Services\Preflight\IpBillingPreflightService::class
+        )->checkFinalization($f['account']->fresh());
+
+        $this->assertFalse(
+            $preflight->hasBlockingIssues(),
+            json_encode($preflight->issues())
+        );
+
+        $this->assertSame('submitted', $claim->fresh()->status);
+
+        $this->assertSame(
+            0,
+            JournalEntry::query()
+                ->where('source_type', 'ip_billing_mhis_claim')
+                ->where('source_id', (string) $claim->id)
+                ->where('source_event', 'approved')
+                ->count()
+        );
+    }
+
+    public function test_mhis_free_submitted_claim_finalizes_without_premature_recognition(): void
+    {
+        $f = $this->setupBill();
+
+        $f['account']->update([
+            'status' => 'open',
+            'final_bill_no' => null,
+            'finalized_at' => null,
+            'finalized_by' => null,
+            'mhis_category' => 'free',
+        ]);
+
+        $claim = IpBillingMhisClaim::create([
+            'ip_billing_account_id' => $f['account']->id,
+            'admission_id' => $f['admission']->id,
+            'patient_id' => $f['patient']->id,
+            'claim_no' => 'MHIS-'.$f['k'],
+            'status' => 'submitted',
+            'claim_amount' => '1000.00',
+            'expected_amount' => '1000.00',
+            'approved_amount' => '0.00',
+            'created_by' => $f['user']->id,
+        ]);
+
+        $response = $this->post(
+            route('ip-billing.finalize', [
+                'admission' => $f['admission']->id,
+            ])
+        );
+
+        $response->assertSessionHasNoErrors();
+
+        $account = $f['account']->fresh();
+
+        $this->assertSame('finalized', $account->status);
+        $this->assertNotNull($account->final_bill_no);
+        $this->assertNotNull($account->finalized_at);
+
+        $journal = JournalEntry::query()
+            ->where('source_type', 'ip_billing_account')
+            ->where('source_id', (string) $account->id)
+            ->where('source_event', 'finalized')
+            ->firstOrFail();
+
+        $this->assertSame('posted', $journal->status);
+        $this->assertSame(
+            ['dr' => '1000.00', 'cr' => '0.00'],
+            $this->amounts($journal)['1200']
+        );
+        $this->assertSame(
+            ['dr' => '0.00', 'cr' => '1000.00'],
+            $this->amounts($journal)['4301']
+        );
+
+        $this->assertSame('submitted', $claim->fresh()->status);
+
+        $this->assertSame(
+            0,
+            JournalEntry::query()
+                ->where('source_type', 'ip_billing_mhis_claim')
+                ->where('source_id', (string) $claim->id)
+                ->where('source_event', 'approved')
+                ->count()
+        );
+
+        $this->assertSame(
+            0,
+            $account->charityAdjustments()->count()
+        );
+
+        // Repeating finalisation must not create another journal.
+        $this->post(route('ip-billing.finalize', [
+            'admission' => $f['admission']->id,
+        ]))->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            1,
+            JournalEntry::query()
+                ->where('source_type', 'ip_billing_account')
+                ->where('source_id', (string) $account->id)
+                ->where('source_event', 'finalized')
+                ->count()
+        );
+    }
+
     public function test_finalized_bed_bill_posts_correct_receivable_and_revenue_once(): void
     {
         $f=$this->setupBill();

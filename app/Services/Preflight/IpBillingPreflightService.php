@@ -204,6 +204,59 @@ final class IpBillingPreflightService
             }
         }
 
+        // TCH-MHIS-FREE-FINALIZATION-V1
+        if ($account->mhis_category === 'free') {
+            $claims = $account->mhisClaims()->get();
+
+            if ($claims->count() !== 1) {
+                $result->add(new PreflightIssue(
+                    'MHIS_FREE_CLAIM_REQUIRED',
+                    'blocking',
+                    'MHIS Free finalization requires exactly one claim.',
+                    'Create or reconcile the MHIS claim before finalization.',
+                    'Billing account #'.$account->id
+                ));
+            } else {
+                $claim = $claims->first();
+
+                $validStatus = in_array(
+                    $claim->status,
+                    ['submitted', 'approved', 'settled'],
+                    true
+                );
+
+                $coverage = in_array(
+                    $claim->status,
+                    ['approved', 'settled'],
+                    true
+                )
+                    ? (float) $claim->approved_amount
+                    : (float) $claim->expected_amount;
+
+                if (! $validStatus || $coverage <= 0) {
+                    $result->add(new PreflightIssue(
+                        'MHIS_FREE_CLAIM_INVALID',
+                        'blocking',
+                        'MHIS Free claim status or coverage is invalid.',
+                        'Verify claim submission and reimbursement amount.',
+                        'Billing account #'.$account->id
+                    ));
+                }
+            }
+
+            if ($account->mhisAdjustments()
+                ->where('status', 'active')
+                ->exists()) {
+                $result->add(new PreflightIssue(
+                    'MHIS_FREE_ADJUSTMENT_UNRESOLVED',
+                    'blocking',
+                    'Active MHIS adjustments require accounting reconciliation.',
+                    'Resolve package adjustments before finalization.',
+                    'Billing account #'.$account->id
+                ));
+            }
+        }
+
         $billPaise = (int) round((float) $account->net_amount * 100);
 
         if ($totalPaise !== $billPaise) {
