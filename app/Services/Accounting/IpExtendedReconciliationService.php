@@ -32,6 +32,18 @@ final class IpExtendedReconciliationService
             ]);
         }
 
+        // MHIS_ADVANCE_ONLY_RECONCILIATION_V1
+        // Dispatch only the narrow finalized, one-claim, advance-only case.
+        // All other scenarios continue through the existing reconciler.
+        if (
+            $account->advances()->exists()
+            && ! $account->payments()->exists()
+            && $account->mhisClaims()->count() === 1
+            && ! $account->mhisClaims()->whereNotIn('status', ['pending', 'submitted'])->exists()
+        ) {
+            return app(MhisAdvanceOnlyReconciliationService::class)->reconcile($account);
+        }
+
         return DB::transaction(function () use ($account, $user) {
             $account = IpBillingAccount::query()
                 ->whereKey($account->id)
