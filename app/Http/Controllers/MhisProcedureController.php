@@ -86,8 +86,37 @@ class MhisProcedureController extends Controller
                 'stratification_options',
             ]);
 
+        $regular = $procedures->map(function ($p) {
+            $p->source_type = 'regular';
+            return $p;
+        })->toArray();
+
+        $high = \App\Models\MhisHighEndItem::query()
+            ->where('is_active', true)
+            ->where(function ($q) use ($search) {
+                $term = '%' . $search . '%';
+                $q->where('procedure_code', 'ilike', $term)
+                    ->orWhere('item_name', 'ilike', $term)
+                    ->orWhere('specialty', 'ilike', $term);
+            })
+            ->orderBy('procedure_code')->orderBy('id')
+            ->limit(25)->get()
+            ->map(fn ($i) => [
+                'id' => $i->id,
+                'source_type' => 'high_end',
+                'procedure_code' => $i->procedure_code,
+                'procedure_name' => $i->item_name,
+                'package_name' => $i->item_name,
+                'specialty' => $i->specialty,
+                'procedure_price' => $i->reference_price,
+                'source_price_text' => $i->source_price_text,
+                'hospital_type' => $i->hospital_type,
+                'opd_ipd' => $i->opd_ipd,
+                'maximum_multiplier' => $i->maximum_multiplier,
+            ])->toArray();
+
         return response()->json([
-            'results' => $procedures,
+            'results' => array_slice(array_merge($regular, $high), 0, 50),
         ]);
     }
 

@@ -3340,17 +3340,22 @@ throw ValidationException::withMessages([
     ): void {
         $primaryCode = trim((string) ($validated['package_code'] ?? ''));
         $primaryName = trim((string) ($validated['package_name'] ?? ''));
-        $extraIds = array_map('intval', $validated['additional_package_ids'] ?? []);
         $primaryId = (int) ($validated['primary_package_id'] ?? 0);
-
-        if ($extraIds && ($primaryCode === '' || $primaryName === '')) {
+        $regularIds = array_map('intval', $validated['additional_package_ids'] ?? []);
+        $highIds = array_map('intval', $validated['additional_high_end_ids'] ?? []);
+        if (count($regularIds) + count($highIds) > 25) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'package_code' => 'Select the primary package before adding more packages.',
+                'additional_package_ids' => 'Select at most 25 additional MHIS items.',
             ]);
         }
-
+        if (($regularIds || $highIds) && ($primaryCode === '' || $primaryName === '')) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'package_code' => 'Select the primary regular MHIS package first.',
+            ]);
+        }
         $records = [];
-        $seenCodes = [];
+        $seen = [];
+        $seenRegularCodes = [];
         if ($primaryCode !== '' || $primaryName !== '') {
             if ($primaryCode === '' || $primaryName === '') {
                 throw \Illuminate\Validation\ValidationException::withMessages([
@@ -3358,46 +3363,74 @@ throw ValidationException::withMessages([
                 ]);
             }
             $master = $primaryId
-                ? \App\Models\MhisProcedure::query()->findOrFail($primaryId)
+                ? \App\Models\MhisProcedure::query()->where('is_active', true)->find($primaryId)
                 : null;
+            if ($primaryId && !$master) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'primary_package_id' => 'The primary MHIS package is unavailable.',
+                ]);
+            }
             if ($master && strcasecmp(trim((string) $master->procedure_code), $primaryCode) !== 0) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'primary_package_id' => 'Selected primary package does not match its code.',
                 ]);
             }
-            $seenCodes[strtolower($primaryCode)] = true;
+            $seenRegularCodes[strtolower($primaryCode)] = true;
+            if ($master) $seen['regular:'.$master->id] = true;
             $records[] = [
+                'item_type' => 'regular',
                 'mhis_procedure_id' => $master?->id,
+                'mhis_high_end_item_id' => null,
                 'procedure_code' => $primaryCode,
                 'procedure_name' => $primaryName,
                 'reference_tariff' => $master?->procedure_price,
             ];
         }
-
-        $masters = \App\Models\MhisProcedure::query()
-            ->whereIn('id', $extraIds)->get()->keyBy('id');
-        foreach ($extraIds as $id) {
-            $master = $masters->get($id);
-            if (! $master || ! $master->is_active) {
+        $regularMasters = \App\Models\MhisProcedure::query()->where('is_active', true)
+            ->whereIn('id', $regularIds)->get()->keyBy('id');
+        foreach ($regularIds as $id) {
+            $master = $regularMasters->get($id);
+            if (!$master || isset($seen['regular:'.$id])) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'additional_package_ids' => 'An additional package is unavailable.',
+                    'additional_package_ids' => 'Duplicate or unavailable regular MHIS package.',
                 ]);
             }
             $code = trim((string) $master->procedure_code);
-            if ($code === '' || isset($seenCodes[strtolower($code)])) {
+            if ($code === '' || isset($seenRegularCodes[strtolower($code)])) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'additional_package_ids' => 'Duplicate or invalid package code.',
+                    'additional_package_ids' => 'Duplicate or invalid regular package code.',
                 ]);
             }
-            $seenCodes[strtolower($code)] = true;
+            $seen['regular:'.$id] = true;
+            $seenRegularCodes[strtolower($code)] = true;
             $records[] = [
+                'item_type' => 'regular',
                 'mhis_procedure_id' => $master->id,
+                'mhis_high_end_item_id' => null,
                 'procedure_code' => $code,
                 'procedure_name' => (string) ($master->procedure_name ?: $master->package_name ?: $code),
                 'reference_tariff' => $master->procedure_price,
             ];
         }
-
+        $highMasters = \App\Models\MhisHighEndItem::query()->where('is_active', true)
+            ->whereIn('id', $highIds)->get()->keyBy('id');
+        foreach ($highIds as $id) {
+            $master = $highMasters->get($id);
+            if (!$master || isset($seen['high_end:'.$id])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'additional_high_end_ids' => 'Duplicate or unavailable high-end MHIS item.',
+                ]);
+            }
+            $seen['high_end:'.$id] = true;
+            $records[] = [
+                'item_type' => 'high_end',
+                'mhis_procedure_id' => null,
+                'mhis_high_end_item_id' => $master->id,
+                'procedure_code' => $master->procedure_code,
+                'procedure_name' => $master->item_name,
+                'reference_tariff' => $master->reference_price,
+            ];
+        }
         $claim->packages()->delete();
         foreach ($records as $index => $record) {
             $claim->packages()->create($record + ['sort_order' => $index + 1]);
@@ -3447,6 +3480,8 @@ throw ValidationException::withMessages([
             'primary_package_id' => ['nullable', 'integer', 'exists:mhis_procedures,id'],
             'additional_package_ids' => ['nullable', 'array', 'max:25'],
             'additional_package_ids.*' => ['required', 'integer', 'distinct', 'exists:mhis_procedures,id'],
+            'additional_high_end_ids' => ['nullable', 'array', 'max:25'],
+            'additional_high_end_ids.*' => ['required', 'integer', 'distinct', 'exists:mhis_high_end_items,id'],
 
             'claim_amount' => [
                 'required',

@@ -4664,7 +4664,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 $additionalForJs = $mhisClaim
                     ? $mhisClaim->packages->skip(1)->map(function ($p) {
                         return [
-                            'id' => $p->mhis_procedure_id,
+                            'id' => $p->item_type === 'high_end' ? $p->mhis_high_end_item_id : $p->mhis_procedure_id,
+                            'source_type' => $p->item_type ?? 'regular',
                             'code' => $p->procedure_code,
                             'name' => $p->procedure_name,
                             'price' => $p->reference_tariff,
@@ -4674,6 +4675,7 @@ document.addEventListener('DOMContentLoaded', function () {
             @endphp
             const existing = {{ \Illuminate\Support\Js::from($additionalForJs) }};
             const oldIds = @json(old('additional_package_ids'));
+            const oldHighIds = @json(old('additional_high_end_ids'));
             const savedPrimaryTariff = @json($mhisClaim?->packages?->first()?->reference_tariff);
             const money = n => '₹' + Number(n || 0).toLocaleString('en-IN', {
                 minimumFractionDigits: 2, maximumFractionDigits: 2
@@ -4703,13 +4705,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
             function selectedCount() {
                 return (primaryCode.value.trim() && primaryName.value.trim() ? 1 : 0)
-                    + list.querySelectorAll('input[name="additional_package_ids[]"]:not(:disabled)').length;
+                    + list.querySelectorAll('input[data-master-item]:not(:disabled)').length;
             }
             function chosenCodes(exceptRow = null) {
                 const codes = new Set();
                 if (primaryCode.value.trim()) codes.add(primaryCode.value.trim().toLowerCase());
                 list.querySelectorAll('[data-package-code]').forEach(row => {
-                    if (row !== exceptRow) codes.add(row.dataset.packageCode.toLowerCase());
+                    if (row !== exceptRow && row.dataset.sourceType !== 'high_end') {
+                        codes.add(row.dataset.packageCode.toLowerCase());
+                    }
                 });
                 return codes;
             }
@@ -4738,7 +4742,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const extra = [...list.querySelectorAll('[data-package-tariff]')]
                     .reduce((sum, el) => sum + Number(el.dataset.packageTariff || 0), 0);
                 const count = selectedCount();
-                const complete = primaryTariff !== null && [...list.querySelectorAll('input[name="additional_package_ids[]"]:not(:disabled)')]
+                const complete = primaryTariff !== null && [...list.querySelectorAll('input[data-master-item]:not(:disabled)')]
                     .every(el => el.closest('[data-package-code]')?.dataset.tariffKnown === 'yes');
                 totalLabel.textContent = count + ' ' + (count === 1 ? 'package' : 'packages') + ' selected · Combined reference tariff: '
                     + (complete ? money(extra + primaryTariff) : 'partially unavailable')
@@ -4770,6 +4774,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const hidden = document.createElement('input');
                 hidden.type = 'hidden';
                 hidden.name = 'additional_package_ids[]';
+                hidden.dataset.masterItem = '1';
                 hidden.disabled = true;
                 const actions = document.createElement('div');
                 actions.className = 'mt-2 flex gap-4';
@@ -4788,17 +4793,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 function setSelected(item) {
                     const code = String(item.procedure_code || '').trim();
                     if (!item.id || !code) return;
-                    if (chosenCodes(row).has(code.toLowerCase())) {
-                        window.alert('This MHIS package has already been selected.');
+                    const type = item.source_type === 'high_end' ? 'high_end' : 'regular';
+                    const existingSame = [...list.querySelectorAll('input[data-master-item]:not(:disabled)')]
+                        .some(h => h !== hidden && h.name === (type === 'high_end' ? 'additional_high_end_ids[]' : 'additional_package_ids[]') && h.value === String(item.id));
+                    if (existingSame || (type === 'regular' && chosenCodes(row).has(code.toLowerCase()))) {
+                        window.alert('This MHIS item has already been selected.');
                         return;
                     }
+                    hidden.name = type === 'high_end' ? 'additional_high_end_ids[]' : 'additional_package_ids[]';
+                    row.dataset.sourceType = type;
                     hidden.value = String(item.id);
                     hidden.disabled = false;
                     row.dataset.packageCode = code;
                     const known = item.procedure_price !== null && item.procedure_price !== undefined && item.procedure_price !== '';
                     row.dataset.tariffKnown = known ? 'yes' : 'no';
                     row.dataset.packageTariff = known ? Number(item.procedure_price) : 0;
-                    name.textContent = item.procedure_name || item.package_name || code;
+                    name.textContent = (type === 'high_end' ? '[High-End Drug / Implant] ' : '[Regular Package] ') + (item.procedure_name || item.package_name || code);
                     caption.textContent = 'Reference tariff: ' + (known ? money(item.procedure_price) : 'not available');
                     search.value = '';
                     search.classList.add('hidden');
@@ -4810,6 +4820,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     hidden.disabled = true;
                     hidden.value = '';
                     delete row.dataset.packageCode;
+                    delete row.dataset.sourceType;
                     delete row.dataset.packageTariff;
                     delete row.dataset.tariffKnown;
                     title.textContent = 'Select a package';
@@ -4829,7 +4840,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         id: initial.id,
                         procedure_code: initial.code,
                         procedure_name: initial.name,
-                        procedure_price: initial.price
+                        procedure_price: initial.price,
+                        source_type: initial.source_type || 'regular'
                     });
                 } else {
                     title.textContent = 'Search for another package';
@@ -4859,7 +4871,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 const button = document.createElement('button');
                                 button.type = 'button';
                                 button.className = 'block w-full border-b p-2 text-left text-xs hover:bg-violet-100';
-                                button.textContent = [item.procedure_code, item.specialty, item.procedure_name].filter(Boolean).join(' | ');
+                                button.textContent = [(item.source_type === 'high_end' ? 'HIGH-END' : 'PACKAGE'), item.procedure_code, item.specialty, item.procedure_name].filter(Boolean).join(' | ');
                                 button.addEventListener('click', () => setSelected(item));
                                 results.appendChild(button);
                             });
@@ -4871,8 +4883,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
             addButton.addEventListener('click', () => makeRow());
-            if (oldIds !== null && Array.isArray(oldIds)) {
-                oldIds.forEach(() => makeRow());
+            if ((oldIds !== null && Array.isArray(oldIds)) || (oldHighIds !== null && Array.isArray(oldHighIds))) {
+                (oldIds || []).forEach(() => makeRow());
+                (oldHighIds || []).forEach(() => makeRow());
             } else {
                 existing.forEach(pkg => makeRow(pkg));
             }
@@ -4947,7 +4960,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             return;
                         }
 
-                        data.results.forEach(function (item) {
+                        data.results.filter(item => item.source_type !== 'high_end').forEach(function (item) {
                             const button = document.createElement('button');
                             button.type = 'button';
                             button.className =
