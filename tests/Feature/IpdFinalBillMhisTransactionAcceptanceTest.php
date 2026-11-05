@@ -60,6 +60,51 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
         return $result;
     }
 
+    public function test_mhis_free_rejects_patient_payment_without_receipt_or_journal(): void
+    {
+        $f = $this->setupBill();
+
+        $f['account']->update([
+            'mhis_category' => 'free',
+        ]);
+
+        $beforePayments = DB::table('ip_billing_payments')
+            ->where('ip_billing_account_id', $f['account']->id)
+            ->count();
+
+        $beforeJournals = JournalEntry::query()
+            ->where('source_type', 'ip_billing_payment')
+            ->count();
+
+        $response = $this->from(
+            '/ip-billing/'.$f['admission']->id
+        )->post(
+            route('ip-billing.payment.store', [
+                'admission' => $f['admission']->id,
+            ]),
+            [
+                'amount' => '100.00',
+                'payment_mode' => 'cash',
+            ]
+        );
+
+        $response->assertSessionHasErrors('amount');
+
+        $this->assertSame(
+            $beforePayments,
+            DB::table('ip_billing_payments')
+                ->where('ip_billing_account_id', $f['account']->id)
+                ->count()
+        );
+
+        $this->assertSame(
+            $beforeJournals,
+            JournalEntry::query()
+                ->where('source_type', 'ip_billing_payment')
+                ->count()
+        );
+    }
+
     public function test_finalized_bed_bill_posts_correct_receivable_and_revenue_once(): void
     {
         $f=$this->setupBill();

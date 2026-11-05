@@ -1691,6 +1691,13 @@ class IpBillingController extends Controller
                     ->lockForUpdate()
                     ->firstOrFail();
 
+                if ($lockedAccount->mhis_category === 'free') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'amount' => 'Patient payment is not permitted for MHIS Free category. Process covered charges through MHIS billing.',
+                    ]);
+                }
+
+
                 /*
                 |--------------------------------------------------------------------------
                 | Only Finalized Bills

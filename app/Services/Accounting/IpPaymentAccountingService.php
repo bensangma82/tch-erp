@@ -114,6 +114,13 @@ class IpPaymentAccountingService
                 'refunds',
             ]);
 
+
+            if ($account->mhis_category === 'free') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount' => 'Patient payment is prohibited for MHIS Free category.',
+                ]);
+            }
+
             $hasMhis = $account->mhisClaims->isNotEmpty();
 
             $mhisEligible = ! $hasMhis || (
