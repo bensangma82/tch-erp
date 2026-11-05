@@ -191,7 +191,17 @@ class DiagnosticWorklistController extends Controller
             || str_contains($studyText, 'usg whole abdomen')
             || str_contains($studyText, 'usgabd');
 
-        $validated = $request->validate([
+
+        $isEchocardiography =
+            str_contains($studyText, 'echocardiography')
+            || str_contains($studyText, '2d echo')
+            || str_contains($studyText, '2-d echo')
+            || str_contains($studyText, 'echo cardiography');
+
+        $requiresReportingClinician =
+            $isAbdominalUsg || $isEchocardiography;
+
+$validated = $request->validate([
             'action' => [
                 'required',
                 'in:save_draft,finalize',
@@ -207,7 +217,7 @@ class DiagnosticWorklistController extends Controller
                 'max:10000',
             ],
             'reporting_sonologist_id' => [
-                $request->input('action') === 'finalize' && $isAbdominalUsg
+                $request->input('action') === 'finalize' && $requiresReportingClinician
                     ? 'required'
                     : 'nullable',
                 'integer',
@@ -243,7 +253,7 @@ class DiagnosticWorklistController extends Controller
                     'structured_data' => $validated['structured_data'] ?? null,
                     'status' => 'draft',
                     'reporting_sonologist_id' =>
-                        $isAbdominalUsg
+                        $requiresReportingClinician
                             ? ($validated['reporting_sonologist_id'] ?? null)
                             : null,
                     'entered_by' => auth()->id(),
@@ -267,7 +277,7 @@ class DiagnosticWorklistController extends Controller
         DB::transaction(function () use (
             $validated,
             $serviceOrderItem,
-            $isAbdominalUsg
+            $requiresReportingClinician
         ) {
             DiagnosticResult::updateOrCreate(
                 [
@@ -279,7 +289,7 @@ class DiagnosticWorklistController extends Controller
                     'structured_data' => $validated['structured_data'] ?? null,
                     'status' => 'final',
                     'reporting_sonologist_id' =>
-                        $isAbdominalUsg
+                        $requiresReportingClinician
                             ? ($validated['reporting_sonologist_id'] ?? null)
                             : null,
                     'entered_by' => auth()->id(),

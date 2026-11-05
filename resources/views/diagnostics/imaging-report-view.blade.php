@@ -613,7 +613,42 @@
                 font-size: 11px !important;
             }
         }
-    </style>
+
+        /* ECHO ONLY: compact single-page A4 print layout */
+        @media print {
+            body:has(.echo-clinical-grid) .report-section {
+                margin-top: 4px !important;
+                margin-bottom: 4px !important;
+            }
+
+            body:has(.echo-clinical-grid) .section-heading {
+                padding: 3px 8px !important;
+            }
+
+            body:has(.echo-clinical-grid) .section-body {
+                padding: 5px 8px !important;
+                line-height: 1.25 !important;
+            }
+
+            body:has(.echo-clinical-grid) .echo-table th,
+            body:has(.echo-clinical-grid) .echo-table td {
+                padding-top: 2px !important;
+                padding-bottom: 2px !important;
+            }
+
+            body:has(.echo-clinical-grid) .report-footer {
+                margin-top: 5px !important;
+                padding-top: 5px !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+
+            body:has(.echo-clinical-grid) .signature {
+                min-height: 25px !important;
+            }
+        }
+
+</style>
 
     <div class="py-6 print-wrapper">
         <div class="imaging-report-shell px-4 sm:px-6 lg:px-8 print-wrapper">
@@ -837,61 +872,6 @@
                             </div>
                         </div>
 
-                        {{-- ECHOCARDIOGRAPHY: STRUCTURED 2D / VALVE FINDINGS --}}
-                        <div class="report-section">
-                            <div class="section-heading">2D &amp; Valve Assessment</div>
-                            <div class="echo-subgrid">
-                                @foreach ([
-                                    ['LV Size', 'findings.fLvSize'],
-                                    ['LV Systolic Function', 'findings.fLvSys'],
-                                    ['RWMA', 'findings.fRwma'],
-                                    ['Diastolic Function', 'findings.fLvDia'],
-                                    ['RV', 'findings.fRv'],
-                                    ['LA', 'findings.fLa'],
-                                    ['RA', 'findings.fRa'],
-                                    ['Pericardial Effusion', 'findings.fPe'],
-                                    ['Other Findings', 'findings.fOther'],
-                                ] as [$label, $path])
-                                    <div class="echo-finding">
-                                        <div class="echo-finding-label">{{ $label }}</div>
-                                        <div class="echo-finding-value">{{ $displayEcho($path) }}</div>
-                                    </div>
-                                @endforeach
-
-                                @foreach ([
-                                    ['Mitral Valve', 'valves.mit'],
-                                    ['Aortic Valve', 'valves.aor'],
-                                    ['Tricuspid Valve', 'valves.tri'],
-                                    ['Pulmonary Valve', 'valves.pul'],
-                                ] as [$label, $path])
-                                    @php
-                                        $structure = data_get($structured, $path . '.structure');
-                                        $stenosis = data_get($structured, $path . '.stenosis');
-                                        $regurgitation = data_get($structured, $path . '.regurgitation');
-
-                                        $valveParts = array_values(array_filter([
-                                            $structure,
-                                            $stenosis !== null && $stenosis !== '' ? 'Stenosis: ' . $stenosis : null,
-                                            $regurgitation !== null && $regurgitation !== '' ? 'Regurgitation: ' . $regurgitation : null,
-                                        ]));
-
-                                        $valveText = $valveParts ? implode('; ', $valveParts) : '—';
-                                    @endphp
-
-                                    <div class="echo-finding">
-                                        <div class="echo-finding-label">{{ $label }}</div>
-                                        <div class="echo-finding-value">{{ $valveText }}</div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        </div>
-
-                        {{-- ECHOCARDIOGRAPHY: NARRATIVE FINDINGS --}}
-                        <div class="report-section">
-                            <div class="section-heading">Findings</div>
-                            <div class="section-body">{{ $report?->findings ?: '—' }}</div>
-                        </div>
-
                         {{-- ECHOCARDIOGRAPHY: IMPRESSION --}}
                         <div class="report-section impression">
                             <div class="section-heading">Impression</div>
@@ -955,12 +935,12 @@
 
                             <div class="footer-note">
                                 Generated electronically from TCH Hospital ERP.
-                                {{ $isEcho ? 'Echocardiographic findings should be interpreted in the appropriate clinical context.' : 'Imaging findings should be interpreted in the appropriate clinical context.' }}
+                                {{ $isEcho ? 'Echocardiographic findings should be interpreted in the appropriate clinical context. Not valid for Medicolegal Purposes.' : 'Imaging findings should be interpreted in the appropriate clinical context.' }}
                             </div>
                         </div>
 
                         <div class="signature">
-                            {{ $isEcho ? 'Authorized Echocardiography Signatory' : 'Authorized Sonologist' }}
+                            {{ $isEcho ? 'Authorised Signatory' : 'Authorized Sonologist' }}
                         </div>
                     </div>
 

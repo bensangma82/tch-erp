@@ -546,12 +546,12 @@ Bilateral ovaries are normal in position, size and echotexture. Right ovary meas
                         </div>
                     @endif
 
-                    {{-- REPORTING SONOLOGIST --}}
-                    @if ($isAbdominalUsg)
+                    {{-- REPORTING CLINICIAN --}}
+                    @if ($isAbdominalUsg || $isEchocardiography)
                         <div class="mb-6">
                             <label for="reporting_sonologist_id"
                                    class="block text-sm font-semibold text-gray-700">
-                                Reporting Sonologist
+                                {{ $isEchocardiography ? 'Reporting Echocardiography Clinician' : 'Reporting Sonologist' }}
                             </label>
 
                             <select
