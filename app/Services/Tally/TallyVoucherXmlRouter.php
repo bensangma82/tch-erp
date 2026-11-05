@@ -3,6 +3,7 @@
 namespace App\Services\Tally;
 
 use App\Models\JournalEntry;
+use App\Models\Payment;
 use RuntimeException;
 
 class TallyVoucherXmlRouter
@@ -70,6 +71,15 @@ class TallyVoucherXmlRouter
 
         $key = $journal->source_type.':'.$journal->source_event;
         $builder = self::BUILDERS[$key] ?? null;
+
+        if ($key === 'payment:received') {
+            $payment = Payment::findOrFail($journal->source_id);
+
+            if (strtolower(trim((string) $payment->payment_mode))
+                === 'staff_medical_benefit') {
+                $builder = TallyStaffMedicalBenefitXmlBuilder::class;
+            }
+        }
 
         if ($builder === null) {
             throw new RuntimeException(

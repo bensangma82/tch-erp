@@ -3,6 +3,7 @@
 namespace App\Services\Tally;
 
 use App\Models\JournalEntry;
+use App\Models\Payment;
 use RuntimeException;
 
 class TallyVoucherClassificationService
@@ -47,6 +48,15 @@ class TallyVoucherClassificationService
             throw new RuntimeException(
                 'Unsupported Tally accounting event: '.$key
             );
+        }
+
+        if ($key === 'payment:received') {
+            $payment = Payment::findOrFail($journal->source_id);
+
+            if (strtolower(trim((string) $payment->payment_mode))
+                === 'staff_medical_benefit') {
+                return 'Journal';
+            }
         }
 
         return self::RULES[$key];
