@@ -2217,7 +2217,7 @@ style="background-color: #dc2626;"
                                         </label>
                                         <button
                                             type="submit"
-                                            class="rounded-lg bg-violet-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-800"
+                                            class="rounded-lg border border-violet-800 bg-violet-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-800 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:border-slate-400 disabled:bg-slate-200 disabled:text-slate-800 disabled:opacity-100"
                                         >
                                             Confirm Reconciliation
                                         </button>
