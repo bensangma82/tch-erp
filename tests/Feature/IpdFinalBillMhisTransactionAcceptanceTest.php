@@ -105,6 +105,54 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
         );
     }
 
+    public function test_mhis_free_rejects_advance_without_receipt_or_journal(): void
+    {
+        $f = $this->setupBill();
+
+        $f['account']->update([
+            'status' => 'open',
+            'final_bill_no' => null,
+            'finalized_at' => null,
+            'mhis_category' => 'free',
+        ]);
+
+        $beforeAdvances = DB::table('ip_billing_advances')
+            ->where('ip_billing_account_id', $f['account']->id)
+            ->count();
+
+        $beforeJournals = JournalEntry::query()
+            ->where('source_type', 'ip_billing_advance')
+            ->count();
+
+        $response = $this->from(
+            '/ip-billing/'.$f['admission']->id
+        )->post(
+            route('ip-billing.advance.store', [
+                'admission' => $f['admission']->id,
+            ]),
+            [
+                'amount' => '100.00',
+                'payment_mode' => 'cash',
+            ]
+        );
+
+        $response->assertSessionHasErrors('amount');
+
+        $this->assertSame(
+            $beforeAdvances,
+            DB::table('ip_billing_advances')
+                ->where('ip_billing_account_id', $f['account']->id)
+                ->count()
+        );
+
+        $this->assertSame(
+            $beforeJournals,
+            JournalEntry::query()
+                ->where('source_type', 'ip_billing_advance')
+                ->count()
+        );
+    }
+
     public function test_finalized_bed_bill_posts_correct_receivable_and_revenue_once(): void
     {
         $f=$this->setupBill();

@@ -200,6 +200,12 @@ $staffMedicalBenefitAmount =
 |--------------------------------------------------------------------------
 */
 
+// TCH-MHIS-FREE-COLLECTIBLE-V1
+$isMhisFree = $account->mhis_category === 'free';
+$patientCollectibleBalance = $isMhisFree
+    ? 0.00
+    : (float) $account->balance_amount;
+
 $patientLiability =
     round(
         max(
@@ -617,7 +623,7 @@ $refundDue =
                             @endif
                         "
                     >
-                        Balance Due
+                        {{ $isMhisFree ? 'Patient Payable' : 'Balance Due' }}
                     </div>
 
                     <div
@@ -629,7 +635,7 @@ $refundDue =
                             @endif
                         "
                     >
-                        ₹{{ number_format((float) $account->balance_amount, 2) }}
+                        ₹{{ number_format($patientCollectibleBalance, 2) }}
                     </div>
 
                 </div>
@@ -1003,6 +1009,8 @@ style="background-color: #dc2626;"
 <span class="tch-action-label">Dispense Medicines</span>
 </span></a>
 @endif
+
+                            @if ($account->mhis_category !== 'free')
                             <button
                                 type="button"
                                 id="open-advance-modal"
@@ -1014,6 +1022,7 @@ style="background-color: #dc2626;"
 </svg>
 <span class="tch-action-label">Receive Advance</span>
 </span></button>
+                            @endif
 
                         @endif
 
@@ -4551,7 +4560,7 @@ document.addEventListener('DOMContentLoaded', function () {
 @endif
 
 
-    @if (! $isFinalized)
+    @if (! $isFinalized && $account->mhis_category !== 'free')
     {{-- RECEIVE ADVANCE MODAL --}}
     <div
         id="advance-modal"

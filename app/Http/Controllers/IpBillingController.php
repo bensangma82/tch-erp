@@ -1467,6 +1467,15 @@ class IpBillingController extends Controller
                     ]);
                 }
 
+                // MHIS Free: prohibit patient advance collection.
+                if ($lockedAccount->mhis_category === 'free') {
+                    throw ValidationException::withMessages([
+                        'amount' =>
+                            'Advance collection is not permitted for MHIS Free patients. '
+                            .'Covered charges must be processed through MHIS.',
+                    ]);
+                }
+
                 $advance = IpBillingAdvance::create([
                     'ip_billing_account_id' => $lockedAccount->id,
 

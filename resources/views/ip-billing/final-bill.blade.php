@@ -831,7 +831,13 @@
         $account->payments
             ->where('status', 'active');
 
-    $patientLiabilityBeforePayments =
+    // TCH-MHIS-FREE-COLLECTIBLE-V1
+$isMhisFree = $account->mhis_category === 'free';
+$patientCollectibleBalance = $isMhisFree
+    ? 0.00
+    : (float) $patientBalance;
+
+$patientLiabilityBeforePayments =
         max(
             (float) $netAmount
             - (float) $mhisApprovedAmount,
@@ -1477,7 +1483,7 @@
                             </span>
 
                             <span class="summary-value">
-                                ₹{{ number_format((float) $patientLiability, 2) }}
+                                ₹{{ number_format($isMhisFree ? 0.00 : (float) $patientLiability, 2) }}
                             </span>
                         </div>
 
@@ -1529,7 +1535,7 @@
                             </span>
 
                             <span class="summary-value">
-                                ₹{{ number_format((float) $patientBalance, 2) }}
+                                ₹{{ number_format($patientCollectibleBalance, 2) }}
                             </span>
                         </div>
 
@@ -1552,6 +1558,7 @@
 
                                    @if (
     $staffMedicalBenefit &&
+    ! $isMhisFree &&
     (float) $patientBalance > 0 &&
     (float) $staffMedicalBenefitAmount <= 0
 )
@@ -1655,7 +1662,7 @@
 @endif
 
 
-                    @if ((float) $patientBalance > 0)
+                    @if (! $isMhisFree && (float) $patientBalance > 0)
 
                         <div class="collection-panel screen-only avoid-break">
 
@@ -1664,7 +1671,7 @@
                             </h3>
 
                             <p class="collection-help">
-                                Outstanding patient balance: <strong>₹{{ number_format((float) $patientBalance, 2) }}</strong>.
+                                Outstanding patient balance: <strong>₹{{ number_format($patientCollectibleBalance, 2) }}</strong>.
                                 Partial payments are allowed.
                             </p>
 
