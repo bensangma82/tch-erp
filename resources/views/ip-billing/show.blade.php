@@ -3171,6 +3171,110 @@ style="background-color: #dc2626;"
 
 
 
+
+    {{-- MHIS_MODAL_LAYOUT_V2 --}}
+    <style>
+        #mhis-modal {
+            padding: 16px;
+            overflow: hidden;
+        }
+
+        #mhis-modal > div {
+            width: 100%;
+            max-width: 1100px;
+            max-height: calc(100dvh - 32px);
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #mhis-modal > div > div:first-child {
+            flex-shrink: 0;
+            background: white;
+            z-index: 2;
+        }
+
+        #mhis-modal > div > form {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        #mhis-modal .grid > div:has(#mhis_package_search) {
+            grid-column: 1 / -1;
+        }
+
+        #mhis-modal .grid > div:has(#mhis_package_search)
+        > .rounded-lg {
+            width: 100%;
+        }
+
+        #mhis-modal form .border-t.border-slate-200.pt-5 {
+            position: sticky;
+            bottom: 0;
+            z-index: 5;
+            background: white;
+            padding: 14px 20px;
+            margin-left: -20px;
+            margin-right: -20px;
+            box-shadow: 0 -5px 18px rgba(15, 23, 42, 0.07);
+        }
+
+        @media (max-width: 640px) {
+            #mhis-modal {
+                padding: 8px;
+            }
+
+            #mhis-modal > div {
+                max-height: calc(100dvh - 16px);
+                border-radius: 12px;
+            }
+
+            #mhis-modal form .border-t.border-slate-200.pt-5 {
+                padding: 12px;
+                margin-left: -12px;
+                margin-right: -12px;
+            }
+        }
+    </style>
+
+
+    {{-- MHIS_MODAL_SCROLL_FIX_V3 --}}
+    <style>
+        #mhis-modal > div > form {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #mhis-modal .mhis-scroll-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-bottom: 24px;
+        }
+
+        #mhis-modal form .border-t.border-slate-200.pt-5 {
+            position: static;
+            flex-shrink: 0;
+            margin: 0;
+            padding: 16px 24px;
+            background: white;
+            box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.06);
+        }
+
+        @media (max-width: 640px) {
+            #mhis-modal form .border-t.border-slate-200.pt-5 {
+                padding: 12px;
+            }
+        }
+    </style>
+
     {{-- MHIS MODAL --}}
     <div
         id="mhis-modal"
@@ -3208,6 +3312,8 @@ style="background-color: #dc2626;"
                 action="{{ route('ip-billing.mhis.store', $admission) }}"
                 class="space-y-5 p-6"
             >
+                <div class="mhis-scroll-body">
+
                 @csrf
 
 
@@ -3525,7 +3631,9 @@ style="background-color: #dc2626;"
                 </div>
 
 
-                <div class="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                                </div> {{-- End scrollable MHIS body --}}
+
+<div class="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
 
                     <button
                         type="button"
