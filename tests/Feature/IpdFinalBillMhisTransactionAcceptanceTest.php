@@ -417,6 +417,113 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
         ]);
     }
 
+    public function test_mhis_variance_finance_maker_checker_workflow(): void
+    {
+        [$f, $claim] = $this->setupMhisVariance(
+            '4000.00', '6000.00'
+        );
+
+        $maker = \App\Models\User::factory()->create();
+        $checker = \App\Models\User::factory()->create();
+
+        $this->assertNotEquals($maker->id, $checker->id);
+
+        // Test-scoped Finance permission grants.
+        \Illuminate\Support\Facades\Gate::before(
+            function ($user, $ability) use ($maker, $checker) {
+                if ((int) $user->id === (int) $maker->id) {
+                    return $ability === 'finance.mhis-adjustment.post';
+                }
+
+                if ((int) $user->id === (int) $checker->id) {
+                    return $ability === 'finance.mhis-adjustment.approve';
+                }
+
+                return null;
+            }
+        );
+
+        $service = app(
+            \App\Services\Accounting\MhisPackageVarianceApprovalService::class
+        );
+
+        $this->be($maker);
+
+        $approval = $service->prepare($claim, [
+            'supporting_reference' => 'TEST-MHIS-FINANCE-001',
+            'reason' => 'Approved package exceeds bill by 2000.',
+            'supporting_evidence' => 'Isolated test package approval.',
+        ]);
+
+        $this->assertSame('submitted', $approval->status);
+        $this->assertEquals($maker->id, $approval->created_by);
+        $this->assertSame('2000.00', (string) $approval->variance_amount);
+
+        // Maker cannot approve their own submission.
+        try {
+            $service->approve($approval);
+            $this->fail('Maker self-approval must be rejected.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString(
+                'Finance permission required',
+                $e->getMessage()
+            );
+        }
+
+        $this->assertSame('submitted', $approval->fresh()->status);
+
+        // Independent Finance checker approves.
+        $this->be($checker);
+
+        $approval = $service->approve($approval);
+
+        $this->assertSame('approved', $approval->status);
+        $this->assertEquals($checker->id, $approval->approved_by);
+        $this->assertNotNull($approval->approved_at);
+
+        // Approved variance permits recognition.
+        $this->be($f['user']);
+
+        $journal = app(
+            MhisReceivableAccountingService::class
+        )->recognize($claim);
+
+        $this->assertSame('posted', $journal->fresh()->status);
+        $this->assertCount(3, $journal->lines);
+
+        $lines = $this->amounts($journal);
+
+        $this->assertSame(
+            ['dr' => '6000.00', 'cr' => '0.00'],
+            $lines['1210']
+        );
+        $this->assertSame(
+            ['dr' => '0.00', 'cr' => '4000.00'],
+            $lines['1200']
+        );
+        $this->assertSame(
+            ['dr' => '0.00', 'cr' => '2000.00'],
+            $lines['4391']
+        );
+
+        // A subsequent claim amendment invalidates the snapshot.
+        $claim->update(['approved_amount' => '6500.00']);
+
+        try {
+            $service->assertApproved(
+                $claim->fresh(),
+                $f['account']->fresh(),
+                250000
+            );
+            $this->fail('Altered approval must be rejected.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString(
+                'authorised variance differs',
+                strtolower($e->getMessage())
+            );
+        }
+    }
+
     public function test_mhis_variance_without_finance_approval_is_blocked(): void
     {
         [$f, $claim] = $this->setupMhisVariance('4000.00', '6000.00');
