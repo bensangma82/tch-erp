@@ -253,6 +253,14 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
 
         $this->assertSame('submitted', $claim->fresh()->status);
 
+        $finalBill = $this->get(route('ip-billing.final-bill', [
+            'admission' => $f['admission']->id,
+        ]));
+
+        $finalBill->assertOk();
+        $finalBill->assertViewHas('mhisApprovedAmount', 0.0);
+        $finalBill->assertViewHas('mhisOutstandingAmount', 0.0);
+
         $this->assertSame(
             0,
             JournalEntry::query()

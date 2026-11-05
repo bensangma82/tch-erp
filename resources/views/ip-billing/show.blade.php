@@ -55,7 +55,6 @@
                     'status',
                     [
                         'approved',
-                        'submitted',
                         'settled',
                     ]
                 )

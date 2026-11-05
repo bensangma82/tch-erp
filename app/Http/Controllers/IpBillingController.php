@@ -2826,9 +2826,9 @@ throw ValidationException::withMessages([
                     $hasPendingMhisClaim =
                         $lockedAccount
                             ->mhisClaims
-                            ->where(
+                            ->whereIn(
                                 'status',
-                                'pending'
+                                ['pending', 'submitted']
                             )
                             ->isNotEmpty();
 
@@ -5881,11 +5881,13 @@ throw ValidationException::withMessages([
     private function calculateMhisCoverage($claims): float
     {
         return round((float) $claims->sum(function ($claim) {
-            return match ($claim->status) {
-                'submitted' => (float) ($claim->expected_amount ?? 0),
-                'approved', 'settled' => (float) $claim->approved_amount,
-                default => 0.0,
-            };
+            return in_array(
+                $claim->status,
+                ['approved', 'settled'],
+                true
+            )
+                ? (float) ($claim->approved_amount ?? 0)
+                : 0.0;
         }), 2);
     }
 
