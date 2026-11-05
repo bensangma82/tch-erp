@@ -3664,3 +3664,13 @@ Route::middleware([
         [\App\Http\Controllers\Pharmacy\PharmacyMovementReportController::class, 'index']
     )->name('pharmacy.movement-report');
 });
+
+// TCH_MHIS_PACKAGE_VARIANCE_FINANCE_ROUTES_V1
+\Illuminate\Support\Facades\Route::middleware('auth')
+    ->prefix('admin/finance/mhis-package-variance')
+    ->name('finance.mhis-package-variance.')
+    ->group(function () {
+        \Illuminate\Support\Facades\Route::get('/', [\App\Http\Controllers\MhisPackageVarianceApprovalController::class, 'index'])->name('index');
+        \Illuminate\Support\Facades\Route::post('/', [\App\Http\Controllers\MhisPackageVarianceApprovalController::class, 'store'])->name('store');
+        \Illuminate\Support\Facades\Route::post('/{approval}/approve', [\App\Http\Controllers\MhisPackageVarianceApprovalController::class, 'approve'])->name('approve');
+    });

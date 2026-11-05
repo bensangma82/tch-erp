@@ -306,7 +306,14 @@ class GeneralLedgerAccountController extends Controller
     true
 ) ? 'debit' : 'credit';
 
-if ($data['normal_balance'] !== $expectedBalance) {
+// MHIS contractual allowance is a debit-normal contra-revenue account.
+$isMhisContraRevenue =
+    ($data['account_code'] ?? null) === '4392'
+    && $data['account_type'] === 'income'
+    && ($data['account_group'] ?? null) === 'Contra Revenue — MHIS'
+    && $data['normal_balance'] === 'debit';
+
+if (! $isMhisContraRevenue && $data['normal_balance'] !== $expectedBalance) {
     throw ValidationException::withMessages([
         'normal_balance' =>
             ucfirst($data['account_type'])

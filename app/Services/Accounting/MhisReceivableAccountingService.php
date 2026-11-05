@@ -92,9 +92,14 @@ class MhisReceivableAccountingService
                 $account->net_amount
             );
 
+            // TCH-MHIS-PACKAGE-VARIANCE-V1
+            $varianceEnabled =
+                $account->mhis_category === 'free'
+                && config('mhis_package_variance.enabled', false);
+
             if (
                 $approvedPaise <= 0
-                || $approvedPaise > $billPaise
+                || ($approvedPaise > $billPaise && ! $varianceEnabled)
             ) {
                 throw new RuntimeException(
                     'MHIS approval exceeds the eligible bill amount.'
@@ -409,12 +414,45 @@ class MhisReceivableAccountingService
 
             if (
                 $remainingPaise < 0
-                || $approvedPaise > $remainingPaise
+                || (! $varianceEnabled && $approvedPaise > $remainingPaise)
             ) {
                 throw new RuntimeException(
                     'Approved MHIS amount exceeds remaining Patient Receivables.'
                 );
             }
+
+            $variancePaise = $varianceEnabled
+                ? $approvedPaise - $remainingPaise
+                : 0;
+
+            // Existing collections or third-party adjustments require
+            // a separate, claim-specific reconciliation.
+            if ($variancePaise !== 0 && (
+                $account->advances->isNotEmpty()
+                || $account->payments->isNotEmpty()
+                || $account->refunds->isNotEmpty()
+                || $staffBenefitPaise !== 0
+                || $appliedAdvancePaise !== 0
+            )) {
+                throw new RuntimeException(
+                    'MHIS package variance requires Finance reconciliation '
+                    .'of existing payments, advances and benefits.'
+                );
+            }
+
+            // Claim-specific maker-checker Finance approval is mandatory for non-zero variance.
+            if ($variancePaise !== 0) {
+                app(MhisPackageVarianceApprovalService::class)
+                    ->assertApproved($claim, $account, $variancePaise);
+            }
+
+            $transferPaise = $varianceEnabled
+                ? $remainingPaise
+                : $approvedPaise;
+
+            $transferAmount = number_format(
+                $transferPaise / 100, 2, '.', ''
+            );
 
             $amount = number_format(
                 $approvedPaise / 100,
@@ -457,11 +495,48 @@ class MhisReceivableAccountingService
                     $accounts['1200']->id,
                 'department_id' => null,
                 'debit' => '0.00',
-                'credit' => $amount,
+                'credit' => $transferAmount,
                 'reference_no' => $reference,
                 'description' =>
                     'Transfer from patient receivable to MHIS',
             ]);
+
+            if ($variancePaise !== 0) {
+                $code = $variancePaise > 0
+                    ? config('mhis_package_variance.revenue_gl')
+                    : config('mhis_package_variance.allowance_gl');
+
+                $varianceGl = GeneralLedgerAccount::query()
+                    ->where('account_code', $code)
+                    ->where('is_active', true)
+                    ->where('allow_posting', true)
+                    ->first();
+
+                if (! $varianceGl
+                    || $varianceGl->account_type !== 'income') {
+                    throw new RuntimeException(
+                        'MHIS package variance GL '.$code
+                        .' must be an active posting-enabled income account.'
+                    );
+                }
+
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journal->id,
+                    'line_no' => 3,
+                    'general_ledger_account_id' => $varianceGl->id,
+                    'department_id' => null,
+                    'debit' => $variancePaise < 0
+                        ? number_format(abs($variancePaise) / 100, 2, '.', '')
+                        : '0.00',
+                    'credit' => $variancePaise > 0
+                        ? number_format($variancePaise / 100, 2, '.', '')
+                        : '0.00',
+                    'reference_no' => $reference,
+                    'description' => $variancePaise > 0
+                        ? 'MHIS package differential revenue'
+                        : 'MHIS contractual package allowance',
+                ]);
+            }
 
             return $this->postingService->post($journal);
         });

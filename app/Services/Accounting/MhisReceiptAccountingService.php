@@ -210,11 +210,66 @@ class MhisReceiptAccountingService
                 }
             }
 
+            // TCH-MHIS-PACKAGE-VARIANCE-V1
+            $extraLines = $recognition->lines->filter(
+                fn ($line) => ! in_array(
+                    (int) $line->general_ledger_account_id,
+                    [
+                        (int) $accounts['1200']->id,
+                        (int) $accounts['1210']->id,
+                    ],
+                    true
+                )
+            );
+
+            $variancePaise = 0;
+            $varianceValid = $extraLines->count() <= 1;
+
+            foreach ($extraLines as $line) {
+                $gl = GeneralLedgerAccount::query()
+                    ->find($line->general_ledger_account_id);
+
+                $code = (string) ($gl?->account_code ?? '');
+                $debit = $toPaise($line->debit);
+                $credit = $toPaise($line->credit);
+
+                if (
+                    $code === (string) config(
+                        'mhis_package_variance.revenue_gl'
+                    )
+                    && $debit === 0
+                    && $credit > 0
+                ) {
+                    $variancePaise += $credit;
+                } elseif (
+                    $code === (string) config(
+                        'mhis_package_variance.allowance_gl'
+                    )
+                    && $credit === 0
+                    && $debit > 0
+                ) {
+                    $variancePaise -= $debit;
+                } else {
+                    $varianceValid = false;
+                }
+            }
+
+            $expectedTransferPaise =
+                $approvedPaise - $variancePaise;
+
             if (
-                $recognition->lines->count() !== 2
+                ! $varianceValid
+                || ! in_array(
+                    $recognition->lines->count(), [2, 3], true
+                )
+                || ($recognition->lines->count() === 2
+                    && $variancePaise !== 0)
+                || ($recognition->lines->count() === 3
+                    && $variancePaise === 0)
+                || $expectedTransferPaise < 0
                 || $recognition1210Dr !== $approvedPaise
                 || $recognition1210Cr !== 0
-                || $recognition1200Cr !== $approvedPaise
+                || $recognition1200Cr !== $expectedTransferPaise
                 || $recognition1200Dr !== 0
             ) {
                 throw new RuntimeException(
