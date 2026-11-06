@@ -847,6 +847,26 @@
                 @endif
 
 
+                {{-- Automatic matching previews only imported data; no XML transmission. --}}
+                <div class="mx-5 mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <h4 class="text-sm font-semibold text-slate-900">Automated reconciliation · preview</h4>
+                    <p class="mt-1 text-xs text-slate-600">Only unique, GL-verified matches are eligible for confirmation. Unverified imports are not proof of missing Tally entries; transmission exceptions require manual review. This page never sends XML.</p>
+                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                        @foreach ([
+                            'matched' => 'Matched',
+                            'ready' => 'Ready to confirm',
+                            'amount_mismatch' => 'Amount mismatch',
+                            'ledger_mismatch' => 'Ledger mismatch',
+                            'duplicate_ambiguous' => 'Duplicate / ambiguous',
+                            'unverified_import' => 'Import not verified',
+                            'unresolved_transmission' => 'Unresolved transmission / dependency',
+                            'not_eligible' => 'Not eligible',
+                        ] as $key => $label)
+                            <span class="rounded-md border border-slate-200 bg-white px-2 py-1">{{ $label }}: <strong>{{ $autoSummary[$key] ?? 0 }}</strong></span>
+                        @endforeach
+                    </div>
+                </div>
+
                 {{-- JOURNAL TABLE --}}
 
                 <div class="overflow-x-auto">
@@ -881,6 +901,7 @@
                                 @php
                                     $journal = $item['journal'];
                                     $result = $item['reconciliation'];
+                                    $automatic = $item['automatic'];
 
                                     $status = $result['status'];
                                     $tallyVoucher = $result['tally_voucher'];
@@ -951,6 +972,10 @@
                                     <td class="max-w-sm px-4 py-3 text-xs leading-5 text-slate-600">
 
                                         {{ $result['reason'] }}
+                                        <div class="mt-2 border-t border-slate-100 pt-2">
+                                            <span class="font-semibold">Automatic:</span>
+                                            {{ str_replace('_', ' ', ucfirst($automatic['status'])) }} — {{ $automatic['reason'] }}
+                                        </div>
 
                                         @if ($status === 'missing' && $exportStatus === 'unknown')
                                             <div class="mt-1 font-semibold text-rose-700">
@@ -962,6 +987,19 @@
 
                                     <td class="px-4 py-3 text-right">
 
+                                        @if ($automatic['status'] === 'ready'
+                                            && ! empty($automatic['voucher_id'])
+                                            && auth()->user()?->hasPermission('finance.reconciliation.manage'))
+                                            <form method="POST" action="{{ route('finance.tally.reconciliation.journal.automatic-match', $journal) }}" class="mb-2 space-y-1">
+                                                @csrf
+                                                <input type="hidden" name="tally_imported_voucher_id" value="{{ $automatic['voucher_id'] }}">
+                                                <label class="flex items-center gap-1 text-[10px] text-slate-600">
+                                                    <input type="checkbox" name="confirm_no_transmission" value="1" required>
+                                                    Confirm verified import; do not retransmit
+                                                </label>
+                                                <button type="submit" class="rounded bg-emerald-700 px-2 py-1 text-xs font-semibold text-white">Confirm automatic match</button>
+                                            </form>
+                                        @endif
                                         @if (! $journal->tallyExport && auth()->user()?->hasPermission('finance.reconciliation.manage'))
                                             <form method="POST" action="{{ route('finance.tally.reconciliation.journal.manual-match', $journal) }}" class="mt-2 space-y-1">
                                                 @csrf
@@ -1543,9 +1581,10 @@
                 <div class="mt-4 border-t border-slate-100 pt-4 text-[11px] leading-5 text-slate-500">
 
                     <strong class="text-slate-700">Accounting control:</strong>
-                    This page provides reconciliation diagnostics only.
-                    It does not post new journal entries, transmit vouchers to TallyPrime,
-                    alter export records, or automatically resolve accounting differences.
+                    This page provides reconciliation diagnostics and authorised matching of verified imports.
+                        Confirmation creates or links a reconciliation/export-lock record, but does not post
+                        accounting journals or transmit vouchers to TallyPrime. Exceptions remain subject
+                        to Finance review; unverified imports are not classified as Missing in Tally.
 
                 </div>
 

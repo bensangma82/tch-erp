@@ -8,6 +8,7 @@ use App\Models\JournalEntry;
 use App\Models\TallyImportedVoucher;
 use App\Services\Tally\TallyReconciliationService;
 use App\Services\Tally\TallyJournalReconciliationService;
+use App\Services\Tally\TallyAutomaticJournalMatchService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -124,6 +125,7 @@ class TallyReconciliationController extends Controller
 $journalReconciliationService = app(
     TallyJournalReconciliationService::class
 );
+$automaticMatchingService = app(TallyAutomaticJournalMatchService::class);
 
 $journalReconciliations = JournalEntry::query()
     ->where('status', 'posted')
@@ -136,12 +138,12 @@ $journalReconciliations = JournalEntry::query()
     ->orderByDesc('id')
     ->get()
     ->map(function (JournalEntry $journal) use (
-        $journalReconciliationService
+        $journalReconciliationService, $automaticMatchingService
     ): array {
         return [
             'journal' => $journal,
-            'reconciliation' => $journalReconciliationService
-                ->reconcile($journal),
+            'reconciliation' => $journalReconciliationService->reconcile($journal),
+            'automatic' => $automaticMatchingService->preview($journal),
         ];
     });
 
@@ -153,6 +155,10 @@ $manualTallyCandidates = TallyImportedVoucher::query()
     ->whereIn('voucher_type', ['Sales', 'Receipt', 'Journal'])
     ->orderByDesc('voucher_date')->limit(100)
     ->get(['id', 'voucher_type', 'voucher_number', 'voucher_date', 'guid']);
+
+$autoSummary = $journalReconciliations
+    ->groupBy(fn (array $item) => $item['automatic']['status'])
+    ->map(fn ($items) => $items->count())->all();
 
 $journalSummary = [
     'matched' => $journalReconciliations
@@ -193,6 +199,7 @@ $journalSummary = [
                 'differences',
                 'journalReconciliations',
                 'journalSummary',
+                'autoSummary',
                 'manualTallyCandidates'
             )
         );
@@ -303,6 +310,28 @@ $journalSummary = [
                 'ERP and Tally vouchers were manually reconciled successfully.'
             );
     }
+    /** Commit only a unique, previously previewed imported voucher; never transmit. */
+    public function matchJournalAutomatically(Request $request, JournalEntry $journalEntry): RedirectResponse
+    {
+        abort_unless($request->user()?->hasPermission('finance.reconciliation.manage'), 403);
+        $data = $request->validate([
+            'tally_imported_voucher_id' => ['required', 'integer', 'exists:tally_imported_vouchers,id'],
+            'confirm_no_transmission' => ['accepted'],
+        ]);
+        try {
+            app(TallyAutomaticJournalMatchService::class)->apply(
+                (int) $journalEntry->id,
+                (int) $data['tally_imported_voucher_id'],
+                (int) $request->user()->id
+            );
+        } catch (RuntimeException $e) {
+            return redirect()->route('finance.tally.reconciliation')
+                ->with('error', $e->getMessage());
+        }
+        return redirect()->route('finance.tally.reconciliation')
+            ->with('success', 'Imported voucher automatically verified and linked. No Tally XML was sent.');
+    }
+
     /** Manually match an imported Tally voucher without sending any XML. */
     public function matchJournal(Request $request, JournalEntry $journalEntry): RedirectResponse
     {

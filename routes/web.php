@@ -1121,6 +1121,12 @@ Route::post(
             ->middleware('permission:finance.reconciliation.manage')
             ->name('finance.tally.reconciliation.journal.manual-match');
 
+        Route::post('/admin/finance/tally/reconciliation/journals/{journalEntry}/automatic-match',
+            [TallyReconciliationController::class, 'matchJournalAutomatically'])
+            ->whereNumber('journalEntry')
+            ->middleware('permission:finance.reconciliation.manage')
+            ->name('finance.tally.reconciliation.journal.automatic-match');
+
         Route::get(
             '/admin/finance/tally/reconciliation/erp/{financeVoucher}',
             [TallyReconciliationController::class, 'showErp']
