@@ -69,6 +69,7 @@ class TallyPharmacySalesXmlBuilder
                 'cash' => '1100',
                 'upi' => '1110',
                 'card' => '1120',
+                'staff_medical_benefit' => '6113',
             ];
 
             if (! isset($codes[$mode])) {
