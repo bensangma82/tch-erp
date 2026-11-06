@@ -800,7 +800,7 @@
                             </h3>
 
                             <p class="mt-1 text-xs text-slate-500">
-                                Read-only comparison of exported ERP journals
+                                Comparison of posted ERP journals
                                 against imported TallyPrime Journal vouchers.
                             </p>
                         </div>
@@ -962,6 +962,23 @@
 
                                     <td class="px-4 py-3 text-right">
 
+                                        @if (! $journal->tallyExport && auth()->user()?->hasPermission('finance.reconciliation.manage'))
+                                            <form method="POST" action="{{ route('finance.tally.reconciliation.journal.manual-match', $journal) }}" class="mt-2 space-y-1">
+                                                @csrf
+                                                <select required name="tally_imported_voucher_id" class="w-64 rounded border-slate-300 text-xs">
+                                                    <option value="">Select imported Tally voucher</option>
+                                                    @foreach ($manualTallyCandidates as $candidate)
+                                                        <option value="{{ $candidate->id }}">{{ $candidate->voucher_type }} #{{ $candidate->voucher_number }} ({{ $candidate->voucher_date?->format('d M Y') }})</option>
+                                                    @endforeach
+                                                </select>
+                                                <input name="notes" required minlength="15" maxlength="1000" class="w-64 rounded border-slate-300 text-xs" placeholder="Verified voucher evidence / reference">
+                                                <label class="flex items-center gap-1 text-[10px] text-slate-600">
+                                                    <input type="checkbox" name="confirm_manual_entry" value="1" required>
+                                                    Confirm already entered in Tally; do not retransmit
+                                                </label>
+                                                <button class="rounded bg-indigo-700 px-2 py-1 text-xs font-semibold text-white" type="submit">Match existing</button>
+                                            </form>
+                                        @endif
                                         <a href="{{ route('finance.tally.journals.view', $journal->id) }}"
                                            class="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50">
                                             View
@@ -975,7 +992,7 @@
 
                                 <tr>
                                     <td colspan="7" class="px-6 py-10 text-center text-sm text-slate-500">
-                                        No exported GL Journals available for reconciliation.
+                                        No posted GL Journals available for reconciliation.
                                     </td>
                                 </tr>
 

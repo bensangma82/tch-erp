@@ -21,6 +21,7 @@ class TallyImportedVoucher extends Model
         'party_ledger',
         'narration',
         'finance_voucher_id',
+        'journal_entry_id',
         'reconciliation_status',
         'match_method',
         'match_confidence',

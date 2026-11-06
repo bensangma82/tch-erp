@@ -34,12 +34,14 @@ class TallyJournalReconciliationService
             (string) config('tally.company')
         );
 
+        try {
+            $voucherType = app(TallyVoucherClassificationService::class)->classify($journal);
+        } catch (\RuntimeException $e) {
+            return $this->result('missing', 'Unsupported export classification: '.$e->getMessage());
+        }
         $candidates = TallyImportedVoucher::query()
             ->where('tally_company', $company)
-            ->whereRaw(
-                'LOWER(voucher_type) = ?',
-                ['journal']
-            )
+            ->whereRaw('LOWER(voucher_type) = ?', [strtolower($voucherType)])
             ->with('entries')
             ->get()
             ->filter(function ($voucher) use (
@@ -47,11 +49,12 @@ class TallyJournalReconciliationService
                 $export
             ) {
                 $identityMatch =
-                    filled($export->remote_id)
+                    ((int) $voucher->journal_entry_id === (int) $journal->id)
+                    || (filled($export->remote_id)
                     && (
                         $voucher->remote_id === $export->remote_id
                         || $voucher->guid === $export->remote_id
-                    );
+                    ));
 
                 $narrationMatch = preg_match(
                     '/(?:^|\s)ERP\s+'
@@ -139,6 +142,37 @@ class TallyJournalReconciliationService
             'Journal identity, accounting date, and ledger entries match.',
             collect([$voucher])
         );
+    }
+
+    /** Exact comparison independent of how a voucher reached Tally. */
+    public function compareVoucher(JournalEntry $journal, TallyImportedVoucher $voucher): array
+    {
+        $journal->loadMissing('lines.generalLedgerAccount');
+        $voucher->loadMissing('entries');
+        $errors = [];
+        if (! $journal->journal_date || ! $voucher->voucher_date
+            || $journal->journal_date->format('Y-m-d') !== $voucher->voucher_date->format('Y-m-d')) {
+            $errors[] = 'ERP and Tally accounting dates differ.';
+        }
+        if ($voucher->entries->isEmpty() || $journal->lines->isEmpty()) {
+            $errors[] = 'Missing GL entries.';
+        }
+        foreach ($journal->lines as $line) {
+            if (!filled($line->generalLedgerAccount?->tally_ledger_name)) {
+                $errors[] = 'ERP journal has an unmapped Tally ledger.';
+                break;
+            }
+        }
+        foreach ($voucher->entries as $line) {
+            if ($line->is_deemed_positive === null) {
+                $errors[] = 'Imported Tally entry has no debit/credit indicator.';
+                break;
+            }
+        }
+        if ($this->erpEntries($journal) !== $this->tallyEntries($voucher)) {
+            $errors[] = 'ERP and Tally ledger/debit/credit amounts differ.';
+        }
+        return $errors;
     }
 
     /**

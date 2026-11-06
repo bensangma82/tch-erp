@@ -32,6 +32,7 @@ class TallyReconciliationController extends Controller
                 'entries',
             ])
             ->where('reconciliation_status', 'matched')
+            ->whereNotNull('finance_voucher_id')
             ->orderByDesc('voucher_date')
             ->orderByDesc('id')
             ->get();
@@ -43,6 +44,7 @@ class TallyReconciliationController extends Controller
         $tallyOnly = TallyImportedVoucher::query()
             ->with('entries')
             ->whereNull('finance_voucher_id')
+            ->whereNull('journal_entry_id')
             ->where('reconciliation_status', 'tally_only')
             ->orderByDesc('voucher_date')
             ->orderByDesc('id')
@@ -59,6 +61,7 @@ class TallyReconciliationController extends Controller
                 'entries',
             ])
             ->where('reconciliation_status', 'difference')
+            ->whereNotNull('finance_voucher_id')
             ->orderByDesc('voucher_date')
             ->orderByDesc('id')
             ->get();
@@ -123,7 +126,8 @@ $journalReconciliationService = app(
 );
 
 $journalReconciliations = JournalEntry::query()
-    ->whereHas('tallyExport')
+    ->where('status', 'posted')
+    ->limit(200)
     ->with([
         'lines.generalLedgerAccount',
         'tallyExport',
@@ -140,6 +144,15 @@ $journalReconciliations = JournalEntry::query()
                 ->reconcile($journal),
         ];
     });
+
+$manualTallyCandidates = TallyImportedVoucher::query()
+    ->where('tally_company', trim((string) config('tally.company')))
+    ->whereNull('journal_entry_id')
+    ->whereNull('finance_voucher_id')
+    ->where('reconciliation_status', '!=', 'matched')
+    ->whereIn('voucher_type', ['Sales', 'Receipt', 'Journal'])
+    ->orderByDesc('voucher_date')->limit(100)
+    ->get(['id', 'voucher_type', 'voucher_number', 'voucher_date', 'guid']);
 
 $journalSummary = [
     'matched' => $journalReconciliations
@@ -179,7 +192,8 @@ $journalSummary = [
                 'unmapped',
                 'differences',
                 'journalReconciliations',
-                'journalSummary'
+                'journalSummary',
+                'manualTallyCandidates'
             )
         );
     }
@@ -288,5 +302,27 @@ $journalSummary = [
                 'success',
                 'ERP and Tally vouchers were manually reconciled successfully.'
             );
+    }
+    /** Manually match an imported Tally voucher without sending any XML. */
+    public function matchJournal(Request $request, JournalEntry $journalEntry): RedirectResponse
+    {
+        abort_unless($request->user()?->hasPermission('finance.reconciliation.manage'), 403);
+        $validated = $request->validate([
+            'tally_imported_voucher_id' => ['required', 'integer', 'exists:tally_imported_vouchers,id'],
+            'notes' => ['required', 'string', 'min:15', 'max:1000'],
+            'confirm_manual_entry' => ['accepted'],
+        ]);
+        try {
+            app(\App\Services\Tally\TallyManualJournalMatchService::class)->match(
+                (int) $journalEntry->id,
+                (int) $validated['tally_imported_voucher_id'],
+                (int) $request->user()->id,
+                (string) $validated['notes']
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        return redirect()->route('finance.tally.reconciliation')
+            ->with('success', 'Existing Tally voucher matched; ERP transmission blocked.');
     }
 }
