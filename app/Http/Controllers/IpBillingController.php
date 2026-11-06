@@ -4643,9 +4643,24 @@ throw ValidationException::withMessages([
                 app(IpBillingAccountingService::class)
                     ->postFinalBill($lockedAccount);
 
-                // Recognition is deferred until the final-bill receivable exists.
-                // Any missing/stale variance authorisation throws and rolls back
-                // both the final bill and its journal in this transaction.
+                // Apply validated advance receipts before MHIS recognition.
+                // All postings share the enclosing transaction: any failure
+                // rolls back the final bill and every newly created journal.
+                $stage = 'loading_settlement_records';
+                $lockedAccount->load([
+                    'advances', 'payments', 'refunds', 'mhisClaims',
+                    'mhisReceipts', 'mhisAdjustments',
+                    'staffMedicalBenefitTransactions', 'charityAdjustments',
+                ]);
+
+                if ($lockedAccount->advances->isNotEmpty()) {
+                    $stage = 'applying_patient_advances';
+                    app(IpAdvanceApplicationAccountingService::class)
+                        ->apply($lockedAccount);
+                }
+
+                // MHIS recognition requires the final-bill receivable AND
+                // the advance application (where advances were collected).
                 $stage = 'recognizing_approved_mhis_claims';
                 foreach ($lockedAccount->mhisClaims()
                     ->where('status', 'approved')->get() as $approvedClaim) {
@@ -4653,39 +4668,6 @@ throw ValidationException::withMessages([
                         ->recognize($approvedClaim);
                 }
 
-                $stage = 'loading_settlement_records';
-
-                $lockedAccount->load([
-                    'advances',
-                    'payments',
-                    'refunds',
-                    'mhisClaims',
-                    'mhisReceipts',
-                    'mhisAdjustments',
-                    'staffMedicalBenefitTransactions',
-                    'charityAdjustments',
-                ]);
-
-                $hasComplexTransactions =
-                    $lockedAccount->payments->isNotEmpty()
-                    || $lockedAccount->refunds->isNotEmpty()
-                    || $lockedAccount->mhisClaims->isNotEmpty()
-                    || $lockedAccount->mhisReceipts->isNotEmpty()
-                    || $lockedAccount->mhisAdjustments->isNotEmpty()
-                    || $lockedAccount->staffMedicalBenefitTransactions->isNotEmpty()
-                    || $lockedAccount->charityAdjustments->isNotEmpty();
-
-                if (
-                    ! $hasComplexTransactions
-                    && $lockedAccount->advances
-                        ->where('status', 'active')
-                        ->isNotEmpty()
-                ) {
-                    $stage = 'applying_patient_advances';
-
-                    app(IpAdvanceApplicationAccountingService::class)
-                        ->apply($lockedAccount);
-                }
             });
 
             $stage = 'refreshing_finalized_account';

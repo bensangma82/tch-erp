@@ -4,6 +4,8 @@ namespace App\Services\Accounting;
 
 use App\Models\GeneralLedgerAccount;
 use App\Models\IpBillingAccount;
+use App\Models\PharmacySale;
+use App\Models\IpBillingAdvance;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use Illuminate\Support\Facades\DB;
@@ -26,23 +28,6 @@ class IpAdvanceApplicationAccountingService
 
             $sourceType = 'ip_billing_account';
             $sourceEvent = 'advance_applied';
-
-            // Return an existing posted application journal.
-            $existing = JournalEntry::query()
-                ->where('source_type', $sourceType)
-                ->where('source_id', $account->id)
-                ->where('source_event', $sourceEvent)
-                ->first();
-
-            if ($existing) {
-                if ($existing->status !== 'posted') {
-                    throw new RuntimeException(
-                        'An unposted advance application journal exists.'
-                    );
-                }
-
-                return $existing;
-            }
 
             if (
                 $account->status !== 'finalized'
@@ -73,67 +58,49 @@ class IpAdvanceApplicationAccountingService
                 );
             }
 
-            // Restrict the first version to uncomplicated
-            // self-paying bills.
+            // MHIS with a patient-paid portion is supported only when there is
+            // exactly one formally approved claim and no other settlements.
             $account->load([
-                'advances',
-                'payments',
-                'refunds',
-                'mhisClaims',
-                'mhisReceipts',
-                'mhisAdjustments',
-                'staffMedicalBenefitTransactions',
-                'charityAdjustments',
+                'advances', 'payments', 'refunds', 'mhisClaims',
+                'mhisReceipts', 'mhisAdjustments',
+                'staffMedicalBenefitTransactions', 'charityAdjustments',
             ]);
 
+            if ($account->mhis_category === 'free' && $account->advances->isNotEmpty()) {
+                throw new RuntimeException('MHIS Free cannot have patient advances.');
+            }
+
             if (
-                $account->mhisClaims->isNotEmpty()
-                || $account->mhisReceipts->isNotEmpty()
+                $account->mhisReceipts->isNotEmpty()
                 || $account->mhisAdjustments->isNotEmpty()
                 || $account->staffMedicalBenefitTransactions->isNotEmpty()
                 || $account->charityAdjustments->isNotEmpty()
                 || $account->payments->isNotEmpty()
                 || $account->refunds->isNotEmpty()
             ) {
-                throw new RuntimeException(
-                    'This bill requires an extended accounting workflow.'
-                );
+                throw new RuntimeException('This bill requires extended accounting reconciliation.');
             }
 
-            $advances = $account->advances
-                ->where('status', 'active');
+            if ($account->mhisClaims->isNotEmpty() && (
+                $account->mhisClaims->count() !== 1
+                || $account->mhisClaims->first()->status !== 'approved'
+                || ! $account->mhisClaims->first()->approval_date
+            )) {
+                throw new RuntimeException('MHIS advance application requires exactly one formally approved claim.');
+            }
 
+            if ($account->advances->contains(fn ($advance) => $advance->status !== 'active')) {
+                throw new RuntimeException('Inactive patient advances require Finance reconciliation.');
+            }
+
+            $advances = $account->advances;
             if ($advances->isEmpty()) {
                 return null;
             }
 
-            // Calculate amounts using integer paise.
             $totalAdvancePaise = 0;
-
             foreach ($advances as $advance) {
-                if ($advance->source_type !== null) {
-                    throw new RuntimeException(
-                        'Source-linked advances require reconciliation.'
-                    );
-                }
-
-                $receiptJournal = JournalEntry::query()
-                    ->where('source_type', 'ip_billing_advance')
-                    ->where('source_id', $advance->id)
-                    ->where('source_event', 'received')
-                    ->where('status', 'posted')
-                    ->first();
-
-                if (! $receiptJournal) {
-                    throw new RuntimeException(
-                        'Advance receipt journal missing: '
-                        .$advance->receipt_no
-                    );
-                }
-
-                $totalAdvancePaise += $this->toPaise(
-                    (string) $advance->amount
-                );
+                $totalAdvancePaise += $this->validatedAdvancePaise($account, $advance);
             }
 
             $billPaise = $this->toPaise(
@@ -151,6 +118,41 @@ class IpAdvanceApplicationAccountingService
 
             if ($applicationPaise <= 0) {
                 return null;
+            }
+
+            // Never silently accept an incorrect earlier application journal.
+            $existingJournals = JournalEntry::query()
+                ->where('source_type', $sourceType)
+                ->where('source_id', (string) $account->id)
+                ->where('source_event', $sourceEvent)
+                ->with('lines.generalLedgerAccount')
+                ->lockForUpdate()->get();
+
+            if ($existingJournals->count() > 1) {
+                throw new RuntimeException('Duplicate advance application journals require Finance review.');
+            }
+            if ($existingJournals->isNotEmpty()) {
+                $existing = $existingJournals->first();
+                if ($existing->status !== 'posted' || $existing->lines->count() !== 2) {
+                    throw new RuntimeException('Existing advance application journal is not valid.');
+                }
+                $debit = $credit = 0;
+                foreach ($existing->lines as $line) {
+                    $code = (string) ($line->generalLedgerAccount?->account_code ?? '');
+                    $d = $this->toPaise((string) $line->debit);
+                    $c = $this->toPaise((string) $line->credit);
+                    if ($code === '2100' && $c === 0) {
+                        $debit += $d;
+                    } elseif ($code === '1200' && $d === 0) {
+                        $credit += $c;
+                    } else {
+                        throw new RuntimeException('Existing advance application contains unexpected GL lines.');
+                    }
+                }
+                if ($debit !== $applicationPaise || $credit !== $applicationPaise) {
+                    throw new RuntimeException('Existing advance application does not reconcile.');
+                }
+                return $existing;
             }
 
             $accounts = GeneralLedgerAccount::query()
@@ -215,6 +217,91 @@ class IpAdvanceApplicationAccountingService
 
             return $this->postingService->post($journal);
         });
+    }
+
+    /** Validates the source and the exact posted receipt GL before application. */
+    public function validatedAdvancePaise(
+        IpBillingAccount $account,
+        IpBillingAdvance $advance
+    ): int {
+        if (
+            $advance->status !== 'active'
+            || (int) $advance->ip_billing_account_id !== (int) $account->id
+            || (int) $advance->admission_id !== (int) $account->admission_id
+            || (int) $advance->patient_id !== (int) $account->patient_id
+            || $account->mhis_category === 'free'
+        ) {
+            throw new RuntimeException('Patient advance requires Finance review.');
+        }
+
+        if ($advance->source_type === 'pharmacy_sale') {
+            $sale = PharmacySale::query()
+                ->with('returns')
+                ->whereKey($advance->source_id)
+                ->where('admission_id', $account->admission_id)
+                ->where('patient_id', $account->patient_id)
+                ->whereIn('status', ['completed', 'credit'])
+                ->first();
+            if (! $sale || $sale->returns->isNotEmpty()) {
+                throw new RuntimeException('Pharmacy sale source requires Finance reconciliation.');
+            }
+        } elseif ($advance->source_type === 'pharmacy_admission') {
+            if ((int) $advance->source_id !== (int) $account->admission_id) {
+                throw new RuntimeException('Pharmacy admission source does not match this bill.');
+            }
+            $sales = PharmacySale::query()
+                ->with('returns')
+                ->where('admission_id', $account->admission_id)
+                ->where('patient_id', $account->patient_id)
+                ->whereIn('status', ['completed', 'credit'])
+                ->get();
+            if ($sales->isEmpty() || $sales->contains(fn ($sale) => $sale->returns->isNotEmpty())) {
+                throw new RuntimeException('Pharmacy admission collection requires Finance reconciliation.');
+            }
+        } elseif ($advance->source_type !== null || $advance->source_id !== null) {
+            throw new RuntimeException('Unsupported patient advance source.');
+        }
+
+        $amount = $this->toPaise((string) $advance->amount);
+        $cashGl = [
+            'cash' => '1100',
+            'upi' => '1110',
+            'card' => '1120',
+        ][strtolower(trim((string) $advance->payment_mode))] ?? null;
+        if ($amount <= 0 || ! $cashGl) {
+            throw new RuntimeException('Invalid patient advance amount or payment mode.');
+        }
+
+        $receipts = JournalEntry::query()
+            ->where('source_type', 'ip_billing_advance')
+            ->where('source_id', (string) $advance->id)
+            ->where('source_event', 'received')
+            ->with('lines.generalLedgerAccount')
+            ->get();
+        if ($receipts->count() !== 1 || $receipts->first()->status !== 'posted') {
+            throw new RuntimeException('Exactly one posted advance receipt journal is required.');
+        }
+        $receipt = $receipts->first();
+        if ($receipt->lines->count() !== 2 || $receipt->reference_no !== $advance->receipt_no) {
+            throw new RuntimeException('Advance receipt reference or GL lines are inconsistent.');
+        }
+        $cashDebit = $liabilityCredit = 0;
+        foreach ($receipt->lines as $line) {
+            $gl = (string) ($line->generalLedgerAccount?->account_code ?? '');
+            $debit = $this->toPaise((string) $line->debit);
+            $credit = $this->toPaise((string) $line->credit);
+            if ($gl === $cashGl && $credit === 0) {
+                $cashDebit += $debit;
+            } elseif ($gl === '2100' && $debit === 0) {
+                $liabilityCredit += $credit;
+            } else {
+                throw new RuntimeException('Unexpected GL line in advance receipt journal.');
+            }
+        }
+        if ($cashDebit !== $amount || $liabilityCredit !== $amount) {
+            throw new RuntimeException('Advance receipt journal does not match the collection.');
+        }
+        return $amount;
     }
 
     private function toPaise(string $amount): int

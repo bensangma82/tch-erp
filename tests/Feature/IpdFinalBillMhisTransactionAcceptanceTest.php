@@ -428,20 +428,16 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
 
         $this->assertNotEquals($maker->id, $checker->id);
 
-        // Test-scoped Finance permission grants.
-        \Illuminate\Support\Facades\Gate::before(
-            function ($user, $ability) use ($maker, $checker) {
-                if ((int) $user->id === (int) $maker->id) {
-                    return $ability === 'finance.mhis-adjustment.post';
-                }
-
-                if ((int) $user->id === (int) $checker->id) {
-                    return $ability === 'finance.mhis-adjustment.approve';
-                }
-
-                return null;
-            }
-        );
+        // Assign actual ERP permissions; the service uses hasPermission().
+        foreach ([
+            'finance.mhis-adjustment.post' => $maker,
+            'finance.mhis-adjustment.approve' => $checker,
+        ] as $permission => $user) {
+            $user->permissions()->firstOrCreate(
+                ['name' => $permission],
+                ['label' => $permission]
+            );
+        }
 
         $service = app(
             \App\Services\Accounting\MhisPackageVarianceApprovalService::class
@@ -775,4 +771,119 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
         }
         $this->assertSame(0, JournalEntry::where('source_type','ip_billing_account')->where('source_id',(string)$f['account']->id)->count());
     }
+
+    /** Regression: an approved MHIS claim and pharmacy receipt settle one final bill. */
+    public function test_pharmacy_interim_advance_with_approved_mhis_finalizes_once(): void
+    {
+        $f = $this->setupBill();
+        $account = $f['account'];
+        $account->update([
+            'status' => 'open',
+            'final_bill_no' => null,
+            'finalized_at' => null,
+            'finalized_by' => null,
+            'mhis_category' => 'paid',
+        ]);
+
+        foreach (['1100' => ['Main Cash', 'asset', 'debit'],
+                  '2100' => ['Patient Advances', 'liability', 'credit']]
+            as $code => [$name, $type, $normal]) {
+            \App\Models\GeneralLedgerAccount::firstOrCreate(
+                ['account_code' => $code],
+                ['account_name' => $name, 'account_type' => $type,
+                 'account_group' => $type === 'asset' ? 'Current Assets' : 'Current Liabilities',
+                 'normal_balance' => $normal, 'is_active' => true, 'allow_posting' => true]
+            );
+        }
+
+        $sale = \App\Models\PharmacySale::create([
+            'sale_no' => 'TEST-PHS-'.$f['k'],
+            'patient_id' => $f['patient']->id,
+            'admission_id' => $f['admission']->id,
+            'sale_at' => now(),
+            'subtotal' => '200.00',
+            'discount' => '0.00',
+            'taxable_amount' => '200.00',
+            'cgst_amount' => '0.00',
+            'sgst_amount' => '0.00',
+            'igst_amount' => '0.00',
+            'total_amount' => '200.00',
+            'paid_amount' => '0.00',
+            'balance_amount' => '200.00',
+            'payment_mode' => 'credit',
+            'status' => 'credit',
+        ]);
+
+        $advance = \App\Models\IpBillingAdvance::create([
+            'ip_billing_account_id' => $account->id,
+            'admission_id' => $f['admission']->id,
+            'patient_id' => $f['patient']->id,
+            'receipt_no' => 'TEST-IPR-'.$f['k'],
+            'payment_date' => now(),
+            'amount' => '100.00',
+            'payment_mode' => 'cash',
+            'source_type' => 'pharmacy_sale',
+            'source_id' => $sale->id,
+            'status' => 'active',
+            'received_by' => $f['user']->id,
+        ]);
+        $receipt = app(\App\Services\Accounting\IpAdvanceAccountingService::class)
+            ->postAdvance($advance);
+        $this->assertSame('posted', $receipt->status);
+        $this->assertSame(['dr'=>'100.00','cr'=>'0.00'], $this->amounts($receipt)['1100']);
+        $this->assertSame(['dr'=>'0.00','cr'=>'100.00'], $this->amounts($receipt)['2100']);
+
+        $claim = IpBillingMhisClaim::create([
+            'ip_billing_account_id' => $account->id,
+            'admission_id' => $f['admission']->id,
+            'patient_id' => $f['patient']->id,
+            'claim_no' => 'TEST-MHIS-'.$f['k'],
+            'status' => 'approved',
+            'claim_amount' => '400.00',
+            'expected_amount' => '400.00',
+            'approved_amount' => '400.00',
+            'approval_date' => now()->toDateString(),
+            'created_by' => $f['user']->id,
+        ]);
+
+        $response = $this->post(route('ip-billing.finalize', [
+            'admission' => $f['admission']->id,
+        ]));
+        $response->assertSessionHasNoErrors();
+        $account->refresh();
+        $this->assertSame('finalized', $account->status);
+
+        $final = JournalEntry::where('source_type', 'ip_billing_account')
+            ->where('source_id', (string) $account->id)
+            ->where('source_event', 'finalized')->sole();
+        $application = JournalEntry::where('source_type', 'ip_billing_account')
+            ->where('source_id', (string) $account->id)
+            ->where('source_event', 'advance_applied')->sole();
+        $recognition = JournalEntry::where('source_type', 'ip_billing_mhis_claim')
+            ->where('source_id', (string) $claim->id)
+            ->where('source_event', 'approved')->sole();
+        foreach ([$final, $application, $recognition] as $journal) {
+            $this->assertSame('posted', $journal->status);
+        }
+        $this->assertSame(['dr'=>'1000.00','cr'=>'0.00'], $this->amounts($final)['1200']);
+        $this->assertSame(['dr'=>'100.00','cr'=>'0.00'], $this->amounts($application)['2100']);
+        $this->assertSame(['dr'=>'0.00','cr'=>'100.00'], $this->amounts($application)['1200']);
+        $this->assertSame(['dr'=>'400.00','cr'=>'0.00'], $this->amounts($recognition)['1210']);
+        $this->assertSame(['dr'=>'0.00','cr'=>'400.00'], $this->amounts($recognition)['1200']);
+
+        $this->post(route('ip-billing.finalize', ['admission' => $f['admission']->id]))
+            ->assertSessionHasNoErrors();
+        foreach (['finalized', 'advance_applied'] as $event) {
+            $this->assertSame(1, JournalEntry::where('source_type', 'ip_billing_account')
+                ->where('source_id', (string) $account->id)
+                ->where('source_event', $event)->count());
+        }
+        $this->assertSame(1, JournalEntry::where('source_type', 'ip_billing_mhis_claim')
+            ->where('source_id', (string) $claim->id)
+            ->where('source_event', 'approved')->count());
+        $this->assertSame(1, JournalEntry::where('source_type', 'ip_billing_advance')
+            ->where('source_id', (string) $advance->id)
+            ->where('source_event', 'received')->count());
+    }
+
 }
