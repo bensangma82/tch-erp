@@ -29,7 +29,7 @@ class TallyAutomaticJournalMatchTest extends TestCase
         config()->set('tally.company', 'TCH-AUTOMATED-TEST-COMPANY');
     }
 
-    protected function fixture(): array
+    protected function fixture(bool $invoiceSource = false): array
     {
         $user = User::factory()->create();
         $tag = strtoupper(bin2hex(random_bytes(6)));
@@ -43,11 +43,40 @@ class TallyAutomaticJournalMatchTest extends TestCase
         ]);
         $cash->update(['tally_ledger_name' => 'Test Main Cash']);
         $advance->update(['tally_ledger_name' => 'Test Patient Advances']);
+        $invoiceId = null;
+
+        if ($invoiceSource) {
+            $patientId = DB::table('patients')->insertGetId([
+                'uhid' => 'AUTO-'.$tag,
+                'first_name' => 'Reconciliation Test',
+                'sex' => 'Male',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $invoiceId = DB::table('invoices')->insertGetId([
+                'invoice_no' => 'INV-AUTO-'.$tag,
+                'patient_id' => $patientId,
+                'invoice_date' => '2026-11-06',
+                'invoice_type' => 'opd',
+                'subtotal' => 427.80,
+                'discount' => 0,
+                'total_amount' => 427.80,
+                'paid_amount' => 0,
+                'balance_amount' => 427.80,
+                'status' => 'issued',
+                'created_by' => $user->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         $journal = JournalEntry::create([
             'journal_no' => 'JRN-TCH-TEST-'.$tag,
             'journal_date' => '2026-11-06',
-            'source_type' => 'ip_billing_advance', 'source_id' => 'TEST-'.$tag,
-            'source_event' => 'received', 'status' => 'draft', 'created_by' => $user->id,
+            'source_type' => $invoiceSource ? 'invoice' : 'ip_billing_advance',
+            'source_id' => $invoiceSource ? (string) $invoiceId : 'TEST-'.$tag,
+            'source_event' => $invoiceSource ? 'issued' : 'received', 'status' => 'draft', 'created_by' => $user->id,
         ]);
         foreach ([[$cash->id, '427.80', '0.00'], [$advance->id, '0.00', '427.80']] as $i => [$id, $debit, $credit]) {
             JournalEntryLine::create([
@@ -206,6 +235,170 @@ class TallyAutomaticJournalMatchTest extends TestCase
 
         $this->assertSame(1,
             TallyExport::where('journal_entry_id', $journal->id)->count());
+    }
+
+
+    public function test_conflicting_remote_id_without_invoice_identity_is_blocked(): void
+    {
+        [$journal, $voucher, $user] = $this->fixture();
+        TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'confirmed',
+            'export_reference' => 'CONFLICT-REMOTE-'.$journal->id,
+            'remote_id' => '11111111-1111-4111-8111-111111111111',
+            'tally_voucher_id' => '128',
+            'tally_accounting_date' => $journal->journal_date,
+            'confirmed_at' => now(),
+        ]);
+        $decision = app(TallyAutomaticJournalMatchService::class)->preview($journal->fresh());
+        $this->assertSame('duplicate_ambiguous', $decision['status']);
+        $this->assertNull($voucher->fresh()->journal_entry_id);
+    }
+
+
+    public function test_confirmed_invoice_export_matches_tally_source_reference(): void
+    {
+        [$journal, $voucher, $user] = $this->fixture(true);
+
+        $invoice = DB::table('invoices')
+            ->where('id', (int) $journal->source_id)
+            ->first();
+
+        $this->assertNotNull($invoice);
+
+        $voucher->forceFill([
+            'voucher_type' => 'Sales',
+            'narration' => 'TCH ERP OPD Invoice '
+                .$invoice->invoice_no
+                .' | Patient ID '.$invoice->patient_id,
+        ])->save();
+
+        $export = TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'confirmed',
+            'export_reference' => 'INVOICE-TEST-'.$journal->id,
+            'remote_id' => '11111111-1111-4111-8111-111111111111',
+            'tally_voucher_id' => '128',
+            'tally_accounting_date' => $journal->journal_date,
+            'confirmed_at' => now(),
+            'exported_at' => now(),
+            'remarks' => 'Original confirmed Tally export',
+        ]);
+
+        $original = $export->fresh()->getAttributes();
+        $service = app(TallyAutomaticJournalMatchService::class);
+
+        $preview = $service->preview($journal->fresh());
+        $this->assertSame('ready', $preview['status'], $preview['reason']);
+
+        $result = $service->apply(
+            $journal->id, $voucher->id, $user->id
+        );
+
+        $this->assertSame($export->id, $result->id);
+        $this->assertSame(
+            $original,
+            $export->fresh()->getAttributes()
+        );
+        $this->assertSame(
+            $journal->id,
+            (int) $voucher->fresh()->journal_entry_id
+        );
+        $this->assertSame(
+            1,
+            TallyExport::where('journal_entry_id', $journal->id)->count()
+        );
+
+        $this->expectException(RuntimeException::class);
+        $service->apply($journal->id, $voucher->id, $user->id);
+    }
+
+    public function test_existing_confirmed_export_is_linked_without_modification(): void
+    {
+        [$journal, $voucher, $user] = $this->fixture();
+
+        $export = TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'confirmed',
+            'export_reference' => 'TEST-CONFIRMED-'.$journal->id,
+            'tally_voucher_id' => '128',
+            'tally_accounting_date' => $journal->journal_date,
+            'confirmed_at' => now(),
+            'exported_at' => now(),
+            'remarks' => 'Original confirmed transmission',
+            'tally_response' => '<RESPONSE><CREATED>1</CREATED></RESPONSE>',
+        ]);
+
+        $original = $export->fresh()->getAttributes();
+        $service = app(TallyAutomaticJournalMatchService::class);
+
+        $this->assertSame(
+            'ready',
+            $service->preview($journal->fresh())['status']
+        );
+
+        $result = $service->apply(
+            $journal->id, $voucher->id, $user->id
+        );
+
+        $this->assertSame($export->id, $result->id);
+        $this->assertSame(
+            $original,
+            $export->fresh()->getAttributes()
+        );
+        $this->assertSame(
+            $journal->id,
+            (int) $voucher->fresh()->journal_entry_id
+        );
+        $this->assertSame(
+            1,
+            TallyExport::where('journal_entry_id', $journal->id)->count()
+        );
+        $this->assertSame(
+            'matched',
+            $service->preview($journal->fresh())['status']
+        );
+    }
+
+    public function test_confirmed_export_with_wrong_gl_is_not_linked(): void
+    {
+        [$journal, $voucher, $user] = $this->fixture();
+
+        TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'confirmed',
+            'export_reference' => 'TEST-CONFIRMED-'.$journal->id,
+            'tally_voucher_id' => '128',
+            'tally_accounting_date' => $journal->journal_date,
+            'confirmed_at' => now(),
+        ]);
+
+        $voucher->entries()
+            ->where('is_deemed_positive', true)
+            ->firstOrFail()
+            ->update(['ledger_name' => 'Incorrect Ledger']);
+
+        $service = app(TallyAutomaticJournalMatchService::class);
+
+        $this->assertSame(
+            'ledger_mismatch',
+            $service->preview($journal->fresh())['status']
+        );
+
+        try {
+            $service->apply($journal->id, $voucher->id, $user->id);
+            $this->fail('Incorrect GL must not be reconciled.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString(
+                'not eligible', strtolower($e->getMessage())
+            );
+        }
+
+        $this->assertNull($voucher->fresh()->journal_entry_id);
+        $this->assertSame(
+            1,
+            TallyExport::where('journal_entry_id', $journal->id)->count()
+        );
     }
 
     public function test_amount_mismatch_is_classified_without_creating_export(): void

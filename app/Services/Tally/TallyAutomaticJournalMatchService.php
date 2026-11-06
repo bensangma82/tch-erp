@@ -57,7 +57,8 @@ final class TallyAutomaticJournalMatchService
             ->whereDate('voucher_date', $date)
             ->with('entries')
             ->get()
-            ->filter(fn (TallyImportedVoucher $v) => $this->identityMatches($journal, $export, $v))
+            ->filter(fn (TallyImportedVoucher $v) => $this->identityMatches($journal, $export, $v)
+                || ($export?->status === 'confirmed' && $this->confirmedExportSourceMatches($journal, $v)))
             ->values();
         if ($vouchers->count() > 1) {
             return $this->diagnostic('duplicate_ambiguous', 'Multiple imported vouchers share the ERP identity.');
@@ -70,17 +71,15 @@ final class TallyAutomaticJournalMatchService
         if (!$voucher->guid || !$voucher->voucher_number) {
             return $this->diagnostic('duplicate_ambiguous', 'Imported voucher lacks durable identity.', $voucher->id);
         }
-        // Never reconcile a confirmed ERP export to a conflicting durable Tally identity.
+        // Historical LASTVCHID is Tally's internal ID, NOT the visible voucher number.
+        // A different export REMOTEID may be accepted only with an independently verified
+        // source invoice AND patient reference; matching GL amounts alone is insufficient.
         if ($export && filled($export->remote_id)
             && (string) $export->remote_id !== (string) $voucher->guid
-            && (string) $export->remote_id !== (string) $voucher->remote_id) {
+            && (string) $export->remote_id !== (string) $voucher->remote_id
+            && ! $this->confirmedExportSourceMatches($journal, $voucher)) {
             return $this->diagnostic('duplicate_ambiguous',
-                'Confirmed export REMOTEID differs from the imported Tally GUID/REMOTEID.', $voucher->id);
-        }
-        if ($export && filled($export->tally_voucher_id)
-            && (string) $export->tally_voucher_id !== (string) $voucher->voucher_number) {
-            return $this->diagnostic('duplicate_ambiguous',
-                'Confirmed export voucher number differs from imported voucher.', $voucher->id);
+                'Export REMOTEID differs; no verified invoice/patient source identity.', $voucher->id);
         }
         if ($voucher->finance_voucher_id || $voucher->journal_entry_id || $voucher->reconciliation_status === 'matched') {
             return $this->diagnostic('duplicate_ambiguous', 'Imported voucher is already linked.', $voucher->id);
@@ -89,13 +88,9 @@ final class TallyAutomaticJournalMatchService
         if (TallyExport::query()
             ->where('journal_entry_id', '!=', $journal->id)
             ->where('status', 'confirmed')
-            ->where(function ($q) use ($voucher, $date) {
+            ->where(function ($q) use ($voucher) {
                 $q->where('remote_id', $voucher->guid);
                 if ($voucher->remote_id) $q->orWhere('remote_id', $voucher->remote_id);
-                $q->orWhere(function ($q) use ($voucher, $date) {
-                    $q->where('tally_voucher_id', $voucher->voucher_number)
-                        ->whereDate('tally_accounting_date', $date);
-                });
             })->exists()) {
             return $this->diagnostic('duplicate_ambiguous', 'Confirmed export already claims this voucher identity.', $voucher->id);
         }
@@ -145,9 +140,9 @@ final class TallyAutomaticJournalMatchService
                 ]);
             } else {
                 // A previously confirmed export is left immutable.
-                if ($export->tally_voucher_id && (string) $export->tally_voucher_id !== (string) $voucher->voucher_number) {
-                    throw new RuntimeException('Confirmed export voucher number differs.');
-                }
+                // tally_voucher_id in historical exports may contain Tally LASTVCHID,
+                // which is an internal ID, NOT the visible voucher number.
+                // Preserve the confirmed export unchanged and rely on verified source identity + GL.
             }
             $voucher->forceFill([
                 'journal_entry_id' => $journalId,
@@ -196,6 +191,38 @@ final class TallyAutomaticJournalMatchService
             || $erpCredit !== $tallyCredit;
     }
 
+    /**
+     * Identify an already-confirmed OPD invoice from its source invoice number.
+     * Tally narration uses "TCH ERP OPD Invoice INV-... | Patient ID ...";
+     * historical ERP exports may store LASTVCHID instead of the visible number.
+     * No similarity or amount-only matching is permitted.
+     */
+    private function confirmedExportSourceMatches(JournalEntry $journal, TallyImportedVoucher $voucher): bool
+    {
+        if ((string) $journal->source_type !== 'invoice' || !$journal->source_id) {
+            return false;
+        }
+
+        $invoice = DB::table('invoices')->where('id', $journal->source_id)
+            ->first(['invoice_no', 'patient_id']);
+        if (!$invoice || !filled($invoice->invoice_no)) {
+            return false;
+        }
+        $narration = trim((string) $voucher->narration);
+        $number = preg_quote((string) $invoice->invoice_no, '/');
+        if (preg_match('/\bTCH\s+ERP\s+OPD\s+Invoice\s+'. $number .'(?=\s|\||$)/i', $narration) !== 1) {
+            return false;
+        }
+        // Require patient ID explicitly for historical invoice-source fallback.
+        // A missing or different patient ID is not sufficient evidence.
+        if (!filled($invoice->patient_id)
+            || preg_match('/\bPatient\s+ID\s+(\d+)\b/i', $narration, $m) !== 1
+            || (string) $m[1] !== (string) $invoice->patient_id) {
+            return false;
+        }
+        return true;
+    }
+
     private function identityMatches(JournalEntry $journal, ?TallyExport $export, TallyImportedVoucher $v): bool
     {
         $remote = trim((string) $export?->remote_id);
@@ -203,7 +230,39 @@ final class TallyAutomaticJournalMatchService
             return true;
         }
         $no = (string) $journal->journal_no;
-        return $no !== '' && preg_match('/(?:^|\s)ERP\s+'.preg_quote($no, '/').'(?=\s|\||$)/i', (string) $v->narration) === 1;
+        if ($no !== '' && preg_match(
+            '/(?:^|\\s)ERP\\s+'.preg_quote($no, '/').'(?=\\s|\\||$)/i',
+            (string) $v->narration
+        ) === 1) {
+            return true;
+        }
+
+        // Historical OPD Sales exports identify the invoice rather
+        // than the accounting journal in their Tally narration.
+        if ($journal->source_type !== 'invoice'
+            || $journal->source_event !== 'issued'
+            || !ctype_digit((string) $journal->source_id)) {
+            return false;
+        }
+
+        $invoice = \Illuminate\Support\Facades\DB::table('invoices')
+            ->where('id', (int) $journal->source_id)
+            ->first(['invoice_no', 'patient_id']);
+
+        if (!$invoice || !filled($invoice->invoice_no)
+            || !filled($invoice->patient_id)) {
+            return false;
+        }
+
+        $narration = trim((string) $v->narration);
+
+        $pattern = '/^TCH\\s+ERP\\s+OPD\\s+Invoice\\s+'
+            .preg_quote((string) $invoice->invoice_no, '/')
+            .'\\s*\\|\\s*Patient\\s+ID\\s+'
+            .preg_quote((string) $invoice->patient_id, '/')
+            .'(?=\\s|\\||$)/i';
+
+        return preg_match($pattern, $narration) === 1;
     }
 
     private function diagnostic(string $status, string $reason, ?int $voucherId = null): array
