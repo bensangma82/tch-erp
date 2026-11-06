@@ -33,6 +33,7 @@ final class TallyManualJournalMatchService
                 throw new RuntimeException('Tally voucher has already been linked or matched.');
             }
             if (TallyExport::query()->where('tally_voucher_id', $voucher->voucher_number)
+                ->whereDate('tally_accounting_date', $voucher->voucher_date)
                 ->whereNotNull('journal_entry_id')->where('status', 'confirmed')->exists()) {
                 // Voucher numbers alone are not globally unique; fail closed until reviewed.
                 throw new RuntimeException('This Tally voucher number already appears in a confirmed journal match.');
