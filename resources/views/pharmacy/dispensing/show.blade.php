@@ -56,6 +56,9 @@
                 2
             );
     }
+    if ($admissionPharmacy) {
+        $pharmacyInterimPayments = $admissionPharmacy['payments']->load('receivedBy');
+    }
 @endphp
 
 
@@ -625,12 +628,12 @@
                             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
 
                                 <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Pharmacy Sale Total
+                                    Pharmacy Charges (Admission)
                                 </div>
 
                                 <div class="mt-1 text-lg font-bold text-slate-900">
                                     ₹{{ number_format(
-                                        (float) $sale->total_amount,
+                                        (float) ($admissionPharmacy['net'] ?? $sale->total_amount),
                                         2
                                     ) }}
                                 </div>
@@ -646,7 +649,7 @@
 
                                 <div class="mt-1 text-lg font-bold text-emerald-700">
                                     ₹{{ number_format(
-                                        (float) $pharmacySaleCollected,
+                                        (float) ($admissionPharmacy['received'] ?? $pharmacySaleCollected),
                                         2
                                     ) }}
                                 </div>
@@ -657,12 +660,12 @@
                             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
 
                                 <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Remaining Against Sale
+                                    Pharmacy Balance (Admission)
                                 </div>
 
                                 <div class="mt-1 text-lg font-bold text-amber-700">
                                     ₹{{ number_format(
-                                        (float) $pharmacySaleRemaining,
+                                        (float) ($admissionPharmacy['remaining'] ?? $pharmacySaleRemaining),
                                         2
                                     ) }}
                                 </div>
@@ -672,13 +675,33 @@
                         </div>
 
 
+                        @if ($admissionPharmacy && $admissionPharmacy['has_returns'])
+                            <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                Pharmacy returns exist for this admission. Combined collection is paused pending Finance reconciliation of returned charges and refunds.
+                            </p>
+                        @endif
+
+                        @if ($admissionPharmacy && $admissionPharmacy['sales']->isNotEmpty())
+                            <div class="mt-4 rounded-lg border border-slate-200 p-4 text-sm">
+                                <div class="mb-2 font-semibold">Combined pharmacy bills for this admission</div>
+                                @foreach ($admissionPharmacy['sales'] as $relatedSale)
+                                    <div class="flex justify-between gap-3 py-1">
+                                        <a class="text-blue-700 underline" href="{{ route('pharmacy.dispensing.show', $relatedSale) }}">{{ $relatedSale->sale_no }}</a>
+                                        <span>₹{{ number_format(max(0, (float) $relatedSale->total_amount - (float) $relatedSale->returns->sum('refund_amount')), 2) }}</span>
+                                    </div>
+                                @endforeach
+                                <div class="mt-2 text-xs text-slate-500">Returns reduce net charges; interim payments are admission-level advances, not additional pharmacy sales.</div>
+                            </div>
+                        @endif
+
                         {{-- ================================================= --}}
                         {{-- Receive Interim Payment --}}
                         {{-- ================================================= --}}
 
                         @if (
                             $sale->admission
-                            && $pharmacySaleRemaining > 0
+                            && ($admissionPharmacy['remaining'] ?? 0) > 0
+                            && ! ($admissionPharmacy['has_returns'] ?? false)
                         )
 
                             <div class="mt-5 rounded-xl border border-cyan-200 bg-cyan-50 p-5">
@@ -712,14 +735,14 @@
                                     <input
                                         type="hidden"
                                         name="source_type"
-                                        value="pharmacy_sale"
+                                        value="pharmacy_admission"
                                     >
 
 
                                     <input
                                         type="hidden"
                                         name="source_id"
-                                        value="{{ $sale->id }}"
+                                        value="{{ $sale->admission_id }}"
                                     >
 
 
@@ -741,7 +764,7 @@
                                             name="amount"
                                             min="1"
                                             max="{{ number_format(
-                                                $pharmacySaleRemaining,
+                                                $admissionPharmacy['remaining'],
                                                 2,
                                                 '.',
                                                 ''
@@ -755,9 +778,9 @@
 
 
                                         <p class="mt-1 text-xs text-slate-500">
-                                            Maximum collectable against this sale:
+                                            Maximum collectable across this admission's pharmacy sales:
                                             ₹{{ number_format(
-                                                (float) $pharmacySaleRemaining,
+                                                (float) $admissionPharmacy['remaining'],
                                                 2
                                             ) }}
                                         </p>
@@ -888,18 +911,17 @@
 
                         @elseif (
                             $sale->admission
-                            && $pharmacySaleRemaining <= 0
+                            && ($admissionPharmacy['remaining'] ?? 0) <= 0
                         )
 
                             <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
 
                                 <div class="font-semibold text-emerald-800">
-                                    Pharmacy Sale Fully Collected
+                                    Admission Pharmacy Balance Settled
                                 </div>
 
                                 <p class="mt-1 text-sm text-emerald-700">
-                                    The full pharmacy sale amount has already been
-                                    received as interim IP payments.
+                                    No further interim pharmacy collection is due for this admission.
                                 </p>
 
                             </div>
@@ -937,7 +959,7 @@
             </div>
 
             <div class="mt-1 text-xs text-slate-500">
-                Payments collected at Pharmacy against this inpatient sale.
+                Interim pharmacy receipts across this IPD admission (including earlier sale-specific receipts).
             </div>
 
         </div>

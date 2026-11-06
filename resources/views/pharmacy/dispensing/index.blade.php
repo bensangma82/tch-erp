@@ -222,6 +222,10 @@
                             <div class="mt-1 text-xs text-slate-500">
                                 {{ $sale->encounter->department?->name ?? '—' }}
                             </div>
+                        @elseif ($sale->admission_id)
+                            <div class="mt-1 text-sm font-semibold text-indigo-700">
+                                IPD Admission #{{ $sale->admission_id }}
+                            </div>
                         @else
                             <div class="mt-1 text-sm text-slate-500">
                                 Walk-in / No encounter
