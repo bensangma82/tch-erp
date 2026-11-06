@@ -62,10 +62,33 @@ class IpAdvanceAccountingService
             |--------------------------------------------------------------------------
             */
 
-            if ($advance->source_type !== null) {
+            if (! in_array($advance->source_type, [
+                null, 'pharmacy_sale', 'pharmacy_admission'
+            ], true)) {
                 throw new RuntimeException(
-                    'Source-linked IPD advances require separate accounting review.'
+                    'Unsupported source-linked IPD advance.'
                 );
+            }
+
+            if ($advance->source_type === 'pharmacy_admission'
+                && (int) $advance->source_id !== (int) $advance->admission_id) {
+                throw new RuntimeException(
+                    'Pharmacy interim payment admission mismatch.'
+                );
+            }
+
+            if ($advance->source_type === 'pharmacy_sale') {
+                $validSale = \App\Models\PharmacySale::query()
+                    ->whereKey($advance->source_id)
+                    ->where('admission_id', $advance->admission_id)
+                    ->where('patient_id', $advance->patient_id)
+                    ->exists();
+
+                if (! $validSale) {
+                    throw new RuntimeException(
+                        'Pharmacy advance sale/admission mismatch.'
+                    );
+                }
             }
 
             /*
