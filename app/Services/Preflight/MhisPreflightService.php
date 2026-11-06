@@ -179,7 +179,7 @@ final class MhisPreflightService
         foreach ($account->advances as $advance) {
             if (
                 $advance->status !== 'active'
-                || $advance->source_type !== null
+                || ! in_array($advance->source_type, [null, 'pharmacy_sale', 'pharmacy_admission'], true)
             ) {
                 return false;
             }
@@ -198,6 +198,16 @@ final class MhisPreflightService
             $totalPaise += (int) round(
                 (float) $advance->amount * 100
             );
+        }
+
+        // Before finalisation, a valid posted receipt journal is sufficient.
+        // Advance application against the final patient receivable occurs only
+        // after finalisation. MHIS Free patients must not pay advances.
+        if ($account->mhis_category === 'free') {
+            return false;
+        }
+        if ($account->status !== 'finalized') {
+            return true;
         }
 
         $application = JournalEntry::query()

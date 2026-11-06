@@ -1317,7 +1317,7 @@ class IpBillingController extends Controller
             'source_type' => [
                 'nullable',
                 'string',
-                'in:pharmacy_sale',
+                'in:pharmacy_sale,pharmacy_admission',
             ],
 
             'source_id' => [
@@ -1436,6 +1436,13 @@ class IpBillingController extends Controller
             }
         }
 
+        if (($validated['source_type'] ?? null) === 'pharmacy_admission'
+            && (int) ($validated['source_id'] ?? 0) !== (int) $admission->id) {
+            throw ValidationException::withMessages([
+                'amount' => 'Invalid admission-level pharmacy payment reference.',
+            ]);
+        }
+
         if ($account->status !== 'open') {
             throw ValidationException::withMessages([
                 'amount' => 'Advance can only be received while the IP billing account is open.',
@@ -1476,6 +1483,51 @@ class IpBillingController extends Controller
                     ]);
                 }
 
+                // Admission-level pharmacy total is rechecked under the locked
+                // billing account to avoid concurrent overcollection.
+                if (($validated['source_type'] ?? null) === 'pharmacy_admission') {
+                    $sales = PharmacySale::query()
+                        ->with('returns')
+                        ->where('admission_id', $admission->id)
+                        ->where('patient_id', $admission->patient_id)
+                        ->whereIn('status', ['completed', 'credit'])
+                        ->get();
+                    if ($sales->contains(fn ($sale) => $sale->returns->isNotEmpty())) {
+                        throw ValidationException::withMessages([
+                            'amount' => 'Pharmacy returns exist for this admission. Reconcile the returned charges and refunds with Finance before combined collection.',
+                        ]);
+                    }
+                    $saleIds = $sales->pluck('id')->all();
+                    $totalPaise = $sales->sum(function ($sale) {
+                        return max(0,
+                            (int) round((float) $sale->total_amount * 100)
+                            - (int) round((float) $sale->returns->sum('refund_amount') * 100)
+                        );
+                    });
+                    $previous = IpBillingAdvance::query()
+                        ->where('ip_billing_account_id', $lockedAccount->id)
+                        ->where('status', 'active')
+                        ->where(function ($q) use ($admission, $saleIds) {
+                            $q->where(function ($sub) use ($admission) {
+                                $sub->where('source_type', 'pharmacy_admission')
+                                    ->where('source_id', $admission->id);
+                            });
+                            if ($saleIds) {
+                                $q->orWhere(function ($sub) use ($saleIds) {
+                                    $sub->where('source_type', 'pharmacy_sale')
+                                        ->whereIn('source_id', $saleIds);
+                                });
+                            }
+                        })->sum('amount');
+                    $remainingPaise = max(0, $totalPaise - (int) round((float) $previous * 100));
+                    if ((int) round((float) $validated['amount'] * 100) > $remainingPaise) {
+                        throw ValidationException::withMessages([
+                            'amount' => 'Payment exceeds the remaining admission pharmacy balance of ₹'
+                                .number_format($remainingPaise / 100, 2).'.',
+                        ]);
+                    }
+                }
+
                 $advance = IpBillingAdvance::create([
                     'ip_billing_account_id' => $lockedAccount->id,
 
@@ -1507,7 +1559,10 @@ class IpBillingController extends Controller
                         ]
                         ?? null,
 
-                    'remarks' => $sourceSale
+                    'remarks' => ($validated['source_type'] ?? null) === 'pharmacy_admission'
+                            ? 'Combined pharmacy interim payment, admission #'.$admission->id
+                                .(! empty($validated['remarks']) ? ' | '.$validated['remarks'] : '')
+                            : ($sourceSale
                             ? (
                                 'Pharmacy interim payment against '
                                 .$sourceSale->sale_no
@@ -1523,19 +1578,18 @@ class IpBillingController extends Controller
                             : (
                                 $validated['remarks']
                                 ?? null
-                            ),
+                            )),
 
                     'status' => 'active',
 
                     'received_by' => auth()->id(),
                 ]);
-                // Journalize ordinary IPD advances.
-                // Pharmacy-linked advances retain their existing workflow.
-                if ($advance->source_type === null) {
-                    app(
-                        IpAdvanceAccountingService::class
-                    )->postAdvance($advance);
-                }
+                // Every successful IPD advance receipt, including pharmacy-linked
+                // collections, must have its GL receipt posted atomically.
+                // Existing payments are not reposted by this code path.
+                app(
+                    IpAdvanceAccountingService::class
+                )->postAdvance($advance);
 
                 return $advance;
             }

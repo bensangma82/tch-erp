@@ -48,6 +48,7 @@ class DispensingController extends Controller
             PharmacySale::query()
                 ->with([
                     'patient',
+                    'admission',
                     'encounter.department',
                     'createdBy',
                     'returns',
@@ -2107,6 +2108,56 @@ $activeAdmissions =
 
 
     /**
+     * Read-only admission-level pharmacy balance. No cross-admission pooling.
+     * Returns reduce eligible charges; only pharmacy-linked interim advances
+     * reduce the pharmacy collection balance.
+     */
+    private function pharmacyAdmissionSummary(Admission $admission): array
+    {
+        $sales = PharmacySale::query()
+            ->with('returns')
+            ->where('admission_id', $admission->id)
+            ->where('patient_id', $admission->patient_id)
+            ->whereIn('status', ['completed', 'credit'])
+            ->orderBy('id')
+            ->get();
+
+        $netPaise = $sales->sum(function ($item) {
+            $gross = (int) round((float) $item->total_amount * 100);
+            $returns = (int) round((float) $item->returns->sum('refund_amount') * 100);
+            return max(0, $gross - $returns);
+        });
+        $saleIds = $sales->pluck('id')->all();
+        $payments = \App\Models\IpBillingAdvance::query()
+            ->where('ip_billing_account_id', function ($query) use ($admission) {
+                $query->select('id')->from('ip_billing_accounts')
+                    ->where('admission_id', $admission->id)->limit(1);
+            })
+            ->where('status', 'active')
+            ->where(function ($query) use ($admission, $saleIds) {
+                $query->where(function ($q) use ($admission) {
+                    $q->where('source_type', 'pharmacy_admission')
+                        ->where('source_id', $admission->id);
+                });
+                if ($saleIds) {
+                    $query->orWhere(function ($q) use ($saleIds) {
+                        $q->where('source_type', 'pharmacy_sale')
+                            ->whereIn('source_id', $saleIds);
+                    });
+                }
+            })->orderBy('id')->get();
+        $receivedPaise = (int) round((float) $payments->sum('amount') * 100);
+        return [
+            'sales' => $sales,
+            'payments' => $payments,
+            'net' => $netPaise / 100,
+            'received' => $receivedPaise / 100,
+            'remaining' => max(0, $netPaise - $receivedPaise) / 100,
+            'has_returns' => $sales->contains(fn ($item) => $item->returns->isNotEmpty()),
+        ];
+    }
+
+    /**
      * Show completed pharmacy sale.
      */
     public function show(
@@ -2125,11 +2176,13 @@ $activeAdmissions =
     ]);
 
 
+        $admissionPharmacy = $sale->admission
+            ? $this->pharmacyAdmissionSummary($sale->admission)
+            : null;
+
         return view(
             'pharmacy.dispensing.show',
-            compact(
-                'sale'
-            )
+            compact('sale', 'admissionPharmacy')
         );
     }
 

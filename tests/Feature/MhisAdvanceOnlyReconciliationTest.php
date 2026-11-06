@@ -21,7 +21,11 @@ class MhisAdvanceOnlyReconciliationTest extends TestCase
 {
     use DatabaseTransactions;
 
-    private function fixture(): array
+    private function fixture(
+        string $receiptAmount = '1000.00',
+        string $receiptDebitGl = '1100',
+        bool $postFinal = true
+    ): array
     {
         // Never write test records to an operational ERP database.
         $this->assertSame('pgsql', DB::connection()->getDriverName());
@@ -105,16 +109,16 @@ class MhisAdvanceOnlyReconciliationTest extends TestCase
         $final = $this->journal($key.'-FINAL', 'ip_billing_account', $account->id, 'finalized', [
             ['1200', '12121.25', '0.00'],
             ['4301', '0.00', '12121.25'],
-        ], $gl, $user);
+        ], $gl, $user, $postFinal);
         $receipt = $this->journal($key.'-RECEIPT', 'ip_billing_advance', $advance->id, 'received', [
-            ['1100', '1000.00', '0.00'],
-            ['2100', '0.00', '1000.00'],
+            [$receiptDebitGl, $receiptAmount, '0.00'],
+            ['2100', '0.00', $receiptAmount],
         ], $gl, $user);
 
         return compact('account', 'advance', 'receipt', 'final', 'gl');
     }
 
-    private function journal(string $no, string $source, int $id, string $event, array $lines, array $gl, User $user): JournalEntry
+    private function journal(string $no, string $source, int $id, string $event, array $lines, array $gl, User $user, bool $post = true): JournalEntry
     {
         $entry = JournalEntry::create([
             'journal_no' => $no,
@@ -134,8 +138,9 @@ class MhisAdvanceOnlyReconciliationTest extends TestCase
                 'credit' => $credit,
             ]);
         }
-        return app(\App\Services\Accounting\JournalPostingService::class)
-            ->post($entry);
+        return $post
+            ? app(\App\Services\Accounting\JournalPostingService::class)->post($entry)
+            : $entry;
     }
 
     private function countApplications(IpBillingAccount $account): int
@@ -179,8 +184,7 @@ class MhisAdvanceOnlyReconciliationTest extends TestCase
 
     public function test_rejects_receipt_amount_mismatch_without_posting(): void
     {
-        $f = $this->fixture();
-        $f['receipt']->lines()->where('line_no', 2)->update(['credit' => '900.00']);
+        $f = $this->fixture(receiptAmount: '900.00');
         try {
             app(MhisAdvanceOnlyReconciliationService::class)->reconcile($f['account']);
             $this->fail('Expected receipt amount validation failure.');
@@ -192,10 +196,7 @@ class MhisAdvanceOnlyReconciliationTest extends TestCase
 
     public function test_rejects_wrong_receipt_gl_without_posting(): void
     {
-        $f = $this->fixture();
-        $f['receipt']->lines()->where('line_no', 1)->update([
-            'general_ledger_account_id' => $f['gl']['1200']->id,
-        ]);
+        $f = $this->fixture(receiptDebitGl: '1200');
         try {
             app(MhisAdvanceOnlyReconciliationService::class)->reconcile($f['account']);
             $this->fail('Expected receipt GL validation failure.');
@@ -207,8 +208,7 @@ class MhisAdvanceOnlyReconciliationTest extends TestCase
 
     public function test_rejects_missing_final_revenue_journal_without_posting(): void
     {
-        $f = $this->fixture();
-        $f['final']->update(['status' => 'draft']);
+        $f = $this->fixture(postFinal: false);
         try {
             app(MhisAdvanceOnlyReconciliationService::class)->reconcile($f['account']);
             $this->fail('Expected posted final-bill journal validation failure.');
