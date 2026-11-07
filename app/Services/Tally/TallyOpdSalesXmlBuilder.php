@@ -28,7 +28,7 @@ class TallyOpdSalesXmlBuilder
             ->findOrFail($journal->source_id);
 
         if (
-            ! in_array($account->status, ['issued', 'paid', 'partial', 'partially_paid'], true)
+            ! in_array($account->status, ['issued', 'unpaid', 'paid', 'partial', 'partially_paid'], true)
             || blank($account->invoice_no)
             || ! $account->patient
             || (string) $journal->reference_no
