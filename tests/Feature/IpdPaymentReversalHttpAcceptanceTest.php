@@ -187,4 +187,79 @@ class IpdPaymentReversalHttpAcceptanceTest extends TestCase
         $this->assertSame(0, JournalEntry::where('reversal_of_id', $f['original']->id)->count());
     }
 
+
+    public function test_cancelled_receipt_pair_is_excluded_from_reconciliation(): void
+    {
+        $f = $this->fixture();
+
+        $this->post($this->endpoint($f), [
+            'cancellation_reason' => 'Duplicate test receipt',
+        ])->assertRedirect();
+
+        $original = $f['original']->fresh();
+
+        $reversal = JournalEntry::where(
+            'reversal_of_id', $original->id
+        )->firstOrFail();
+
+        $service = app(
+            \App\Services\Tally\TallyAutomaticJournalMatchService::class
+        );
+
+        $this->assertSame(
+            'excluded_cancelled',
+            $service->preview($original)['status']
+        );
+
+        $this->assertSame(
+            'excluded_cancelled',
+            $service->preview($reversal)['status']
+        );
+
+        $this->assertSame(
+            0,
+            \App\Models\TallyExport::whereIn(
+                'journal_entry_id',
+                [$original->id, $reversal->id]
+            )->count()
+        );
+    }
+
+    public function test_export_evidence_prevents_cancelled_pair_exclusion(): void
+    {
+        $f = $this->fixture();
+
+        $this->post($this->endpoint($f), [
+            'cancellation_reason' => 'Duplicate test receipt',
+        ])->assertRedirect();
+
+        $original = $f['original']->fresh();
+
+        $reversal = JournalEntry::where(
+            'reversal_of_id', $original->id
+        )->firstOrFail();
+
+        DB::table('tally_exports')->insert([
+            'journal_entry_id' => $original->id,
+            'status' => 'exported',
+            'export_reference' => 'TEST-CANCEL-'.$original->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $service = app(
+            \App\Services\Tally\TallyAutomaticJournalMatchService::class
+        );
+
+        $this->assertNotSame(
+            'excluded_cancelled',
+            $service->preview($original)['status']
+        );
+
+        $this->assertNotSame(
+            'excluded_cancelled',
+            $service->preview($reversal)['status']
+        );
+    }
+
 }

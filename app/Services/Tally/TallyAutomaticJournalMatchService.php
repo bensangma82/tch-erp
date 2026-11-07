@@ -33,6 +33,53 @@ final class TallyAutomaticJournalMatchService
         if ($export && $export->status !== 'confirmed') {
             return $this->diagnostic('unresolved_transmission', 'Existing export is not confirmed; do not retransmit.');
         }
+        // Exclude verified, never-exported IPD cancellation pairs.
+        // Preserve any pair with transmission or imported-link evidence.
+        if (
+            $journal->source_type === 'ip_billing_payment'
+            && in_array($journal->source_event, ['received', 'reversed'], true)
+        ) {
+            $original = $journal->source_event === 'reversed'
+                ? $journal->reversalOf
+                : $journal;
+
+            $reversal = $original
+                ? JournalEntry::query()
+                    ->where('reversal_of_id', $original->id)
+                    ->first()
+                : null;
+
+            if ($original && $reversal) {
+                $guard = app(TallyCancelledReceiptGuard::class);
+                $originalCheck = $guard->check($original);
+                $reversalCheck = $guard->check($reversal);
+
+                if (
+                    $originalCheck['allowed'] === false
+                    && $reversalCheck['allowed'] === false
+                    && $originalCheck['reason'] === 'Cancelled receipt pair: exclude from new export.'
+                    && $reversalCheck['reason'] === 'Cancelled receipt pair: exclude from new export.'
+                ) {
+                    $ids = [$original->id, $reversal->id];
+
+                    $hasExport = TallyExport::query()
+                        ->whereIn('journal_entry_id', $ids)
+                        ->exists();
+
+                    $hasImportedLink = TallyImportedVoucher::query()
+                        ->whereIn('journal_entry_id', $ids)
+                        ->exists();
+
+                    if (! $hasExport && ! $hasImportedLink) {
+                        return $this->diagnostic(
+                            'excluded_cancelled',
+                            'Verified cancelled IPD receipt pair; neither journal has export or imported-link records.'
+                        );
+                    }
+                }
+            }
+        }
+
         $company = trim((string) config('tally.company'));
         if ($company === '') {
             return $this->diagnostic('unresolved_transmission', 'Tally company is not configured.');
