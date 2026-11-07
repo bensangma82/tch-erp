@@ -669,6 +669,19 @@ TallyExportLock::acquire(
             }
 
             try {
+                $dependencyError = app(
+                    \App\Services\Tally\TallyJournalExportPreflightService::class
+                )->failure($journal);
+
+                if ($dependencyError !== null) {
+                    $results[] = [
+                        'journal' => $number,
+                        'status' => 'skipped',
+                        'message' => $dependencyError,
+                    ];
+                    continue;
+                }
+
                 $eligibility = $service->checkEligibility($journal);
 
                 if (! ($eligibility['eligible'] ?? false)) {
@@ -767,6 +780,81 @@ TallyExportLock::acquire(
         return back()
             ->with('tally_bulk_results', $results)
             ->with('tally_bulk_stopped', $stopped);
+    }
+
+
+    public function sendGuarded(
+        Request $request,
+        JournalEntry $journalEntry,
+        TallyJournalExportService $service,
+        TallyVoucherXmlRouter $builder,
+        TallyHttpClient $client,
+        TallyResponseParser $parser
+    ): RedirectResponse {
+        try {
+            $dependencyError = app(
+                \App\Services\Tally\TallyJournalExportPreflightService::class
+            )->failure($journalEntry);
+
+            if ($dependencyError !== null) {
+                return back()->with('error', $dependencyError);
+            }
+
+            return $this->send(
+                $request,
+                $journalEntry,
+                $service,
+                $builder,
+                $client,
+                $parser
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            // Never presume a previously prepared export
+            // was not transmitted.
+            $export = TallyExport::query()
+                ->where('journal_entry_id', $journalEntry->id)
+                ->first();
+
+            if ($export !== null) {
+                return back()->with(
+                    'error',
+                    'Tally export failed or its outcome is uncertain. '
+                    .'Export status: '.$export->status.'. '
+                    .'Review the export record and reconcile '
+                    .'with Tally before taking further action.'
+                );
+            }
+
+            $knownErrors = [
+                'Export the referenced IPD Sales voucher first.',
+                'Referenced IPD final Sales journal was not found.',
+                'Advance application has no final invoice reference.',
+                'Final bill or patient reference is invalid.',
+                'Missing journal lines.',
+                'Missing Tally GL mapping.',
+                'Invalid debit/credit line.',
+                'Unsupported OPD Sales GL structure.',
+                'Invalid Patient Receivables line.',
+                'Invalid monetary amount.',
+            ];
+
+            if (in_array($exception->getMessage(), $knownErrors, true)) {
+                return back()->with(
+                    'error',
+                    'Tally export validation failed: '
+                    .$exception->getMessage()
+                );
+            }
+
+            return back()->with(
+                'error',
+                'Tally export preparation failed. '
+                .'No export record was found. '
+                .'Check the application log before retrying.'
+            );
+        }
     }
 
 }

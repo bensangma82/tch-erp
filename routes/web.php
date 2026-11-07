@@ -1263,7 +1263,7 @@ Route::post(
     '/admin/finance/tally/journals/{journalEntry}/send',
     [
         \App\Http\Controllers\Finance\TallyJournalExportController::class,
-        'send',
+        'sendGuarded',
     ]
 )
     ->whereNumber('journalEntry')
