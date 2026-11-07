@@ -283,6 +283,19 @@ TallyExportLock::acquire(
                 ];
             }
 
+            // Enforce Sales-before-Receipt dependency inside
+            // the locked export transaction.
+            $dependencyError = app(
+                \App\Services\Tally\TallyJournalExportPreflightService::class
+            )->failure($journal);
+
+            if ($dependencyError !== null) {
+                return [
+                    'ok' => false,
+                    'message' => $dependencyError,
+                ];
+            }
+
             /*
             |--------------------------------------------------------------------------
             | Journal Eligibility Validation
