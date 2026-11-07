@@ -826,7 +826,7 @@ class TallyJournalRecoveryTest extends TestCase
         ]);
 
         $builder = \Mockery::mock(
-            \App\Services\Tally\TallyJournalXmlBuilder::class
+            \App\Services\Tally\TallyVoucherXmlRouter::class
         );
 
         $builder->shouldReceive('build')
@@ -834,7 +834,7 @@ class TallyJournalRecoveryTest extends TestCase
             ->andReturn('<ENVELOPE><BODY>TEST</BODY></ENVELOPE>');
 
         $this->app->instance(
-            \App\Services\Tally\TallyJournalXmlBuilder::class,
+            \App\Services\Tally\TallyVoucherXmlRouter::class,
             $builder
         );
 

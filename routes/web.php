@@ -1252,6 +1252,14 @@ Route::post(
     ->name('finance.tally.journals.view');
 
     Route::post(
+    '/admin/finance/tally/journals/send-selected',
+    [
+        \App\Http\Controllers\Finance\TallyJournalExportController::class,
+        'sendSelected',
+    ]
+)->name('finance.tally.journals.send-selected');
+
+    Route::post(
     '/admin/finance/tally/journals/{journalEntry}/send',
     [
         \App\Http\Controllers\Finance\TallyJournalExportController::class,

@@ -21,7 +21,7 @@
             </p>
 
             <p class="mt-2 text-xs text-blue-700">
-                This page does not transmit any journal entries to Tally.
+                This page supports individual and bulk journal exports to the configured Tally company. Verify journal details before sending.
             </p>
         </div>
 
@@ -87,6 +87,46 @@
             </div>
         </form>
 
+
+        {{-- BULK EXPORT RESULTS --}}
+        @if (session('tally_bulk_results'))
+            <div class="mb-5 rounded-lg border bg-white p-4 shadow-sm">
+                <h2 class="mb-3 font-semibold">Bulk Export Results</h2>
+                <div class="space-y-2 text-sm">
+                    @foreach (session('tally_bulk_results') as $result)
+                        <div class="flex flex-wrap justify-between gap-2 border-b pb-2">
+                            <span>{{ $result['journal'] }}</span>
+                            <span>
+                                <strong>{{ ucfirst(str_replace('_', ' ', $result['status'])) }}</strong>
+                                — {{ $result['message'] }}
+                            </span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        {{-- BULK EXPORT CONTROLS --}}
+        <form
+            id="tally-bulk-export-form"
+            method="POST"
+            action="{{ route('finance.tally.journals.send-selected') }}"
+            class="mb-4 flex flex-wrap items-center gap-4 rounded-lg border bg-white p-4"
+        >
+            @csrf
+            <button
+                type="submit"
+                id="tally-bulk-submit"
+                disabled
+                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+                Send Selected to Tally
+            </button>
+            <span id="tally-bulk-count" class="text-sm text-gray-600">
+                0 selected — maximum 20
+            </span>
+        </form>
+
         {{-- JOURNAL TABLE --}}
         <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 
@@ -95,6 +135,14 @@
 
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="px-4 py-3 text-left">
+                                <input
+                                    type="checkbox"
+                                    id="tally-select-all"
+                                    aria-label="Select all eligible journals on this page"
+                                >
+                            </th>
+
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">
                                 Journal
                             </th>
@@ -206,6 +254,19 @@
                             @endphp
 
                             <tr class="transition hover:bg-gray-50">
+                                <td class="px-4 py-3">
+                                    @if (! $export)
+                                        <input
+                                            type="checkbox"
+                                            class="tally-bulk-checkbox"
+                                            name="journal_ids[]"
+                                            value="{{ $journal->id }}"
+                                            form="tally-bulk-export-form"
+                                            aria-label="Select {{ $journal->journal_no }}"
+                                        >
+                                    @endif
+                                </td>
+
 
                                 {{-- JOURNAL NUMBER --}}
                                 <td class="whitespace-nowrap px-4 py-3 font-semibold text-gray-900">
@@ -303,7 +364,7 @@
 
                             <tr>
                                 <td
-                                    colspan="6"
+                                    colspan="7"
                                     class="px-4 py-10 text-center text-gray-500"
                                 >
                                     No posted journal entries found.
@@ -316,6 +377,58 @@
                 </table>
             </div>
         </div>
+
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const boxes = Array.from(
+                    document.querySelectorAll('.tally-bulk-checkbox')
+                );
+                const all = document.getElementById('tally-select-all');
+                const form = document.getElementById('tally-bulk-export-form');
+                const button = document.getElementById('tally-bulk-submit');
+                const count = document.getElementById('tally-bulk-count');
+
+                function update() {
+                    const n = boxes.filter(box => box.checked).length;
+                    count.textContent = n + ' selected — maximum 20';
+                    button.disabled = n === 0 || n > 20;
+                    all.checked = boxes.length > 0 && n === boxes.length;
+                    all.indeterminate = n > 0 && n < boxes.length;
+                }
+
+                all.addEventListener('change', function () {
+                    boxes.forEach((box, index) => {
+                        box.checked = all.checked && index < 20;
+                    });
+                    update();
+                });
+
+                boxes.forEach(box => {
+                    box.addEventListener('change', update);
+                });
+
+                form.addEventListener('submit', function (event) {
+                    const n = boxes.filter(box => box.checked).length;
+
+                    if (
+                        n === 0 || n > 20 ||
+                        !confirm(
+                            'Send ' + n + ' selected journals to the configured Tally company? ' +
+                            'Each journal will be transmitted once. ' +
+                            'Uncertain outcomes require manual reconciliation.'
+                        )
+                    ) {
+                        event.preventDefault();
+                        return;
+                    }
+
+                    button.disabled = true;
+                });
+
+                update();
+            });
+        </script>
 
         {{-- PAGINATION --}}
         <div class="mt-5">
