@@ -109,6 +109,35 @@ class TallyOpdReceiptDependencyTest extends TestCase
         // Sales not exported: receipt must be blocked.
         $this->assertNotNull($preflight->failure($receipt));
 
+        // HTTP acceptance: block transmission before Sales confirmation.
+        $client = \Mockery::mock(
+            \App\Services\Tally\TallyHttpClient::class
+        );
+        $client->shouldNotReceive('postXml');
+        $this->app->instance(
+            \App\Services\Tally\TallyHttpClient::class,
+            $client
+        );
+
+        config()->set('tally.journal_export_enabled', true);
+
+        $response = $this->actingAs($user)
+            ->from(route('finance.tally.journals.index'))
+            ->post(
+                '/admin/finance/tally/journals/'.$receipt->id.'/send',
+                [
+                    'tally_accounting_date' =>
+                        $receipt->journal_date->format('Y-m-d'),
+                ]
+            );
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+
+        $this->assertDatabaseMissing('tally_exports', [
+            'journal_entry_id' => $receipt->id,
+        ]);
+
         // An uncertain Sales export must not unlock receipt.
         $export = TallyExport::create([
             'journal_entry_id' => $sales->id,
