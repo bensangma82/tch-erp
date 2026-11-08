@@ -358,4 +358,108 @@ class IpdCharityAccountingAcceptanceTest extends TestCase
         );
     }
 
+
+    public function test_patient_payment_after_posted_charity(): void
+    {
+        $f = $this->fixture();
+        $this->postSales($f);
+
+        \App\Models\GeneralLedgerAccount::firstOrCreate(
+            ['account_code' => '1100'],
+            [
+                'account_name' => 'Main Cash',
+                'account_type' => 'asset',
+                'account_group' => 'Cash-in-Hand',
+                'normal_balance' => 'debit',
+                'is_active' => true,
+                'allow_posting' => true,
+            ]
+        );
+
+        $adjustment = $this->adjustment($f, '2000.00');
+        app(CharityAdjustmentService::class)->apply($adjustment);
+        $this->assertJournal($adjustment, '2000.00');
+
+        $payment = \App\Models\IpBillingPayment::create([
+            'ip_billing_account_id' => $f['account']->id,
+            'admission_id' => $f['admission']->id,
+            'patient_id' => $f['patient']->id,
+            'receipt_no' => 'PAY-'.$f['key'],
+            'payment_date' => now(),
+            'amount' => '1850.00',
+            'payment_mode' => 'cash',
+            'status' => 'active',
+            'received_by' => $f['user']->id,
+        ]);
+
+        $journal = app(
+            \App\Services\Accounting\IpPaymentAccountingService::class
+        )->postReceipt($payment);
+
+        $this->assertSame('posted', $journal->fresh()->status);
+
+        $lines = $journal->lines()
+            ->with('generalLedgerAccount')
+            ->get()
+            ->keyBy(fn ($line) =>
+                (string) $line->generalLedgerAccount->account_code
+            );
+
+        $this->assertEquals(1850, $lines['1100']->debit);
+        $this->assertEquals(1850, $lines['1200']->credit);
+
+        $again = app(
+            \App\Services\Accounting\IpPaymentAccountingService::class
+        )->postReceipt($payment);
+
+        $this->assertSame($journal->id, $again->id);
+    }
+
+    public function test_patient_payment_blocked_for_unposted_charity(): void
+    {
+        $f = $this->fixture();
+        $this->postSales($f);
+
+        $adjustment = $this->adjustment($f, '2000.00');
+
+        // Simulate an unreconciled adjustment.
+        // Never invoke charity accounting for this negative test.
+        $adjustment->update([
+            'status' => 'applied',
+            'applied_at' => now(),
+        ]);
+
+        $payment = \App\Models\IpBillingPayment::create([
+            'ip_billing_account_id' => $f['account']->id,
+            'admission_id' => $f['admission']->id,
+            'patient_id' => $f['patient']->id,
+            'receipt_no' => 'BLOCK-'.$f['key'],
+            'payment_date' => now(),
+            'amount' => '1850.00',
+            'payment_mode' => 'cash',
+            'status' => 'active',
+            'received_by' => $f['user']->id,
+        ]);
+
+        try {
+            app(
+                \App\Services\Accounting\IpPaymentAccountingService::class
+            )->postReceipt($payment);
+
+            $this->fail('Unreconciled charity payment was allowed.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertStringContainsString(
+                'Finance reconciliation',
+                $e->getMessage()
+            );
+        }
+
+        $this->assertSame(
+            0,
+            JournalEntry::where('source_type', 'ip_billing_payment')
+                ->where('source_id', (string) $payment->id)
+                ->count()
+        );
+    }
+
 }

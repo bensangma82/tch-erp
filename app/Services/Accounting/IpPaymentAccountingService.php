@@ -207,7 +207,49 @@ if ($hasMhis) {
 
                 || $account->mhisAdjustments->where("status", "active")->isNotEmpty()
                 || $account->staffMedicalBenefitTransactions->where("status", "active")->isNotEmpty()
-                || $account->charityAdjustments->where("status", "applied")->isNotEmpty()
+                || $account->charityAdjustments
+                    ->where("status", "applied")
+                    ->contains(function ($adjustment) use ($account) {
+                        $journal = JournalEntry::query()
+                            ->where('source_type', 'charity_adjustment')
+                            ->where('source_id', (string) $adjustment->id)
+                            ->where('source_event', 'applied')
+                            ->where('status', 'posted')
+                            ->where('reference_no', $account->final_bill_no)
+                            ->first();
+
+                        if (! $journal || ! $account->final_bill_no) {
+                            return true;
+                        }
+
+                        $lines = $journal->lines()
+                            ->with('generalLedgerAccount')->get();
+
+                        if ($lines->count() !== 2) {
+                            return true;
+                        }
+
+                        $amount = (int) round(
+                            (float) $adjustment->approved_amount * 100
+                        );
+
+                        $debit = $lines->first(fn ($line) =>
+                            (string) $line->generalLedgerAccount?->account_code === '6114'
+                        );
+
+                        $credit = $lines->first(fn ($line) =>
+                            (string) $line->generalLedgerAccount?->account_code === '1200'
+                        );
+
+                        return ! (
+                            $amount > 0
+                            && $debit && $credit
+                            && (int) round((float) $debit->debit * 100) === $amount
+                            && (int) round((float) $debit->credit * 100) === 0
+                            && (int) round((float) $credit->credit * 100) === $amount
+                            && (int) round((float) $credit->debit * 100) === 0
+                        );
+                    })
                 || $account->refunds->where("status", "active")->isNotEmpty()
             ) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
