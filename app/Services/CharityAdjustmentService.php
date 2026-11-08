@@ -77,6 +77,16 @@ class CharityAdjustmentService
                     'applied_at' => now(),
                 ]);
 
+                // For finalized IPD bills, post the charity
+                // accounting journal within this transaction.
+                // For open IPD bills, posting is deferred
+                // until the final Sales journal exists.
+                if ($adjustment->ip_billing_account_id) {
+                    app(
+                        \App\Services\Accounting\IpCharityAccountingService::class
+                    )->post($adjustment);
+                }
+
                 return $adjustment->fresh();
             }
         );

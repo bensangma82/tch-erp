@@ -30,6 +30,7 @@ class TallyVoucherXmlRouter
 
         'ip_billing_mhis_claim:approved' => TallyJournalXmlBuilder::class,
         'staff_medical_benefit_transaction:utilized' => TallyJournalXmlBuilder::class,
+        'charity_adjustment:applied' => TallyCharityJournalXmlBuilder::class,
         'mhis_settlement_adjustment:posted' => TallyJournalXmlBuilder::class,
         'ip_billing_account:advance_applied' => TallyIpdAdvanceApplicationXmlBuilder::class,
         'pharmacy_sale:cogs' => TallyJournalXmlBuilder::class,
