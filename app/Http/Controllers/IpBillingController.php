@@ -4643,6 +4643,13 @@ throw ValidationException::withMessages([
                 app(IpBillingAccountingService::class)
                     ->postFinalBill($lockedAccount);
 
+                // Post applied charity adjustments after IPD Sales.
+                // Uses the same finalization transaction.
+                $stage = 'posting_ipd_charity_accounting';
+                app(
+                    \App\Services\Accounting\IpCharityAccountingService::class
+                )->postAppliedForAccount($lockedAccount);
+
                 // Apply validated advance receipts before MHIS recognition.
                 // All postings share the enclosing transaction: any failure
                 // rolls back the final bill and every newly created journal.
