@@ -9,6 +9,22 @@ use Illuminate\Validation\ValidationException;
 
 class TallyJournalRecoveryService
 {
+    public function prepareSimple(int $exportId, int $userId): TallyJournalExportAttempt
+    {
+        $user = \App\Models\User::findOrFail($userId);
+        if (! $user->hasPermission('tally.journal-recovery.authorize')
+            || ! config('tally.journal_export_enabled') || ! config('tally.journal_recovery_enabled')) {
+            throw ValidationException::withMessages(['recovery' => 'Recovery is not enabled or authorized.']);
+        }
+        $export = TallyExport::findOrFail($exportId);
+        if ($export->status !== 'unknown' || ! $export->journal_entry_id) {
+            throw ValidationException::withMessages(['recovery' => 'Only unknown journal exports can be checked for retry.']);
+        }
+        $evidence = app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+        return $this->authorizeRecovery($exportId, $userId,
+            'Live Tally check completed. Previous error: '.substr((string) $export->error_message, 0, 700), $evidence);
+    }
+
     public function authorizeRecovery(
         int $exportId,
         int $authorizedBy,
@@ -57,20 +73,29 @@ class TallyJournalRecoveryService
             }
 
             $response = (string) $export->tally_response;
+            $neverConnected = $export->exported_at === null && TallyRecoveryFailurePolicy::connectionNeverEstablished(
+                (string) $export->error_message, $export->tally_response,
+                $export->tally_voucher_id, $export->confirmed_at
+            );
+            if ($neverConnected) {
+                // Do not trust text supplied by the caller as proof of absence.
+                $evidence = app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+            }
 
-            if (
+
+            if (! $neverConnected && (
                 $response === ''
                 || ! str_contains($response, '<LINEERROR>')
                 || ! preg_match('/<CREATED>0<\/CREATED>/i', $response)
                 || ! preg_match('/<ALTERED>0<\/ALTERED>/i', $response)
                 || ! preg_match('/<DELETED>0<\/DELETED>/i', $response)
                 || ! preg_match('/<LASTVCHID>0<\/LASTVCHID>/i', $response)
-            ) {
+            )) {
                 throw ValidationException::withMessages([
                     'recovery' =>
                         'Recovery authorization requires an explicit '
                         .'Tally rejection response showing no voucher '
-                        .'was created, altered or deleted.',
+                        .'was created, altered or deleted, or a verified connection-refused failure. Timeouts remain blocked.',
                 ]);
             }
 

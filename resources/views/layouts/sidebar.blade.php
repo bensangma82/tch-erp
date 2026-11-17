@@ -1787,6 +1787,19 @@
 
 
 @if (
+    auth()->user()->hasPermission('finance.budgets.view')
+    || auth()->user()->hasPermission('finance.budgets.manage')
+)
+    <a href="{{ route('finance.budgets.index') }}"
+       class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150
+       {{ request()->routeIs('finance.budgets.*')
+           ? 'bg-slate-800/90 text-white'
+           : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}">
+        Annual Budgets
+    </a>
+@endif
+
+@if (
     auth()->user()->hasPermission('hospital_expenses.view')
 )
     <a

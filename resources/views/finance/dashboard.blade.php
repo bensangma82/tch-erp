@@ -46,6 +46,10 @@
     </div>
 
     <div class="flex flex-wrap gap-2">
+        @if(auth()->user()->hasPermission('finance.budgets.view') || auth()->user()->hasPermission('finance.budgets.manage'))
+        <a href="{{ route('finance.budgets.index') }}" class="rounded-lg bg-indigo-700 px-4 py-2.5 text-xs font-semibold text-white">Annual Budgets</a>
+        @endif
+
 
         <a href="{{ route('finance.vouchers.index') }}"
            class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">

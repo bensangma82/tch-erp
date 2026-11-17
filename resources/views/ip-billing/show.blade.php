@@ -141,7 +141,9 @@ $mhisAdjustmentAmount =
 
 $adjustedBillAmount =
     round(
-        (float) $account->net_amount
+        (float) $account->charges
+            ->where('status', 'active')
+            ->sum('amount')
         + $mhisAdjustmentAmount,
         2
     );
@@ -652,23 +654,6 @@ $refundDue =
 
                     <div class="mt-2 text-xl font-bold text-violet-700">
                         ₹{{ number_format($mhisAdjustmentAmount, 2) }}
-                    </div>
-
-                </div>
-
-
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-                    <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Adjusted Bill
-                    </div>
-
-                    <div class="mt-2 text-xl font-bold text-slate-900">
-                        ₹{{ number_format($adjustedBillAmount, 2) }}
-                    </div>
-
-                    <div class="mt-2 text-xs text-slate-500">
-                        Charges + MHIS package adjustment
                     </div>
 
                 </div>
@@ -2420,6 +2405,16 @@ style="background-color: #dc2626;"
                             </div>
                         </div>
 
+
+                        @if ($account->mhis_category === 'free' && $mhisClaim->status === 'approved'
+                            && (int) round((float) $account->net_amount * 100) !== (int) round((float) $mhisClaim->approved_amount * 100))
+                            @if (auth()->user()->hasPermission('finance.mhis-adjustment.post') || auth()->user()->hasPermission('finance.mhis-adjustment.approve'))
+                            <div class="sm:col-span-2 lg:col-span-4 rounded border p-4">
+                                <p>Hospital bill ₹{{ number_format($account->net_amount, 2) }} · MHIS approved ₹{{ number_format($mhisClaim->approved_amount, 2) }} · Difference ₹{{ number_format(abs((float) $account->net_amount - (float) $mhisClaim->approved_amount), 2) }}</p>
+                                <a class="text-indigo-700 underline" href="{{ route('finance.mhis-package-variance.index', ['claim_id' => $mhisClaim->id]) }}">Review package difference</a>
+                            </div>
+                            @endif
+                        @endif
 
                         @if ($mhisClaim->remarks)
                             <div class="sm:col-span-2 lg:col-span-4">

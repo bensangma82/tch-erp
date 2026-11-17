@@ -21,6 +21,13 @@ class TallyOpdReceiptDependencyTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withSession(['_token' => 'tally-opd-test-token'])
+            ->withHeader('X-CSRF-TOKEN', 'tally-opd-test-token');
+    }
+
     public function test_opd_receipt_requires_confirmed_sales(): void
     {
         $this->assertSame('pgsql', DB::connection()->getDriverName());

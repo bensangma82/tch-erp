@@ -270,6 +270,19 @@ TallyExportLock::acquire(
             |--------------------------------------------------------------------------
             */
 
+            // Enforce Sales-before-Receipt dependency inside
+            // the locked export transaction.
+            $dependencyError = app(
+                \App\Services\Tally\TallyJournalExportPreflightService::class
+            )->failure($journal);
+
+            if ($dependencyError !== null) {
+                return [
+                    'ok' => false,
+                    'message' => $dependencyError,
+                ];
+            }
+
             $existingExport = TallyExport::query()
                 ->where('journal_entry_id', $journal->id)
                 ->exists();
@@ -682,6 +695,14 @@ TallyExportLock::acquire(
             }
 
             try {
+                if ($journal->source_type === 'ip_billing_payment') {
+                    $guard = app(\App\Services\Tally\TallyCancelledReceiptGuard::class)->check($journal);
+                    if (! $guard['allowed']) {
+                        $results[] = ['journal' => $number, 'status' => 'skipped', 'message' => $guard['reason']];
+                        continue;
+                    }
+                }
+
                 $dependencyError = app(
                     \App\Services\Tally\TallyJournalExportPreflightService::class
                 )->failure($journal);

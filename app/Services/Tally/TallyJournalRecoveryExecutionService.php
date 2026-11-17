@@ -90,6 +90,12 @@ class TallyJournalRecoveryExecutionService
                 throw ValidationException::withMessages(['recovery' => 'Recovery approval expired or the Tally company changed. Reconcile again.']);
             }
 
+            if (str_starts_with((string) $attempt->reconciliation_evidence, '[AUTO-LIVE]')) {
+                $freshEvidence = app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+                $attempt->reconciliation_evidence .= "\nPre-send: ".$freshEvidence;
+                $attempt->save();
+            }
+
             $attempt->update([
                 'status' => 'claimed',
                 'claimed_at' => now(),

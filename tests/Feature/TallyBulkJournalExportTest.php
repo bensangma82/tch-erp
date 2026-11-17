@@ -15,6 +15,9 @@ class TallyBulkJournalExportTest extends TestCase
     {
         parent::setUp();
 
+        $this->withSession(['_token' => 'tally-bulk-test-token'])
+            ->withHeader('X-CSRF-TOKEN', 'tally-bulk-test-token');
+
         $this->assertSame('pgsql', DB::connection()->getDriverName());
         $this->assertSame(
             'testing',
@@ -440,6 +443,70 @@ class TallyBulkJournalExportTest extends TestCase
         $this->assertDatabaseMissing('tally_exports', [
             'journal_entry_id' => $journal->id,
         ]);
+    }
+
+
+    public function test_cancelled_receipt_is_skipped_before_preparation_and_batch_continues(): void
+    {
+        $this->assertGuardBlocksBeforePreparation('received', 990301);
+    }
+
+    public function test_cancelled_reversal_is_skipped_before_preparation_and_batch_continues(): void
+    {
+        $this->assertGuardBlocksBeforePreparation('reversed', 990302);
+    }
+
+    private function assertGuardBlocksBeforePreparation(string $event, int $sourceId): void
+    {
+        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        $user = $this->makeBulkAdmin();
+        $blocked = \App\Models\JournalEntry::create([
+            'journal_no' => 'JRN-CANCEL-MERGE-'.$sourceId,
+            'journal_date' => '2026-11-17',
+            'source_type' => 'ip_billing_payment',
+            'source_id' => $sourceId,
+            'source_event' => $event,
+            'status' => 'posted',
+            'created_by' => $user->id,
+            'posted_by' => $user->id,
+            'posted_at' => now(),
+        ]);
+        $next = $this->makeBulkJournal($user, $sourceId + 10);
+        $reason = 'Cancelled receipt pair: exclude from new export.';
+        $guard = \Mockery::mock(\App\Services\Tally\TallyCancelledReceiptGuard::class);
+        $guard->shouldReceive('check')->once()
+            ->with(\Mockery::on(fn ($journal) => $journal->id === $blocked->id && $journal->source_event === $event))
+            ->andReturn(['allowed' => false, 'reason' => $reason]);
+        $this->app->instance(\App\Services\Tally\TallyCancelledReceiptGuard::class, $guard);
+
+        // Only the next journal reaches eligibility; the cancelled one must never be prepared.
+        $service = \Mockery::mock(\App\Services\Tally\TallyJournalExportService::class);
+        $service->shouldReceive('checkEligibility')->once()
+            ->with(\Mockery::on(fn ($journal) => $journal->id === $next->id))
+            ->andReturn(['eligible' => false, 'errors' => ['Test-only ineligible follow-on journal.']]);
+        $this->app->instance(\App\Services\Tally\TallyJournalExportService::class, $service);
+        $router = \Mockery::mock(\App\Services\Tally\TallyVoucherXmlRouter::class);
+        $router->shouldNotReceive('build');
+        $this->app->instance(\App\Services\Tally\TallyVoucherXmlRouter::class, $router);
+        $client = \Mockery::mock(\App\Services\Tally\TallyHttpClient::class);
+        $client->shouldNotReceive('postXml');
+        $this->app->instance(\App\Services\Tally\TallyHttpClient::class, $client);
+
+        $response = $this->actingAs($user)->from(route('finance.tally.journals.index'))
+            ->post(route('finance.tally.journals.send-selected'), ['journal_ids' => [$blocked->id, $next->id]]);
+        $response->assertRedirect(route('finance.tally.journals.index'));
+        $response->assertSessionHas('tally_bulk_stopped', false);
+        $results = session('tally_bulk_results');
+        $this->assertCount(2, $results);
+        $this->assertSame($blocked->journal_no, $results[0]['journal']);
+        $this->assertSame('skipped', $results[0]['status']);
+        $this->assertSame($reason, $results[0]['message']);
+        $this->assertSame($next->journal_no, $results[1]['journal']);
+        $this->assertSame('Journal eligibility check failed.', $results[1]['message']);
+        foreach ([$blocked, $next] as $journal) {
+            $this->assertDatabaseMissing('tally_exports', ['journal_entry_id' => $journal->id]);
+        }
+        \Illuminate\Support\Facades\Http::assertNothingSent();
     }
 
 }

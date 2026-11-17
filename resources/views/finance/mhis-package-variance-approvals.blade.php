@@ -1,7 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MHIS Package Variance Finance Review</title>
-
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MHIS Package Review</title>
 <style>
 *{box-sizing:border-box}
 body{
@@ -90,24 +88,84 @@ td button:hover{background:#047857}
   section{padding:20px 15px;overflow-x:auto}
   table{min-width:900px}
 }
-</style>
+</style><style>select{padding:12px;width:100%;max-width:680px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 19px}.amounts{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:20px}.amounts strong{display:block;font-size:22px}a{color:#4338ca}details{margin:12px 0}small{color:#475569}.review-table{overflow-x:auto}</style>
 </head><body>
-<h1>MHIS Package Variance — Finance Review</h1>
-<p>Approved MHIS Free claims with non-zero package differences require independent Finance authorisation before GL posting.</p>
+<h1>MHIS Package Review</h1>
+<p>Select a patient bill, check the difference and submit for independent Finance approval.</p>
 @if(session('status'))<p role="status">{{ session('status') }}</p>@endif
-@if($errors->any())<div class="error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
-@if(auth()->user()->hasPermission('finance.mhis-adjustment.post'))
-<section><h2>Submit a claim variance</h2>
-<form method="post" action="{{ route('finance.mhis-package-variance.store') }}">@csrf
-<label>MHIS claim ID<input type="number" name="claim_id" min="1" required value="{{ old('claim_id') }}"></label>
-<label>Approval / package supporting reference<input name="supporting_reference" maxlength="255" required value="{{ old('supporting_reference') }}"></label>
-<label>Reason for the difference<textarea name="reason" required>{{ old('reason') }}</textarea></label>
-<label>Evidence (approval number, document references, package terms)<textarea name="supporting_evidence" required>{{ old('supporting_evidence') }}</textarea></label>
-<label><input style="display:inline;width:auto" type="checkbox" name="contractual_nonrecoverable" value="1" @checked(old('contractual_nonrecoverable'))> For a shortfall: confirm the amount is contractually non-recoverable (not merely pending/rejected).</label>
-<button type="submit">Submit for Finance approval</button></form></section>@endif
-<section><h2>Variance approval register</h2>
-<table><thead><tr><th>Claim</th><th>Bill</th><th>Approved</th><th>Variance</th><th>Treatment</th><th>Reference</th><th>Maker</th><th>Checker</th><th>Status</th><th>Action</th></tr></thead><tbody>
-@foreach($items as $a)<tr><td>{{ $a->ip_billing_mhis_claim_id }}</td><td>{{ $a->bill_amount }}</td><td>{{ $a->approved_amount }}</td><td>{{ $a->variance_amount }}</td><td>{{ $a->treatment }}</td><td>{{ $a->supporting_reference }}</td><td>{{ $a->created_by }}</td><td>{{ $a->approved_by ?? '—' }}</td><td>{{ $a->status }}</td><td>
-@if($a->status === 'submitted' && auth()->user()->hasPermission('finance.mhis-adjustment.approve') && (int)auth()->id() !== (int)$a->created_by)
-<form method="post" action="{{ route('finance.mhis-package-variance.approve', $a) }}">@csrf<button>Approve</button></form>
-@endif</td></tr>@endforeach</tbody></table>{{ $items->links() }}</section></body></html>
+@if($errors->any())<div class="error" role="alert">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
+@if($selected)
+<section>
+    <h2>{{ trim(($selected->patient?->first_name ?? '').' '.($selected->patient?->last_name ?? '')) }} · {{ $selected->patient?->uhid }}</h2>
+    <p>Bill account: {{ $selected->billingAccount?->account_no }} · MHIS registration: {{ $selected->mhis_registration_id ?: 'Not recorded' }} · Approval date: {{ $selected->approval_date?->format('d M Y') }}</p>
+    <p>Package: {{ $selected->package_code }} {{ $selected->package_name }}</p>
+    <a href="{{ route('ip-billing.show', $selected->admission_id) }}">Back to patient bill</a>
+    @if($problem)<p class="error">{{ $problem }}</p>@endif
+    @if($snapshot)
+    <div class="amounts">
+        <div>Hospital bill<strong>₹{{ number_format($snapshot['bill_amount'], 2) }}</strong></div>
+        <div>MHIS approval<strong>₹{{ number_format($snapshot['approved_amount'], 2) }}</strong></div>
+        <div>{{ $snapshot['treatment'] === 'contractual_allowance' ? 'Shortfall' : 'Additional reimbursement' }}<strong>₹{{ number_format(abs((float) $snapshot['variance_amount']), 2) }}</strong></div>
+    </div>
+    @endif
+    @if($review)
+        <p>Review status: <strong>{{ ucfirst($review->status) }}</strong> · Submitted by user #{{ $review->created_by }} · Approved by {{ $review->approved_by ?: 'Awaiting independent review' }}</p>
+        @if($review->status === 'approved')<p>Approval is recorded. Finalization checks that the current bill and approval still match this snapshot.</p>@endif
+        @foreach($events->where('action', 'returned') as $event)<p class="error">Returned for correction: {{ $event->notes }}</p>@endforeach
+        <details><summary>Review evidence and history</summary>
+            <p>{{ $review->reason }}</p><p>{{ $review->supporting_evidence }}</p>
+            @foreach($events as $event)<p>{{ $event->created_at }} · {{ $event->action }} · user #{{ $event->actor_id }} · {{ $event->notes }}</p>@endforeach
+        </details>
+    @endif
+    @if($snapshot && auth()->user()->hasPermission('finance.mhis-adjustment.post') && (!$review || ($review->status === 'returned' && (int) $review->created_by === (int) auth()->id())))
+    <form method="post" action="{{ route('finance.mhis-package-variance.store') }}">
+        @csrf
+        <input type="hidden" name="claim_id" value="{{ $selected->id }}">
+        <input type="hidden" name="expected_bill" value="{{ $snapshot['bill_amount'] }}">
+        <input type="hidden" name="expected_approved" value="{{ $snapshot['approved_amount'] }}">
+        @php($automaticReference = \App\Services\Accounting\MhisPackageVarianceApprovalService::recordedReference($selected))
+        @if($automaticReference !== '')
+        <p><strong>Reference:</strong> {{ $automaticReference }} <small>From the recorded authorisation, claim or MHIS registration ID.</small></p>
+        @else
+        <label>Missing claim reference<input name="supporting_reference" maxlength="255" required value="{{ old('supporting_reference') }}"></label>
+        <small>No authorisation, claim or registration reference is recorded. Enter a real traceable reference or update the claim.</small>
+        @endif
+        <p><strong>Reason:</strong> Recorded MHIS approval differs from the hospital bill. The exact amounts are attached automatically.</p>
+        <p><small>Evidence is generated from ERP records; this does not fetch or verify documents from the MHIS portal.</small></p>
+        <label>Additional notes (optional)<textarea name="notes" maxlength="2000">{{ old('notes') }}</textarea></label>
+        @if($snapshot['treatment'] === 'contractual_allowance')
+        <label><input type="checkbox" name="contractual_nonrecoverable" value="1" required @checked(old('contractual_nonrecoverable'))> I checked the package terms: this shortfall is contractually non-recoverable, not an unpaid instalment or pending claim.</label>
+        @endif
+        <p>Amounts, recorded claim details, submitter and time are attached automatically. Submission does not post an allowance.</p>
+        <button type="submit">{{ $review ? 'Resubmit for Finance review' : 'Submit for Finance review' }}</button>
+    </form>
+    @endif
+    @if($review && $review->status === 'submitted' && auth()->user()->hasPermission('finance.mhis-adjustment.approve'))
+        @if((int) $review->created_by !== (int) auth()->id())
+        <form method="post" action="{{ route('finance.mhis-package-variance.approve', $review) }}">@csrf
+            <input type="hidden" name="decision" value="approve"><button type="submit">Approve package difference</button>
+        </form>
+        <details><summary>Return for correction</summary>
+            <form method="post" action="{{ route('finance.mhis-package-variance.approve', $review) }}">@csrf
+                <input type="hidden" name="decision" value="return">
+                <label>What needs correction?<textarea name="return_notes" maxlength="2000" required></textarea></label>
+                <button type="submit">Return to submitter</button>
+            </form>
+        </details>
+        @else<p>A different authorised Finance user must review your submission.</p>@endif
+    @endif
+</section>
+@endif
+<section><h2>Patient bills with package differences</h2>
+<form method="get"><label>Search patient name or hospital number<input name="q" value="{{ $q }}" maxlength="100"></label><button>Search</button></form>
+<div class="review-table"><table><thead><tr><th>Patient</th><th>Hospital number</th><th>Bill account</th><th>Hospital bill</th><th>MHIS approval</th><th>Difference</th><th></th></tr></thead><tbody>
+@forelse($claims as $claim)<tr>
+<td>{{ trim(($claim->patient?->first_name ?? '').' '.($claim->patient?->last_name ?? '')) }}</td><td>{{ $claim->patient?->uhid }}</td><td>{{ $claim->billingAccount?->account_no }}</td>
+<td>₹{{ number_format($claim->billingAccount?->net_amount ?? 0, 2) }}</td><td>₹{{ number_format($claim->approved_amount, 2) }}</td><td>₹{{ number_format(abs((float) $claim->approved_amount - (float) $claim->billingAccount?->net_amount), 2) }}</td>
+<td><a href="{{ route('finance.mhis-package-variance.index', ['claim_id' => $claim->id]) }}">Review</a></td></tr>
+@empty<tr><td colspan="7">No matching approved MHIS Free bills with a package difference.</td></tr>@endforelse
+</tbody></table></div>{{ $claims->links() }}</section>
+<section><h2>Finance review register</h2><div class="review-table"><table><thead><tr><th>Patient / claim</th><th>Bill</th><th>MHIS approved</th><th>Difference</th><th>Status</th><th></th></tr></thead><tbody>
+@foreach($items as $a)<tr><td>{{ $a->claim?->patient?->uhid }} / #{{ $a->ip_billing_mhis_claim_id }}</td><td>{{ $a->bill_amount }}</td><td>{{ $a->approved_amount }}</td><td>{{ $a->variance_amount }}</td><td>{{ ucfirst($a->status) }}</td><td><a href="{{ route('finance.mhis-package-variance.index', ['claim_id' => $a->ip_billing_mhis_claim_id]) }}">Open review</a></td></tr>@endforeach
+</tbody></table></div>{{ $items->links() }}</section>
+</body></html>

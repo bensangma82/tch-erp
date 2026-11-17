@@ -3698,3 +3698,6 @@ Route::middleware([
         \Illuminate\Support\Facades\Route::post('/', [\App\Http\Controllers\MhisPackageVarianceApprovalController::class, 'store'])->name('store');
         \Illuminate\Support\Facades\Route::post('/{approval}/approve', [\App\Http\Controllers\MhisPackageVarianceApprovalController::class, 'approve'])->name('approve');
     });
+
+// TCH_ANNUAL_BUDGET_ROUTES_V1
+require __DIR__.'/annual-budgets.php';
