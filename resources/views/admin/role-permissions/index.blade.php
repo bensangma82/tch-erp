@@ -1,667 +1,167 @@
 <x-app-layout>
-
     <x-slot name="header">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-xl font-semibold text-slate-900">
-                    Role & Permission Dashboard
-                </h2>
-
-                <p class="mt-1 text-sm text-slate-500">
-                    Configure ERP access by role. Roles define broad access; permissions refine individual functions.
-                </p>
-            </div>
-
-            <div class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
-                Access Control
-            </div>
-        </div>
+        <h2 class="text-2xl font-bold text-slate-900">Roles &amp; Permissions</h2>
+        <p class="mt-1 text-sm text-slate-500">Review access by role, inspect individual grants and record permission changes.</p>
     </x-slot>
-
-
-    <div class="py-8">
-        <div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-
-            @if (session('success'))
-                <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-                    {{ session('success') }}
+    <div class="bg-slate-50 py-6">
+    <div class="mx-auto max-w-7xl space-y-5 px-4 sm:px-6">
+        @if (session('success'))<div role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{{ session('success') }}</div>@endif
+        @if ($errors->any())
+            <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <ul class="list-disc pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                <p class="mt-2">The matrix below shows current saved assignments. Review it before submitting again.</p>
+            </div>
+        @endif
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <form method="GET" action="{{ route('admin.role-permissions.index') }}" class="grid gap-4 sm:grid-cols-2">
+                <div><label for="role" class="mb-2 block text-sm font-semibold">Editing role</label>
+                    <select id="role" name="role" class="w-full rounded-lg border-slate-300" onchange="this.form.querySelector('[name=user_id]').value=''; this.form.submit()">
+                        @foreach ($roles as $value => $label)<option value="{{ $value }}" @selected($selectedRole === $value)>{{ $label }}</option>@endforeach
+                    </select>
                 </div>
+                <div><label for="user_id" class="mb-2 block text-sm font-semibold">Inspect a user in this role</label>
+                    <select id="user_id" name="user_id" class="w-full rounded-lg border-slate-300" onchange="this.form.submit()">
+                        <option value="">Role grants only</option>
+                        @foreach ($roleUsers as $member)<option value="{{ $member->id }}" @selected($selectedUser?->id === $member->id)>{{ $member->name }}{{ $member->is_active ? '' : ' (inactive)' }}</option>@endforeach
+                    </select>
+                </div>
+                <button class="w-fit rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold">Load role / user</button>
+            </form>
+            <div class="mt-4 flex flex-wrap gap-3 border-t pt-4 text-sm text-slate-600">
+                <span><strong>{{ count($roleUsers) }}</strong> users in this role</span>
+                <span><strong>{{ count($assignedPermissionIds) }}</strong> saved role grants</span>
+                <span><strong>{{ $permissionsByModule->flatten(1)->count() }}</strong> registered permissions</span>
+            </div>
+            <p class="mt-3 text-xs leading-5 text-slate-500">Roles control access. Designations identify hospital responsibilities. Administrator and Super Administrator retain the current ERP-wide override and are not edited through this matrix. Route restrictions and workflow checks still apply after a permission is granted.</p>
+        </div>
+
+        <details class="rounded-xl border border-slate-200 bg-white p-5" @if ($selectedUser) open @endif>
+            <summary class="cursor-pointer font-semibold text-slate-900">{{ $selectedUser ? 'Access grants: '.$selectedUser->name : 'Access grants for this role' }} ({{ $effectiveGrants->count() }})</summary>
+            @if ($selectedUser)
+                <p class="mt-3 text-sm text-slate-600">Role: <strong>{{ $roles[$selectedRole] }}</strong> · Designation: <strong>{{ $selectedUser->designation ?: 'Not set' }}</strong> · Account: <strong>{{ $selectedUser->is_active ? 'Active' : 'Inactive — authenticated access is blocked by active-user middleware' }}</strong></p>
+                <a href="{{ route('admin.users.edit', $selectedUser) }}" class="mt-2 inline-block text-sm font-semibold text-indigo-700">Open user account →</a>
             @endif
+            <p class="my-3 text-xs leading-5 text-slate-500">This shows registered grants from role and direct-user assignments, not a guarantee that every action is allowed. Direct-only financial permissions and workflow checks may impose additional requirements. Removing a role grant does not revoke an independent direct-user grant.</p>
+            <div class="max-h-80 overflow-auto">
+                <table class="w-full text-left text-sm"><thead><tr class="border-b"><th class="py-2">Permission</th><th class="py-2">Source</th></tr></thead><tbody>
+                @forelse ($effectiveGrants as $grant)
+                    <tr class="border-b border-slate-100"><td class="py-2 pr-3"><div>{{ $grant['permission']->label }}</div><div class="break-all text-xs text-slate-500">{{ $grant['permission']->name }}</div></td><td class="py-2">{{ $grant['source'] }}</td></tr>
+                @empty<tr><td colspan="2" class="py-4 text-slate-500">No registered grants found.</td></tr>@endforelse
+                </tbody></table>
+            </div>
+        </details>
 
-
-
-            {{-- ACCESS CONTROL SUMMARY --}}
-            @php
-                $roleCount = count($roles);
-                $assignedCount = count($assignedPermissionIds);
-                $permissionCount = $permissionsByModule->flatten(1)->count();
-            @endphp
-
-            <div class="mb-6 grid gap-4 sm:grid-cols-3">
-                @foreach ([
-                    ['ERP Roles', $roleCount, 'users'],
-                    ['Assigned Permissions', $assignedCount, 'shield-check'],
-                    ['Available Permissions', $permissionCount, 'key-round'],
-                ] as [$label, $value, $icon])
-                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <p class="text-sm font-medium text-slate-500">
-                            {{ $label }}
-                        </p>
-                        <p class="mt-2 text-2xl font-bold text-slate-900">
-                            {{ $value }}
-                        </p>
-                    </div>
+        <form id="permissionMatrix" method="POST" action="{{ route('admin.role-permissions.update') }}" class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            @csrf
+            <input type="hidden" name="role" value="{{ $selectedRole }}">
+            <input type="hidden" name="snapshot" value="{{ $snapshot }}">
+            <input type="hidden" name="matrix_present" value="1">
+            <div class="border-b p-5">
+                <h3 class="text-lg font-bold text-slate-900">Editing {{ $roles[$selectedRole] }}</h3>
+                <p class="mt-1 text-sm text-slate-500">Saving affects every user with this role. Existing direct grants are preserved.</p>
+                <div class="mt-4 flex flex-wrap items-center gap-3">
+                    <label class="sr-only" for="permissionSearch">Search permissions</label>
+                    <input id="permissionSearch" type="search" placeholder="Search permission or module" class="w-full rounded-lg border-slate-300 text-sm sm:w-80">
+                    <button type="button" id="selectVisible" class="rounded-lg border px-3 py-2 text-sm">Select visible</button>
+                    <button type="button" id="clearVisible" class="rounded-lg border px-3 py-2 text-sm">Clear visible</button>
+                    <span id="changeSummary" aria-live="polite" class="text-sm font-semibold text-slate-600"></span>
+                </div>
+            </div>
+            <div class="grid gap-4 p-4 lg:grid-cols-2">
+                @foreach ($permissionsByModule as $module => $permissions)
+                    <section class="permission-module overflow-hidden rounded-xl border border-slate-200">
+                        <div class="flex items-center justify-between bg-slate-50 px-4 py-3">
+                            <h4 class="text-xs font-bold uppercase tracking-wide text-slate-700">{{ str_replace('_', ' ', $module) }}</h4>
+                            <button type="button" class="select-module text-xs font-semibold text-indigo-700">Select visible</button>
+                        </div>
+                        <div class="divide-y divide-slate-100">
+                        @foreach ($permissions as $permission)
+                            @php
+                                $checked = in_array((int) $permission->id, $assignedPermissionIds, true);
+                                $protected = in_array($permission->name, $directOnly, true);
+                                $sensitive = preg_match('/refund|cancel|approve|verify|execute|assign|close|pay|reset|delete|journal|tally|permission|system\.users|\.post/', $permission->name);
+                            @endphp
+                            <label class="permission-row flex items-start gap-3 p-4" data-search="{{ strtolower($module.' '.$permission->label.' '.$permission->name.' '.$permission->description) }}">
+                                <input type="checkbox" name="permissions[]" value="{{ $permission->id }}" data-original="{{ $checked ? '1' : '0' }}"
+                                    @checked($checked) @disabled($protected)
+                                    class="permission-checkbox mt-1 rounded border-slate-300 text-indigo-600">
+                                <span class="min-w-0">
+                                    <span class="text-sm font-semibold text-slate-800">{{ $permission->label }}</span>
+                                    <span class="mt-1 block break-all font-mono text-xs text-slate-400">{{ $permission->name }}</span>
+                                    @if ($protected)<span class="mt-1 block text-xs font-semibold text-amber-800">Direct assignment only — manage on the individual user account. Any historical role grant is preserved.</span>
+                                    @elseif ($sensitive)<span class="mt-1 block text-xs font-semibold text-amber-800">Sensitive action — select individually</span>@endif
+                                    <span class="mt-1 block text-xs leading-5 text-slate-500">{{ $permission->description }}</span>
+                                </span>
+                            </label>
+                        @endforeach
+                        </div>
+                    </section>
                 @endforeach
             </div>
-
-            {{-- ========================================================= --}}
-            {{-- ROLE SELECTOR --}}
-            {{-- ========================================================= --}}
-
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-
-                <div class="sticky top-0 z-20 border-b border-slate-100 bg-white/95 px-6 py-4 backdrop-blur">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <h3 class="font-semibold text-slate-900">
-                                ERP Roles
-                            </h3>
-
-                            <p class="mt-1 text-sm text-slate-500">
-                                Select a role to configure its privileges.
-                            </p>
-                        </div>
-
-                        <div class="text-xs font-medium text-slate-400">
-                            {{ count($roles) }} roles
-                        </div>
-                    </div>
-                </div>
-
-
-                <div class="px-4 pt-4">
-                    <input
-                        id="roleSearch"
-                        type="search"
-                        placeholder="Search hospital roles..."
-                        class="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500 sm:max-w-sm"
-                    >
-                </div>
-
-                <div id="roleGrid" class="grid max-h-[310px] gap-2 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-
-                    @foreach ($roles as $roleValue => $roleLabel)
-
-                        @php
-                            $isSelected = $selectedRole === $roleValue;
-                        @endphp
-
-                        <a
-                            data-role-search="{{ strtolower($roleLabel.' '.$roleValue) }}"
-                            href="{{ route(
-                                'admin.role-permissions.index',
-                                ['role' => $roleValue]
-                            ) }}"
-                            class="group flex items-center justify-between rounded-xl border px-4 py-3 transition
-                                {{
-                                    $isSelected
-                                        ? 'border-blue-700 bg-blue-700 text-white shadow-md ring-2 ring-blue-100'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-md'
-                                }}"
-                        >
-                            <div class="min-w-0">
-
-                                <div class="truncate text-sm font-semibold">
-                                    {{ $roleLabel }}
-                                </div>
-
-                                <div
-                                    class="mt-1 text-[11px] font-medium uppercase tracking-wide
-                                        {{
-                                            $isSelected
-                                                ? 'text-slate-300'
-                                                : 'text-slate-400'
-                                        }}"
-                                >
-                                    {{ str_replace('_', ' ', $roleValue) }}
-                                </div>
-
-                            </div>
-
-
-                            <div
-                                class="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold
-                                    {{
-                                        $isSelected
-                                            ? 'bg-white/10 text-white'
-                                            : 'bg-white text-slate-400 ring-1 ring-slate-200 group-hover:text-slate-700'
-                                    }}"
-                            >
-                                @if ($isSelected)
-                                    ✓
-                                @else
-                                    ›
-                                @endif
-                            </div>
-
-                        </a>
-
-                    @endforeach
-
-                </div>
-
+            <div class="space-y-3 border-t bg-slate-50 p-5">
+                <label for="reason" class="block text-sm font-semibold text-slate-800">Reason for this permission change</label>
+                <textarea id="reason" name="reason" rows="2" maxlength="1000" placeholder="Describe the responsibility or access change (10–1000 characters when changing grants)." class="w-full rounded-lg border-slate-300">{{ old('reason') }}</textarea>
+                <div id="changeList" class="text-sm text-slate-600" aria-live="polite"></div>
+                <button class="rounded-lg bg-indigo-700 px-5 py-3 text-sm font-semibold text-white">Save {{ $roles[$selectedRole] }} permissions</button>
             </div>
-
-
-            {{-- ========================================================= --}}
-            {{-- PERMISSION MATRIX --}}
-            {{-- ========================================================= --}}
-
-            <form
-                method="POST"
-                action="{{ route('admin.role-permissions.update') }}"
-                class="mt-6"
-            >
-                @csrf
-
-                <input
-                    type="hidden"
-                    name="role"
-                    value="{{ $selectedRole }}"
-                >
-
-
-                <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-
-                    <div class="border-b border-slate-100 px-6 py-5">
-
-                        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
-                            <div>
-                                <div class="flex flex-wrap items-center gap-2">
-
-                                    <h3 class="text-lg font-semibold text-slate-900">
-                                        {{ $roles[$selectedRole] }}
-                                    </h3>
-
-                                    <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                                        {{ count($assignedPermissionIds) }} assigned
-                                    </span>
-
-                                </div>
-
-                                <p class="mt-1 text-sm text-slate-500">
-                                    Tick the functions this role is allowed to use.
-                                </p>
-
-                                @php
-                                    $totalPermissions = $permissionsByModule
-                                        ->flatten(1)
-                                        ->count();
-
-                                    $assignedCount = count($assignedPermissionIds);
-
-                                    $assignedPercentage = $totalPermissions > 0
-                                        ? round(($assignedCount / $totalPermissions) * 100)
-                                        : 0;
-                                @endphp
-
-                                <div class="mt-3 max-w-sm">
-                                    <div class="mb-1 flex justify-between text-xs text-slate-500">
-                                        <span>Permission coverage</span>
-                                        <span>{{ $assignedCount }} / {{ $totalPermissions }} ({{ $assignedPercentage }}%)</span>
-                                    </div>
-
-                                    <div class="h-2 overflow-hidden rounded-full bg-slate-100">
-                                        <div
-                                            class="h-full rounded-full bg-blue-600"
-                                            style="width: {{ $assignedPercentage }}%"
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
-
-
-                            <div class="flex flex-wrap items-center gap-2">
-
-                                <div class="relative">
-                                    <input
-                                        id="permissionSearch"
-                                        type="search"
-                                        placeholder="Search permissions..."
-                                        class="w-56 rounded-lg border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500"
-                                    >
-                                </div>
-
-                                <button
-                                    type="button"
-                                    id="selectAllPermissions"
-                                    class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    Select All
-                                </button>
-
-                                <button
-                                    type="button"
-                                    id="clearAllPermissions"
-                                    class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    Clear All
-                                </button>
-
-                                <button
-                                    type="submit"
-                                    class="rounded-lg bg-blue-700 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-800"
-                                >
-                                    Save Permissions
-                                </button>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="grid gap-4 p-4 sm:p-6 xl:grid-cols-2">
-
-                        @foreach ($permissionsByModule as $module => $permissions)
-
-                            <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
-
-                                <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-3">
-
-                                    <div>
-                                        <div class="text-xs font-bold uppercase tracking-[0.12em] text-slate-700">
-                                            {{ str_replace('_', ' ', $module) }}
-                                        </div>
-
-                                        <div class="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
-                                            <span>
-                                                {{ $permissions->count() }}
-                                                {{ $permissions->count() === 1 ? 'permission' : 'permissions' }}
-                                            </span>
-
-                                            <span
-                                                class="module-selected-count rounded-full bg-slate-200/70 px-2 py-0.5 font-semibold text-slate-600"
-                                                data-module="{{ $module }}"
-                                            >
-                                                0 selected
-                                            </span>
-                                        </div>
-                                    </div>
-
-
-                                    <button
-                                        type="button"
-                                        class="select-module rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 hover:text-blue-800"
-                                        data-module="{{ $module }}"
-                                    >
-                                        Select all
-                                    </button>
-
-                                </div>
-
-
-                                <div class="divide-y divide-slate-100">
-
-                                    @foreach ($permissions as $permission)
-
-                                        @php
-                                            $checked = in_array(
-                                                $permission->id,
-                                                $assignedPermissionIds,
-                                                true
-                                            );
-                                        @endphp
-
-                                        <label
-                                            class="permission-row flex cursor-pointer items-start gap-3 px-5 py-4 transition hover:bg-slate-50"
-                                            data-module="{{ $module }}"
-                                            data-search="{{ strtolower($permission->label.' '.$permission->name.' '.($permission->description ?? '')) }}"
-                                        >
-
-                                            <input
-                                                type="checkbox"
-                                                name="permissions[]"
-                                                value="{{ $permission->id }}"
-                                                data-module="{{ $module }}"
-                                                @checked($checked)
-                                                class="permission-checkbox mt-0.5 rounded border-slate-300 text-blue-600 shadow-sm focus:ring-blue-500"
-                                            >
-
-
-                                            <span class="min-w-0 flex-1">
-
-                                                <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
-
-                                                    <span class="text-sm font-semibold text-slate-800">
-                                                        {{ $permission->label }}
-                                                    </span>
-
-                                                    <span class="font-mono text-[10px] text-slate-400">
-                                                        {{ $permission->name }}
-                                                    </span>
-
-                                                </span>
-
-
-                                                @php
-                                                    $sensitiveKeywords = [
-                                                        'refund',
-                                                        'cancel',
-                                                        'tally',
-                                                        'journal',
-                                                        'voucher',
-                                                        'permission',
-                                                        'user.manage',
-                                                        'approve',
-                                                        'delete',
-                                                    ];
-
-                                                    $permissionName = strtolower(
-                                                        $permission->name
-                                                    );
-
-                                                    $isSensitive = collect($sensitiveKeywords)
-                                                        ->contains(
-                                                            fn ($keyword) =>
-                                                                str_contains($permissionName, $keyword)
-                                                        );
-                                                @endphp
-
-                                                @if ($isSensitive)
-                                                    <span class="mt-2 inline-flex rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                                                        Sensitive permission
-                                                    </span>
-                                                @endif
-
-                                                @if ($permission->description)
-
-                                                    <span class="mt-1.5 block text-xs leading-5 text-slate-500">
-                                                        {{ $permission->description }}
-                                                    </span>
-
-                                                @endif
-
-                                            </span>
-
-                                        </label>
-
-                                    @endforeach
-
-                                </div>
-
-                            </div>
-
-                        @endforeach
-
-                    </div>
-
-
-                    {{-- ================================================= --}}
-                    {{-- STICKY SAVE FOOTER --}}
-                    {{-- ================================================= --}}
-
-                    <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-
-                        <div class="text-xs leading-5 text-slate-500">
-                            Changes apply to all users assigned the
-                            <span class="font-semibold text-slate-700">
-                                {{ $roles[$selectedRole] }}
-                            </span>
-                            role.
-                        </div>
-
-
-                        <div class="flex items-center gap-3">
-
-                            <span
-                                id="selectedPermissionCount"
-                                class="text-xs font-semibold text-slate-500"
-                            >
-                                {{ count($assignedPermissionIds) }} selected
-                            </span>
-
-                            <button
-                                type="submit"
-                                class="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-                            >
-                                Save Permissions
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </form>
-
-        </div>
+        </form>
+
+        <details class="rounded-xl border border-slate-200 bg-white p-5">
+            <summary class="cursor-pointer font-semibold text-slate-900">Recent role permission changes</summary>
+            <p class="mt-2 text-xs text-slate-500">Latest 10 changes recorded through this editor after this update. Historical grants and edits made elsewhere have no backfilled audit entry.</p>
+            <div class="mt-4 divide-y divide-slate-100">
+                @forelse ($audits as $audit)
+                    <article class="space-y-2 py-4 text-sm">
+                        <p class="font-semibold">{{ $audit->actor_name }} · {{ $audit->created_at }}</p>
+                        <p class="whitespace-pre-line text-slate-600">{{ $audit->reason }}</p>
+                        <p class="break-words text-xs text-emerald-700">Added: {{ implode(', ', json_decode($audit->added_permissions, true)) ?: 'None' }}</p>
+                        <p class="break-words text-xs text-red-700">Removed: {{ implode(', ', json_decode($audit->removed_permissions, true)) ?: 'None' }}</p>
+                    </article>
+                @empty<p class="py-4 text-sm text-slate-500">No role changes recorded yet.</p>@endforelse
+            </div>
+        </details>
     </div>
-
-
+    </div>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-
-            const allCheckboxes =
-                Array.from(
-                    document.querySelectorAll('.permission-checkbox')
-                );
-
-            const selectedCount =
-                document.getElementById('selectedPermissionCount');
-
-
-            function updateSelectedCount() {
-
-                const count =
-                    allCheckboxes.filter(function (checkbox) {
-                        return checkbox.checked;
-                    }).length;
-
-                selectedCount.textContent =
-                    count + ' selected';
-            }
-
-
-            function updateModuleSelectedCounts() {
-
-                document
-                    .querySelectorAll('.module-selected-count')
-                    .forEach(function (badge) {
-
-                        const module = badge.dataset.module;
-
-                        const checkboxes =
-                            Array.from(
-                                document.querySelectorAll(
-                                    '.permission-checkbox[data-module="' +
-                                    module +
-                                    '"]'
-                                )
-                            );
-
-                        const selected =
-                            checkboxes.filter(function (checkbox) {
-                                return checkbox.checked;
-                            }).length;
-
-                        badge.textContent =
-                            selected + ' selected';
-                    });
-            }
-
-
-            function updateModuleButton(button) {
-
-                const module = button.dataset.module;
-
-                const checkboxes =
-                    Array.from(
-                        document.querySelectorAll(
-                            '.permission-checkbox[data-module="' +
-                            module +
-                            '"]'
-                        )
-                    );
-
-                const allChecked =
-                    checkboxes.length > 0
-                    &&
-                    checkboxes.every(function (checkbox) {
-                        return checkbox.checked;
-                    });
-
-                button.textContent =
-                    allChecked
-                        ? 'Clear all'
-                        : 'Select all';
-            }
-
-
-            document
-                .querySelectorAll('.select-module')
-                .forEach(function (button) {
-
-                    updateModuleButton(button);
-
-                    button.addEventListener('click', function () {
-
-                        const module = this.dataset.module;
-
-                        const checkboxes =
-                            Array.from(
-                                document.querySelectorAll(
-                                    '.permission-checkbox[data-module="' +
-                                    module +
-                                    '"]'
-                                )
-                            );
-
-                        const allChecked =
-                            checkboxes.length > 0
-                            &&
-                            checkboxes.every(function (checkbox) {
-                                return checkbox.checked;
-                            });
-
-                        checkboxes.forEach(function (checkbox) {
-                            checkbox.checked = ! allChecked;
-                        });
-
-                        updateModuleButton(this);
-                        updateSelectedCount();
-                        updateModuleSelectedCounts();
-                    });
-
-                });
-
-
-            allCheckboxes.forEach(function (checkbox) {
-
-                checkbox.addEventListener('change', function () {
-
-                    const module = this.dataset.module;
-
-                    const button =
-                        document.querySelector(
-                            '.select-module[data-module="' +
-                            module +
-                            '"]'
-                        );
-
-                    if (button) {
-                        updateModuleButton(button);
-                    }
-
-                    updateSelectedCount();
-                    updateModuleSelectedCounts();
-                });
-
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('permissionMatrix');
+        const boxes = [...form.querySelectorAll('.permission-checkbox:not(:disabled)')];
+        const rows = [...form.querySelectorAll('.permission-row')];
+        const sensitive = /refund|cancel|approve|verify|execute|assign|close|pay|reset|delete|journal|tally|permission|system\.users|\.post/;
+        const changed = () => boxes.filter(b => b.checked !== (b.dataset.original === '1'));
+        function refresh() {
+            const diff = changed();
+            const added = diff.filter(b => b.checked), removed = diff.filter(b => !b.checked);
+            document.getElementById('changeSummary').textContent = `${added.length} to add · ${removed.length} to remove`;
+            const list = document.getElementById('changeList');
+            list.replaceChildren();
+            diff.forEach(box => {
+                const line = document.createElement('div');
+                line.textContent = `${box.checked ? 'Add' : 'Remove'}: ${box.closest('label').querySelector('.font-mono').textContent.trim()}`;
+                list.appendChild(line);
             });
-
-
-            document
-                .getElementById('selectAllPermissions')
-                .addEventListener('click', function () {
-
-                    allCheckboxes.forEach(function (checkbox) {
-                        checkbox.checked = true;
-                    });
-
-                    document
-                        .querySelectorAll('.select-module')
-                        .forEach(updateModuleButton);
-
-                    updateSelectedCount();
-                    updateModuleSelectedCounts();
-                });
-
-
-            document
-                .getElementById('clearAllPermissions')
-                .addEventListener('click', function () {
-
-                    allCheckboxes.forEach(function (checkbox) {
-                        checkbox.checked = false;
-                    });
-
-                    document
-                        .querySelectorAll('.select-module')
-                        .forEach(updateModuleButton);
-
-                    updateSelectedCount();
-                    updateModuleSelectedCounts();
-                });
-
-
-            const permissionSearch = document.getElementById('permissionSearch');
-
-            permissionSearch.addEventListener('input', function () {
-
-                const query = this.value.trim().toLowerCase();
-
-                document
-                    .querySelectorAll('.permission-row')
-                    .forEach(function (row) {
-
-                        const haystack = row.dataset.search || '';
-
-                        row.classList.toggle(
-                            'hidden',
-                            query !== '' && ! haystack.includes(query)
-                        );
-                    });
+            document.getElementById('reason').required = diff.length > 0;
+            document.getElementById('reason').minLength = diff.length ? 10 : 0;
+        }
+        function bulk(container, selected) {
+            container.querySelectorAll('.permission-row:not(.hidden) .permission-checkbox:not(:disabled)').forEach(box => {
+                const name = box.closest('label').querySelector('.font-mono').textContent.trim();
+                if (!selected || !sensitive.test(name)) box.checked = selected;
             });
-
-
-            updateSelectedCount();
-            updateModuleSelectedCounts();
-
+            refresh();
+        }
+        boxes.forEach(b => b.addEventListener('change', refresh));
+        document.getElementById('selectVisible').addEventListener('click', () => bulk(form, true));
+        document.getElementById('clearVisible').addEventListener('click', () => bulk(form, false));
+        form.querySelectorAll('.select-module').forEach(button => button.addEventListener('click', () => bulk(button.closest('section'), true)));
+        document.getElementById('permissionSearch').addEventListener('input', event => {
+            const query = event.target.value.trim().toLowerCase();
+            rows.forEach(row => row.classList.toggle('hidden', !row.dataset.search.includes(query)));
         });
-    </script>
-
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const search = document.getElementById('roleSearch');
-
-            if (!search) return;
-
-            search.addEventListener('input', function () {
-                const query = search.value.toLowerCase().trim();
-
-                document.querySelectorAll('[data-role-search]')
-                    .forEach(function (role) {
-                        role.classList.toggle(
-                            'hidden',
-                            !role.dataset.roleSearch.includes(query)
-                        );
-                    });
-            });
+        form.addEventListener('submit', event => {
+            if (changed().length && !window.confirm('Apply the listed permission changes to every user in this role?')) event.preventDefault();
         });
+        refresh();
+    });
     </script>
-
 </x-app-layout>

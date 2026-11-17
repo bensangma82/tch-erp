@@ -187,9 +187,7 @@
         );
 
     $canAdministrationView =
-        $canUsePermission(
-            'administration.view'
-        );
+        \App\Support\AdministrativeRequestAccess::allows($user, 'view');
 
     $canSystemServices =
         $canUsePermission(
@@ -265,7 +263,9 @@
     $canAdministration =
         $isAdmin
         ||
-        $canHr;
+        $canHr
+        ||
+        $canAdministrationView;
 
 
     /*
@@ -2414,7 +2414,7 @@
                 >
 
 
-                    @if ($isAdmin)
+                    @if ($canAdministrationView)
 
                         <div
                             class="px-3 pb-1 pt-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-slate-500"
@@ -2467,6 +2467,10 @@
                             My Work
                         </a>
 
+
+                    @endif
+
+                    @if ($isAdmin)
 
                         <div
                             class="my-2 border-t border-slate-800"
@@ -2568,6 +2572,8 @@
                     @endif
 
 
+
+                    @if ($isAdmin || $canHr)
 
                     {{-- ========================================= --}}
                     {{-- MASTER DATA --}}
@@ -2765,6 +2771,8 @@
                         @endif
 
                     </div>
+
+                    @endif
 
                 </div>
 

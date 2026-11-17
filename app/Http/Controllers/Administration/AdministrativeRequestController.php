@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\AdministrativeRequest;
 use App\Models\Department;
 use App\Models\User;
+use App\Services\Administration\AdministrativeWorkAssignment;
+use App\Support\AdministrativeRequestAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -15,8 +17,26 @@ use Illuminate\Support\Facades\Storage;
 
 class AdministrativeRequestController extends Controller
 {
+    private function requireAccess(string $action, ?AdministrativeRequest $item = null): void
+    {
+        abort_unless(
+            AdministrativeRequestAccess::allows(Auth::user(), $action, $item),
+            403,
+            'You do not have permission to perform this administrative action.'
+        );
+    }
+
     public function index(Request $request): View
     {
+        $this->requireAccess('view');
+
+        $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'request_type' => ['nullable', 'string', 'max:50'],
+            'status' => ['nullable', 'string', 'max:50'],
+            'priority' => ['nullable', 'string', 'max:30'],
+            'queue' => ['nullable', 'in:verification,ms,higher,execution,closure,closed,overdue,mine'],
+        ]);
         $query = AdministrativeRequest::query()
             ->with([
                 'department',
@@ -58,41 +78,34 @@ class AdministrativeRequestController extends Controller
             );
         }
 
+        switch ($request->input('queue')) {
+            case 'verification': $query->whereIn('status', ['submitted', 'verified']); break;
+            case 'ms': $query->where('status', 'pending_ms_approval'); break;
+            case 'higher': $query->where('status', 'higher_approval_required'); break;
+            case 'execution': $query->whereIn('status', AdministrativeRequest::EXECUTION_STATUSES); break;
+            case 'closure': $query->whereIn('status', ['executed', 'execution_verified']); break;
+            case 'closed': $query->where('status', 'closed'); break;
+            case 'overdue': $query->overdue(); break;
+            case 'mine': $query->where('assigned_to', Auth::id())->where('status', 'execution_in_progress'); break;
+        }
+
         $requests = $query
             ->paginate(20)
             ->withQueryString();
 
+        $counts = AdministrativeRequest::query()->selectRaw('status, COUNT(*) AS aggregate')
+            ->groupBy('status')->pluck('aggregate', 'status');
         $summary = [
-            'total' =>
-                AdministrativeRequest::count(),
-
-            'pending_ms' =>
-                AdministrativeRequest::where(
-                    'status',
-                    'pending_ms_approval'
-                )->count(),
-
-            'pending_execution' =>
-                AdministrativeRequest::whereIn(
-                    'status',
-                    [
-                        'ms_approved',
-                        'higher_approved',
-                        'execution_in_progress',
-                    ]
-                )->count(),
-
-            'higher_approval' =>
-                AdministrativeRequest::where(
-                    'status',
-                    'higher_approval_required'
-                )->count(),
-
-            'closed' =>
-                AdministrativeRequest::where(
-                    'status',
-                    'closed'
-                )->count(),
+            'total' => $counts->sum(),
+            'verification' => ($counts['submitted'] ?? 0) + ($counts['verified'] ?? 0),
+            'pending_ms' => $counts['pending_ms_approval'] ?? 0,
+            'higher_approval' => $counts['higher_approval_required'] ?? 0,
+            'pending_execution' => collect(AdministrativeRequest::EXECUTION_STATUSES)->sum(fn ($status) => $counts[$status] ?? 0),
+            'closure' => ($counts['executed'] ?? 0) + ($counts['execution_verified'] ?? 0),
+            'closed' => $counts['closed'] ?? 0,
+            'overdue' => AdministrativeRequest::query()->overdue()->count(),
+            'mine' => AdministrativeRequest::query()->where('assigned_to', Auth::id())
+                ->where('status', 'execution_in_progress')->count(),
         ];
 
         return view(
@@ -104,6 +117,8 @@ class AdministrativeRequestController extends Controller
 
     public function create(): View
     {
+        $this->requireAccess('create');
+
         $departments = Department::query()
             ->orderBy('name')
             ->get();
@@ -117,7 +132,10 @@ class AdministrativeRequestController extends Controller
 
     public function store(Request $request)
     {
+        $this->requireAccess('create');
+
         $validated = $request->validate([
+            'required_by' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
             'request_type' => [
                 'required',
                 'in:purchase,recruitment,finance,contract,project,maintenance,hr,other',
@@ -187,6 +205,8 @@ class AdministrativeRequestController extends Controller
     public function show(
         AdministrativeRequest $administrativeRequest
     ): View {
+        $this->requireAccess('view', $administrativeRequest);
+
 
         $administrativeRequest->load([
             'department',
@@ -196,15 +216,29 @@ class AdministrativeRequestController extends Controller
             'higherApprovalRecordedBy',
             'assignedTo',
             'executedBy',
+            'completionVerifiedBy',
             'closedBy',
             'documents.uploadedBy',
         ]);
 
+        $executionCategories = AdministrativeWorkAssignment::CATEGORIES;
+        $eligibleAssignees = collect();
+        if (AdministrativeRequestAccess::allows(Auth::user(), 'assign', $administrativeRequest)
+            && in_array($administrativeRequest->status, ['ms_approved', 'higher_approved', 'execution_in_progress'], true)) {
+            $eligibleAssignees = app(AdministrativeWorkAssignment::class)->eligibleUsers()->get(['id', 'name', 'role', 'designation']);
+        }
+        $assignmentHistory = DB::table('administrative_request_assignments')
+            ->where('administrative_request_id', $administrativeRequest->id)->orderByDesc('id')->limit(20)->get();
+        $latestAssignmentId = (int) ($assignmentHistory->first()?->id ?? 0);
+
         return view(
             'administration.requests.show',
             [
-                'administrativeRequest' =>
-                    $administrativeRequest,
+                'administrativeRequest' => $administrativeRequest,
+                'executionCategories' => $executionCategories,
+                'eligibleAssignees' => $eligibleAssignees,
+                'assignmentHistory' => $assignmentHistory,
+                'latestAssignmentId' => $latestAssignmentId,
             ]
         );
     }
@@ -213,6 +247,8 @@ class AdministrativeRequestController extends Controller
     public function submit(
         AdministrativeRequest $administrativeRequest
     ) {
+        $this->requireAccess('submit', $administrativeRequest);
+
         if (
             $administrativeRequest->status !== 'draft'
         ) {
@@ -243,6 +279,8 @@ class AdministrativeRequestController extends Controller
     Request $request,
     AdministrativeRequest $administrativeRequest
 ) {
+        $this->requireAccess('verify', $administrativeRequest);
+
     if ($administrativeRequest->status !== 'submitted') {
         return back()->with(
             'error',
@@ -282,6 +320,8 @@ public function msApprove(
     Request $request,
     AdministrativeRequest $administrativeRequest
 ) {
+        $this->requireAccess('approve', $administrativeRequest);
+
     if ($administrativeRequest->status !== 'pending_ms_approval') {
         return back()->with(
             'error',
@@ -290,6 +330,7 @@ public function msApprove(
     }
 
     $validated = $request->validate([
+        'approved_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
         'ms_remarks' => [
             'nullable',
             'string',
@@ -300,9 +341,10 @@ public function msApprove(
             'boolean',
         ],
         'higher_authority' => [
+            'required_if:requires_higher_approval,1',
             'nullable',
             'string',
-            'max:255',
+            'max:100',
         ],
     ]);
 
@@ -314,6 +356,7 @@ public function msApprove(
             ? 'higher_approval_required'
             : 'ms_approved',
 
+        'approved_amount' => $validated['approved_amount'] ?? null,
         'ms_decided_by' => Auth::id(),
         'ms_decided_at' => now(),
         'ms_decision' => 'approved',
@@ -344,6 +387,8 @@ public function msReject(
     Request $request,
     AdministrativeRequest $administrativeRequest
 ) {
+        $this->requireAccess('approve', $administrativeRequest);
+
     if ($administrativeRequest->status !== 'pending_ms_approval') {
         return back()->with(
             'error',
@@ -383,6 +428,8 @@ public function msReturn(
     Request $request,
     AdministrativeRequest $administrativeRequest
 ) {
+        $this->requireAccess('approve', $administrativeRequest);
+
     if ($administrativeRequest->status !== 'pending_ms_approval') {
         return back()->with(
             'error',
@@ -422,86 +469,41 @@ public function msReturn(
 }
 
 
-public function startExecution(
-    Request $request,
-    AdministrativeRequest $administrativeRequest
-) {
-    if (
-        ! in_array(
-            $administrativeRequest->status,
-            ['ms_approved', 'higher_approved'],
-            true
-        )
-    ) {
-        return back()->with(
-            'error',
-            'Only approved requests can enter execution.'
-        );
-    }
-
-    $validated = $request->validate([
-        'execution_category' => [
-            'required',
-            'in:clinical,nursing,non_clinical',
-        ],
-
-        'execution_remarks' => [
-            'nullable',
-            'string',
-            'max:2000',
-        ],
+private function assignmentData(Request $request, bool $reassign = false): array
+{
+    return $request->validate([
+        'assigned_to' => ['required', 'integer'],
+        'execution_category' => ['required', \Illuminate\Validation\Rule::in(array_keys(AdministrativeWorkAssignment::CATEGORIES))],
+        'required_by' => ['nullable', 'date_format:Y-m-d'],
+        'execution_remarks' => ['nullable', 'string', 'max:2000'],
+        'reassignment_reason' => $reassign ? ['required', 'string', 'min:5', 'max:2000'] : ['nullable'],
+        'expected_assignment_id' => $reassign ? ['required', 'integer', 'min:0'] : ['nullable'],
+        'expected_assignee' => $reassign ? ['nullable', 'integer'] : ['nullable'],
     ]);
-
-    $assignedRole = match ($validated['execution_category']) {
-        'clinical' => 'Deputy Medical Superintendent',
-        'nursing' => 'Nursing Superintendent',
-        'non_clinical' => 'Manager',
-    };
-
-    $assignedUser = User::query()
-        ->where('designation', $assignedRole)
-        ->where('is_active', true)
-        ->first();
-
-    if (! $assignedUser) {
-        return back()->with(
-            'error',
-            "No active user is assigned the designation: {$assignedRole}."
-        );
-    }
-
-    $administrativeRequest->update([
-        'status' => 'execution_in_progress',
-
-        'execution_category' =>
-            $validated['execution_category'],
-
-        'assigned_role' => $assignedRole,
-
-        'assigned_to' => $assignedUser->id,
-
-        'execution_started_at' => now(),
-
-        'execution_remarks' =>
-            $validated['execution_remarks'] ?? null,
-    ]);
-
-    return redirect()
-        ->route(
-            'administration.requests.show',
-            $administrativeRequest
-        )
-        ->with(
-            'success',
-            "Execution started and assigned to {$assignedUser->name} ({$assignedRole})."
-        );
 }
 
+public function startExecution(Request $request, AdministrativeRequest $administrativeRequest)
+{
+    $this->requireAccess('assign', $administrativeRequest);
+    app(AdministrativeWorkAssignment::class)->assign(Auth::user(), $administrativeRequest->id, $this->assignmentData($request));
+    return redirect()->route('administration.requests.show', $administrativeRequest)
+        ->with('success', 'Execution started and assigned to the selected responsible person.');
+}
+
+public function reassignExecution(Request $request, AdministrativeRequest $administrativeRequest)
+{
+    $this->requireAccess('assign', $administrativeRequest);
+    app(AdministrativeWorkAssignment::class)->assign(Auth::user(), $administrativeRequest->id, $this->assignmentData($request, true), true);
+    return redirect()->route('administration.requests.show', $administrativeRequest)
+        ->with('success', 'Work reassigned. The previous assignee and reason have been recorded.');
+}
 
 public function markExecuted(
     Request $request,
     AdministrativeRequest $administrativeRequest
 ) {
+        $this->requireAccess('complete', $administrativeRequest);
+
     if (
         $administrativeRequest->status !==
         'execution_in_progress'
@@ -520,14 +522,19 @@ public function markExecuted(
         ],
     ]);
 
-    $administrativeRequest->update([
-        'status' => 'executed',
-        'executed_at' => now(),
-        'executed_by' => Auth::id(),
-        'execution_remarks' =>
-            $validated['execution_remarks']
-            ?? $administrativeRequest->execution_remarks,
-    ]);
+    DB::transaction(function () use ($administrativeRequest, $validated) {
+        $item = AdministrativeRequest::query()->lockForUpdate()->findOrFail($administrativeRequest->id);
+        $this->requireAccess('complete', $item);
+        if ($item->status !== 'execution_in_progress') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'status' => 'Only requests under execution can be marked executed.',
+            ]);
+        }
+        $item->update([
+            'status' => 'executed', 'executed_at' => now(), 'executed_by' => Auth::id(),
+            'execution_remarks' => $validated['execution_remarks'] ?? $item->execution_remarks,
+        ]);
+    });
 
     return redirect()
         ->route(
@@ -541,48 +548,58 @@ public function markExecuted(
 }
 
 
-public function closeRequest(
-    Request $request,
-    AdministrativeRequest $administrativeRequest
-) {
-    if ($administrativeRequest->status !== 'executed') {
-        return back()->with(
-            'error',
-            'Only executed requests can be closed.'
-        );
-    }
-
+public function verifyCompletion(Request $request, AdministrativeRequest $administrativeRequest)
+{
+    $this->requireAccess('verify-completion', $administrativeRequest);
     $validated = $request->validate([
-        'closure_remarks' => [
-            'nullable',
-            'string',
-            'max:2000',
-        ],
+        'completion_verification_remarks' => ['required', 'string', 'max:2000'],
     ]);
+    DB::transaction(function () use ($administrativeRequest, $validated) {
+        $item = AdministrativeRequest::query()->lockForUpdate()->findOrFail($administrativeRequest->id);
+        $this->requireAccess('verify-completion', $item);
+        if ($item->status !== 'executed') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'status' => 'Only executed requests can have their completion verified.',
+            ]);
+        }
+        $item->update([
+            'status' => 'execution_verified',
+            'completion_verified_by' => Auth::id(),
+            'completion_verified_at' => now(),
+            'completion_verification_remarks' => $validated['completion_verification_remarks'],
+        ]);
+    });
+    return redirect()->route('administration.requests.show', $administrativeRequest)
+        ->with('success', 'Completion verified. The request is ready for closure.');
+}
 
-    $administrativeRequest->update([
-        'status' => 'closed',
-        'closed_at' => now(),
-        'closed_by' => Auth::id(),
-        'closure_remarks' =>
-            $validated['closure_remarks'] ?? null,
-    ]);
-
-    return redirect()
-        ->route(
-            'administration.requests.show',
-            $administrativeRequest
-        )
-        ->with(
-            'success',
-            'Administrative request closed successfully.'
-        );
+public function closeRequest(Request $request, AdministrativeRequest $administrativeRequest)
+{
+    $this->requireAccess('close', $administrativeRequest);
+    $validated = $request->validate(['closure_remarks' => ['nullable', 'string', 'max:2000']]);
+    DB::transaction(function () use ($administrativeRequest, $validated) {
+        $item = AdministrativeRequest::query()->lockForUpdate()->findOrFail($administrativeRequest->id);
+        $this->requireAccess('close', $item);
+        if ($item->status !== 'execution_verified' || ! $item->completion_verified_at || ! $item->completion_verified_by) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'status' => 'Completion must be verified before this request can be closed.',
+            ]);
+        }
+        $item->update([
+            'status' => 'closed', 'closed_at' => now(), 'closed_by' => Auth::id(),
+            'closure_remarks' => $validated['closure_remarks'] ?? null,
+        ]);
+    });
+    return redirect()->route('administration.requests.show', $administrativeRequest)
+        ->with('success', 'Administrative request closed successfully.');
 }
 
 public function uploadDocument(
     Request $request,
     AdministrativeRequest $administrativeRequest
 ) {
+        $this->requireAccess('upload', $administrativeRequest);
+
     $validated = $request->validate([
         'document_type' => [
             'nullable',
@@ -667,6 +684,8 @@ public function viewDocument(
     AdministrativeRequest $administrativeRequest,
     AdministrativeRequestDocument $document
 ) {
+        $this->requireAccess('view', $administrativeRequest);
+
     if (
         $document->administrative_request_id !==
         $administrativeRequest->id
@@ -707,6 +726,8 @@ public function recordHigherApproval(
     Request $request,
     AdministrativeRequest $administrativeRequest
 ) {
+        $this->requireAccess('higher', $administrativeRequest);
+
     if (
         $administrativeRequest->status !==
         'higher_approval_required'
@@ -721,7 +742,7 @@ public function recordHigherApproval(
         'higher_authority' => [
             'required',
             'string',
-            'max:255',
+            'max:100',
         ],
 
         'higher_approval_reference' => [
@@ -733,6 +754,7 @@ public function recordHigherApproval(
         'higher_approved_at' => [
             'required',
             'date',
+            'before_or_equal:today',
         ],
 
         'higher_approval_remarks' => [
@@ -773,6 +795,8 @@ public function recordHigherApproval(
 }
 public function myWork(Request $request): View
 {
+        $this->requireAccess('view');
+
     $query = AdministrativeRequest::query()
         ->where('assigned_to', Auth::id())
         ->with([
@@ -809,7 +833,7 @@ public function myWork(Request $request): View
 
         'executed' => AdministrativeRequest::query()
             ->where('assigned_to', Auth::id())
-            ->where('status', 'executed')
+            ->whereIn('status', ['executed', 'execution_verified'])
             ->count(),
 
         'closed' => AdministrativeRequest::query()

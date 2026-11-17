@@ -14,7 +14,7 @@
     </div>
 
     <h1 class="text-2xl font-bold mb-2">
-        MHIS Settlement Preview — Batch #{{ $batch->id }}
+        MHIS Settlement Import — Batch #{{ $batch->id }}
     </h1>
 
     <p class="text-sm text-gray-600 mb-6">
@@ -50,7 +50,11 @@
     </div>
 
 
-    {{-- Read-only reconciliation summary --}}
+    @if ($errors->any())
+        <div class="mb-4 rounded border border-red-200 bg-red-50 p-4 text-red-800" role="alert">
+            @foreach ($errors->all() as $error)<p>{{ $error }}</p>@endforeach
+        </div>
+    @endif
     <div class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="mb-4 text-lg font-semibold text-slate-900">
             MHIS Reconciliation Status
@@ -59,7 +63,8 @@
         <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
             @foreach ([
                 'unmatched' => 'Unmatched',
-                'matched' => 'Provisionally Matched',
+                'matched' => 'Ready for verification',
+                'posted' => 'Posted',
                 'ambiguous' => 'Ambiguous',
                 'review_required' => 'Review Required',
             ] as $status => $label)
@@ -93,6 +98,22 @@
             </form>
         @endcan
 
+        @can('finance.mhis-settlement-import.post')
+            <form method="POST" action="{{ route('finance.mhis-settlement-import.post', $batch) }}" class="mt-5 rounded border p-4">
+                @csrf
+                <label class="block text-sm">
+                    <input type="checkbox" name="bank_verified" value="1" required>
+                    I have verified the bank credits, UTRs and payment dates for this batch against the bank statement.
+                </label>
+                <button type="submit" class="mt-3 rounded px-5 py-2 text-white" style="background-color:#047857">
+                    Match and post verified settlements
+                </button>
+                <p class="mt-2 text-sm text-slate-600">Eligible full settlements update MHIS pending automatically.
+                    Repeated runs skip posted rows. Discrepancies and existing receipts remain for review.
+                    Tally export is performed separately using the posted receipt journals.</p>
+            </form>
+        @endcan
+
         <p class="mt-4 text-sm text-slate-500">
             Matching status reflects ERP claim identification only.
             It does not confirm bank receipt or authorize accounting posting.
@@ -105,8 +126,8 @@
         </h2>
 
         <p class="mb-4 text-sm text-amber-700">
-            Preview only. No claims have been reconciled,
-            and no accounting transactions have been posted.
+            Only rows marked posted have settlement receipts and accounting journals.
+            Matching alone does not change MHIS outstanding.
         </p>
 
         <div class="overflow-x-auto">
@@ -123,6 +144,9 @@
                         <th class="p-2">UTR</th>
                         <th class="p-2">Payment Date</th>
                         <th class="p-2">Match Status</th>
+                        <th class="p-2">Claim</th>
+                        <th class="p-2">Receipt / Journal</th>
+                        <th class="p-2">Details</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -138,10 +162,13 @@
                             <td class="p-2">{{ $row->utr_reference }}</td>
                             <td class="p-2">{{ $row->payment_date?->format('d-m-Y') }}</td>
                             <td class="p-2">{{ $row->match_status }}</td>
+                            <td class="p-2">{{ $row->matched_claim_id ?? '—' }}</td>
+                            <td class="p-2">{{ $row->posted_receipt_id ?? '—' }} / {{ $row->posted_journal_id ?? '—' }}</td>
+                            <td class="p-2 whitespace-normal" style="min-width:260px">{{ $row->match_notes }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="p-4 text-center text-gray-500">
+                            <td colspan="13" class="p-4 text-center text-gray-500">
                                 No settlement records found.
                             </td>
                         </tr>

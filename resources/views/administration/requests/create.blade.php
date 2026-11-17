@@ -280,6 +280,13 @@
                         </div>
 
 
+                        <div>
+                            <label for="required_by" class="mb-2 block text-sm font-semibold text-slate-700">Required by</label>
+                            <input id="required_by" name="required_by" type="date" min="{{ today()->toDateString() }}"
+                                value="{{ old('required_by') }}" class="w-full rounded-lg border-slate-300">
+                            <p class="mt-1 text-xs text-slate-500">Optional completion target. Outstanding requests are overdue from the following day.</p>
+                        </div>
+
                         {{-- DESCRIPTION --}}
 
                         <div class="md:col-span-2">

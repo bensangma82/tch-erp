@@ -575,44 +575,7 @@ private const REFUND_PERMISSIONS = [
 
     private function roles(): array
     {
-        $roles = [
-            'admin' => 'Administrator',
-            'reception' => 'Reception',
-            'nursing' => 'Nursing',
-            'doctor' => 'Doctor',
-            'billing' => 'Billing',
-            'finance' => 'Finance / Accounts',
-            'laboratory' => 'Laboratory',
-            'radiology' => 'Radiology',
-            'pharmacy' => 'Pharmacy',
-            'stores' => 'Stores / Inventory',
-            'hr' => 'HR',
-            'medical_records' => 'Medical Records',
-            'emergency' => 'Emergency',
-            'ipd' => 'IPD / Ward',
-            'hospital_administrator' => 'Hospital Administrator',
-            'medical_superintendent' => 'Medical Superintendent',
-            'reception_supervisor' => 'Reception Supervisor',
-            'nursing_supervisor' => 'Nursing Supervisor',
-            'ipd_billing' => 'IPD Billing',
-            'cashier' => 'Cashier',
-            'finance_manager' => 'Finance Manager',
-            'pharmacy_manager' => 'Pharmacy Manager',
-            'sonology' => 'Sonology',
-            'asset_manager' => 'Asset Manager',
-            'mis_reporting' => 'MIS / Reporting',
-            'auditor' => 'Internal Auditor / Read Only',
-            'management' => 'Management / Read Only',
-        ];
-
-        if ($this->currentUserIsSuperAdmin()) {
-            $roles = [
-                'super_admin' => 'Super Administrator',
-                ...$roles,
-            ];
-        }
-
-        return $roles;
+        return \App\Support\Rbac\RoleCatalogue::userRoles($this->currentUserIsSuperAdmin());
     }
 
     private function designations(): array

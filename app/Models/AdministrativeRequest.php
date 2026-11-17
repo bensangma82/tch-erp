@@ -11,6 +11,8 @@ class AdministrativeRequest extends Model
 {
     protected $fillable = [
         'request_no',
+        'required_by',
+        'higher_approval_reference',
         'request_type',
         'title',
         'description',
@@ -42,6 +44,9 @@ class AdministrativeRequest extends Model
         'assigned_to',
         'execution_category',
         'assigned_role',
+        'completion_verified_by',
+        'completion_verified_at',
+        'completion_verification_remarks',
         'execution_started_at',
         'executed_at',
         'executed_by',
@@ -56,6 +61,7 @@ class AdministrativeRequest extends Model
     ];
 
     protected $casts = [
+        'required_by' => 'date',
         'estimated_amount' => 'decimal:2',
         'approved_amount' => 'decimal:2',
 
@@ -67,8 +73,41 @@ class AdministrativeRequest extends Model
         'higher_approved_at' => 'datetime',
         'execution_started_at' => 'datetime',
         'executed_at' => 'datetime',
+        'completion_verified_at' => 'datetime',
         'closed_at' => 'datetime',
     ];
+
+    public const EXECUTION_STATUSES = ['ms_approved', 'higher_approved', 'execution_in_progress'];
+    public const TERMINAL_STATUSES = ['closed', 'cancelled', 'ms_rejected'];
+
+    public function scopeOverdue($query)
+    {
+        // Executed requests await closure, but their execution deadline has been met.
+        return $query->whereDate('required_by', '<', today())
+            ->whereNotIn('status', [...self::TERMINAL_STATUSES, 'executed', 'execution_verified']);
+    }
+
+    public function getIsOverdueAttribute(): bool
+    {
+        return $this->required_by !== null
+            && $this->required_by->lt(today())
+            && ! in_array($this->status, [...self::TERMINAL_STATUSES, 'executed', 'execution_verified'], true);
+    }
+
+    public function getPendingWithAttribute(): string
+    {
+        return match ($this->status) {
+            'draft' => $this->createdBy?->name ?? 'Requestor',
+            'submitted', 'verified' => 'Administrator verification',
+            'pending_ms_approval' => 'Medical Superintendent',
+            'higher_approval_required' => $this->higher_authority ?: 'Higher authority',
+            'ms_approved', 'higher_approved' => 'Administrator assignment',
+            'execution_in_progress' => $this->assignedTo?->name ?? $this->assigned_role ?? 'Execution team',
+            'executed' => 'Completion verification',
+            'execution_verified' => 'Administrator closure review',
+            default => '—',
+        };
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -129,6 +168,11 @@ class AdministrativeRequest extends Model
             User::class,
             'executed_by'
         );
+    }
+
+    public function completionVerifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completion_verified_by');
     }
 
     public function closedBy(): BelongsTo

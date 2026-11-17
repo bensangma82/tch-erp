@@ -67,6 +67,18 @@ class MhisSettlementImportController extends Controller
             );
     }
 
+    public function postSettlements(
+        Request $request,
+        MhisSettlementImportBatch $batch,
+        \App\Services\Mhis\MhisImportedSettlementPostingService $posting
+    ) {
+        $validated = $request->validate(['bank_verified' => ['required', 'accepted']]);
+        $stats = $posting->postBatch($batch, true);
+        return redirect()->route('finance.mhis-settlement-import.show', $batch)
+            ->with('success', $stats['posted'].' settlements posted; '
+                .$stats['review_required'].' posting attempts require review. See overall counts below.');
+    }
+
     public function show(MhisSettlementImportBatch $batch)
     {
         $matchSummary = $batch->rows()

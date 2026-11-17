@@ -1378,6 +1378,14 @@ Route::post(
             ->name('finance.mhis-settlement-import.match');
 
         Route::post(
+            '/admin/finance/mhis-settlement-import/{batch}/post-settlements',
+            [\App\Http\Controllers\Finance\MhisSettlementImportController::class, 'postSettlements']
+        )
+            ->whereNumber('batch')
+            ->middleware('permission:finance.mhis-settlement-import.post')
+            ->name('finance.mhis-settlement-import.post');
+
+        Route::post(
             '/admin/finance/mhis-legacy-settlements/{settlement}/verify',
             [\App\Http\Controllers\Finance\MhisLegacySettlementController::class, 'verify']
         )
@@ -3496,6 +3504,7 @@ Route::middleware([
     'auth',
     'verified',
     'active',
+    'permission:administration.view',
 ])
     ->prefix('administration')
     ->name('administration.')
@@ -3578,25 +3587,14 @@ Route::middleware([
             ->name('requests.mark-executed');
 
         Route::post(
-            '/requests/{administrativeRequest}/close',
-            [AdministrativeRequestController::class, 'closeRequest']
-        )
-            ->whereNumber('administrativeRequest')
-            ->name('requests.close');
+            '/requests/{administrativeRequest}/reassign',
+            [AdministrativeRequestController::class, 'reassignExecution']
+        )->whereNumber('administrativeRequest')->name('requests.reassign');
 
         Route::post(
-            '/requests/{administrativeRequest}/start-execution',
-            [AdministrativeRequestController::class, 'startExecution']
-        )
-            ->whereNumber('administrativeRequest')
-            ->name('requests.start-execution');
-
-        Route::post(
-            '/requests/{administrativeRequest}/mark-executed',
-            [AdministrativeRequestController::class, 'markExecuted']
-        )
-            ->whereNumber('administrativeRequest')
-            ->name('requests.mark-executed');
+            '/requests/{administrativeRequest}/verify-completion',
+            [AdministrativeRequestController::class, 'verifyCompletion']
+        )->whereNumber('administrativeRequest')->name('requests.verify-completion');
 
         Route::post(
             '/requests/{administrativeRequest}/close',
@@ -3604,6 +3602,12 @@ Route::middleware([
         )
             ->whereNumber('administrativeRequest')
             ->name('requests.close');
+
+
+
+
+
+
 
         Route::post(
             '/requests/{administrativeRequest}/documents',

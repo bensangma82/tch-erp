@@ -28,6 +28,7 @@
 
 
     @php
+        $canAdminAction = fn ($action) => \App\Support\AdministrativeRequestAccess::allows(auth()->user(), $action, $administrativeRequest);
 
         $statusLabels = [
             'draft' => 'Draft',
@@ -39,7 +40,8 @@
             'higher_approval_required' => 'Higher Approval Required',
             'higher_approved' => 'Higher Approved',
             'execution_in_progress' => 'Execution In Progress',
-            'executed' => 'Executed',
+            'executed' => 'Awaiting Completion Verification',
+            'execution_verified' => 'Completion Verified',
             'closed' => 'Closed',
             'cancelled' => 'Cancelled',
         ];
@@ -55,6 +57,7 @@
             'higher_approved' => 'bg-teal-50 text-teal-700',
             'execution_in_progress' => 'bg-violet-50 text-violet-700',
             'executed' => 'bg-indigo-50 text-indigo-700',
+            'execution_verified' => 'bg-emerald-50 text-emerald-700',
             'closed' => 'bg-slate-200 text-slate-700',
             'cancelled' => 'bg-slate-100 text-slate-500',
         ];
@@ -88,6 +91,27 @@
         <div class="mx-auto max-w-6xl space-y-6 px-4 sm:px-6 lg:px-8">
 
 
+            @if ($errors->any())
+                <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+                    <ul class="list-disc pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                </div>
+            @endif
+            @if (session('error'))
+                <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{{ session('error') }}</div>
+            @endif
+            <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm">
+                <strong>Pending with:</strong> {{ $administrativeRequest->pending_with }}
+                <span class="ml-4"><strong>Required by:</strong> {{ $administrativeRequest->required_by?->format('d M Y') ?? 'Not set' }}</span>
+                @if ($administrativeRequest->is_overdue)<span class="ml-2 font-semibold text-red-700">Overdue</span>@endif
+                <div class="mt-2"><strong>MS-approved amount:</strong> {{ $administrativeRequest->approved_amount !== null ? '₹'.number_format((float) $administrativeRequest->approved_amount, 2) : 'Not recorded' }}</div>
+            </div>
+            @if ($administrativeRequest->completion_verified_at)
+                <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                    <strong>Completion verified by:</strong> {{ $administrativeRequest->completionVerifiedBy?->name ?? '—' }}
+                    · {{ $administrativeRequest->completion_verified_at->format('d M Y, h:i A') }}
+                    <p class="mt-2 whitespace-pre-line">{{ $administrativeRequest->completion_verification_remarks }}</p>
+                </div>
+            @endif
             @if (session('success'))
 
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-700">
@@ -191,6 +215,23 @@
             </div>
 
 
+            <details class="rounded-xl border border-slate-200 bg-white p-5">
+                <summary class="cursor-pointer font-semibold text-slate-900">Assignment history</summary>
+                <p class="mt-2 text-xs text-slate-500">Latest 20 assignment events recorded since this update. Earlier assignments are not backfilled.</p>
+                <div class="mt-3 divide-y divide-slate-100">
+                    @forelse ($assignmentHistory as $entry)
+                        <article class="space-y-1 py-3 text-sm text-slate-700">
+                            <p class="font-semibold">{{ $entry->event === 'reassigned' ? 'Reassigned' : 'Assigned' }} to {{ $entry->assigned_to_name }}</p>
+                            @if ($entry->previous_assignee_id)<p>Previous assignee: {{ $entry->previous_assignee_name ?? 'User #'.$entry->previous_assignee_id }}</p>@endif
+                            <p class="text-xs text-slate-500">By {{ $entry->actor_name }} · {{ $entry->created_at }} · {{ $executionCategories[$entry->execution_category] ?? $entry->execution_category }}</p>
+                            <p class="whitespace-pre-line">{{ $entry->reason }}</p>
+                            <p class="text-xs">Required by: {{ $entry->required_by ?? 'Not set' }}</p>
+                            @if ($entry->execution_remarks)<p class="whitespace-pre-line text-xs">Instructions: {{ $entry->execution_remarks }}</p>@endif
+                        </article>
+                    @empty<p class="py-3 text-sm text-slate-500">No assignment events recorded since this update.</p>@endforelse
+                </div>
+            </details>
+
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
 
                 <div class="border-b border-slate-100 px-6 py-5">
@@ -223,7 +264,8 @@
 
         {{-- Upload form --}}
 
-        <form
+        @if ($canAdminAction('upload'))
+<form
             method="POST"
             action="{{ route('administration.requests.documents.store', $administrativeRequest) }}"
             enctype="multipart/form-data"
@@ -393,6 +435,7 @@
             </div>
 
         </form>
+@endif
 
 
         {{-- Uploaded documents --}}
@@ -702,7 +745,8 @@
 
                         @if ($status === 'higher_approval_required')
 
-                            <form
+                            @if ($canAdminAction('higher'))
+<form
                                 method="POST"
                                 action="{{ route(
                                     'administration.requests.higher-approval',
@@ -845,6 +889,7 @@
                                 </div>
 
                             </form>
+@endif
 
                         @else
 
@@ -930,7 +975,8 @@
                         </div>
 
 
-                        <form
+                        @if ($canAdminAction('submit'))
+<form
                             method="POST"
                             action="{{ route('administration.requests.submit', $administrativeRequest) }}"
                             onsubmit="return confirm('Submit this request for Administrator verification?');"
@@ -946,6 +992,7 @@
                             </button>
 
                         </form>
+@endif
 
                     </div>
 
@@ -972,7 +1019,8 @@
                     </div>
 
 
-                    <form
+                    @if ($canAdminAction('verify'))
+<form
                         method="POST"
                         action="{{ route('administration.requests.verify', $administrativeRequest) }}"
                         onsubmit="return confirm('Verify this request and forward it to the Medical Superintendent?');"
@@ -1021,6 +1069,7 @@
                         </div>
 
                     </form>
+@endif
 
                 </div>
 
@@ -1043,7 +1092,8 @@
         </div>
 
 
-        <form
+        @if ($canAdminAction('approve'))
+<form
             method="POST"
             action="{{ route('administration.requests.ms-approve', $administrativeRequest) }}"
             class="space-y-4"
@@ -1052,6 +1102,13 @@
             @csrf
 
 
+            <div class="mb-4">
+                <label for="approved_amount" class="mb-2 block text-sm font-semibold text-slate-700">MS-approved amount (₹)</label>
+                <input id="approved_amount" name="approved_amount" type="number" min="0" step="0.01"
+                    value="{{ old('approved_amount', $administrativeRequest->approved_amount) }}"
+                    class="w-full rounded-lg border-slate-300">
+                <p class="mt-1 text-xs text-slate-500">Leave blank for non-financial requests. Approval does not post a payment or accounting entry.</p>
+            </div>
             <div>
 
                 <label
@@ -1185,13 +1242,14 @@
             </div>
 
         </form>
+@endif
 
     </div>
 
 @endif
 
 
-@if (in_array($status, ['ms_approved', 'higher_approved', 'execution_in_progress', 'executed'], true))
+@if (in_array($status, ['ms_approved', 'higher_approved', 'execution_in_progress', 'executed', 'execution_verified'], true))
 
     <div class="rounded-2xl border border-violet-200 bg-violet-50 p-5">
 
@@ -1208,106 +1266,30 @@
         </div>
 
 
-        @if (in_array($status, ['ms_approved', 'higher_approved'], true))
-
-            <form
-                method="POST"
-                action="{{ route('administration.requests.start-execution', $administrativeRequest) }}"
-                class="space-y-4"
-            >
-
+        @if (in_array($status, ['ms_approved', 'higher_approved'], true) && $canAdminAction('assign'))
+            <form method="POST" action="{{ route('administration.requests.start-execution', $administrativeRequest) }}" class="space-y-4">
                 @csrf
-
-
-                <div>
-
-                    <label
-                        for="execution_category"
-                        class="mb-2 block text-sm font-semibold text-violet-900"
-                    >
-                        Work Category
-                    </label>
-
-                    <select
-                        id="execution_category"
-                        name="execution_category"
-                        required
-                        class="w-full rounded-lg border-violet-300 bg-white shadow-sm focus:border-violet-500 focus:ring-violet-500"
-                    >
-
-                        <option value="">
-                            Select work category
-                        </option>
-
-                        <option
-                            value="clinical"
-                            @selected(old('execution_category') === 'clinical')
-                        >
-                            Clinical Work — Deputy Medical Superintendent
-                        </option>
-
-                        <option
-                            value="nursing"
-                            @selected(old('execution_category') === 'nursing')
-                        >
-                            Nursing Work — Nursing Superintendent
-                        </option>
-
-                        <option
-                            value="non_clinical"
-                            @selected(old('execution_category') === 'non_clinical')
-                        >
-                            Non-Clinical Work — Manager
-                        </option>
-
-                    </select>
-
-                    @error('execution_category')
-                        <p class="mt-1 text-sm text-red-600">
-                            {{ $message }}
-                        </p>
-                    @enderror
-
-                </div>
-
-
-                <div>
-
-                    <label
-                        for="execution_remarks"
-                        class="mb-2 block text-sm font-semibold text-violet-900"
-                    >
-                        Execution Instructions / Remarks
-                    </label>
-
-                    <textarea
-                        id="execution_remarks"
-                        name="execution_remarks"
-                        rows="4"
-                        maxlength="2000"
-                        placeholder="Enter implementation instructions, responsible person, vendor follow-up, timeline or other remarks..."
-                        class="w-full rounded-lg border-violet-300 bg-white shadow-sm focus:border-violet-500 focus:ring-violet-500"
-                    ></textarea>
-
-                </div>
-
-
-                <div class="flex justify-end">
-
-                    <button
-                        type="submit"
-                        onclick="return confirm('Start execution of this request?');"
-                        class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-                    >
-                        Start Execution
-                    </button>
-
-                </div>
-
+                @include('administration.requests.partials.assignment-fields', ['reassignment' => false])
+                <button class="rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white" @disabled($eligibleAssignees->isEmpty())>Assign &amp; Start Execution</button>
             </form>
-
         @endif
 
+        @if ($status === 'execution_in_progress' && $canAdminAction('assign'))
+            <details class="mb-5 rounded-xl border border-violet-200 bg-white p-4">
+                <summary class="cursor-pointer font-semibold text-violet-900">Reassign this work</summary>
+                <form method="POST" action="{{ route('administration.requests.reassign', $administrativeRequest) }}" class="mt-4 space-y-4">
+                    @csrf
+                    <input type="hidden" name="expected_assignee" value="{{ $administrativeRequest->assigned_to }}">
+                    <input type="hidden" name="expected_assignment_id" value="{{ $latestAssignmentId }}">
+                    @include('administration.requests.partials.assignment-fields', ['reassignment' => true])
+                    <div>
+                        <label for="reassignment_reason" class="mb-2 block text-sm font-semibold">Reason for reassignment</label>
+                        <textarea id="reassignment_reason" name="reassignment_reason" required minlength="5" maxlength="2000" rows="2" class="w-full rounded-lg border-slate-300">{{ old('reassignment_reason') }}</textarea>
+                    </div>
+                    <button class="rounded-lg bg-violet-700 px-5 py-3 text-sm font-semibold text-white" @disabled($eligibleAssignees->reject(fn ($candidate) => (string) $candidate->id === (string) $administrativeRequest->assigned_to)->isEmpty())>Reassign Work</button>
+                </form>
+            </details>
+        @endif
 
         @if ($status === 'execution_in_progress')
 
@@ -1316,11 +1298,12 @@
                 <div class="rounded-xl border border-violet-200 bg-white p-4">
 
                     <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Responsible Role
+                        Assigned person / designation
                     </div>
 
                     <div class="mt-2 text-sm font-semibold text-slate-900">
-                        {{ $administrativeRequest->assigned_role ?? 'Not assigned' }}
+                        {{ $administrativeRequest->assignedTo?->name ?? 'Not assigned' }}
+                        <span class="mt-1 block text-xs font-normal text-slate-500">{{ $administrativeRequest->assigned_role }}</span>
                     </div>
 
                 </div>
@@ -1358,7 +1341,8 @@
             @endif
 
 
-            <form
+            @if ($canAdminAction('complete'))
+<form
                 method="POST"
                 action="{{ route('administration.requests.mark-executed', $administrativeRequest) }}"
                 class="space-y-4"
@@ -1407,11 +1391,12 @@
                 </div>
 
             </form>
+@endif
 
         @endif
 
 
-        @if ($status === 'executed')
+        @if (in_array($status, ['executed', 'execution_verified'], true))
 
             <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
 
@@ -1442,7 +1427,21 @@
             </div>
 
 
-            <form
+            @if ($status === 'executed' && $canAdminAction('verify-completion'))
+                <form method="POST" action="{{ route('administration.requests.verify-completion', $administrativeRequest) }}" class="mb-5 space-y-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                    @csrf
+                    <h4 class="font-semibold text-indigo-900">Verify Completion</h4>
+                    <label for="completion_verification_remarks" class="block text-sm font-semibold">Verification findings</label>
+                    <textarea id="completion_verification_remarks" name="completion_verification_remarks" required maxlength="2000" rows="3" class="w-full rounded-lg border-slate-300"
+                        placeholder="Record what was checked and whether the approved work is complete.">{{ old('completion_verification_remarks') }}</textarea>
+                    <button class="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white">Verify Completion</button>
+                </form>
+            @elseif ($status === 'executed')
+                <p class="mb-4 text-sm text-slate-600">Awaiting an authorized completion verifier. Ordinary users cannot verify work they recorded as executed.</p>
+            @endif
+
+            @if ($status === 'execution_verified' && $canAdminAction('close'))
+<form
                 method="POST"
                 action="{{ route('administration.requests.close', $administrativeRequest) }}"
                 class="space-y-4"
@@ -1485,6 +1484,7 @@
                 </div>
 
             </form>
+@endif
 
         @endif
 

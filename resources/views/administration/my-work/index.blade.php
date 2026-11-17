@@ -30,13 +30,15 @@
 
         $statusLabels = [
             'execution_in_progress' => 'Execution In Progress',
-            'executed' => 'Executed',
+            'executed' => 'Awaiting Completion Verification',
+            'execution_verified' => 'Completion Verified',
             'closed' => 'Closed',
         ];
 
         $statusClasses = [
             'execution_in_progress' => 'bg-violet-50 text-violet-700',
             'executed' => 'bg-emerald-50 text-emerald-700',
+            'execution_verified' => 'bg-teal-50 text-teal-700',
             'closed' => 'bg-slate-200 text-slate-700',
         ];
 
@@ -164,6 +166,7 @@
                                 Executed
                             </option>
 
+                            <option value="execution_verified" @selected(request('status') === 'execution_verified')>Completion Verified</option>
                             <option
                                 value="closed"
                                 @selected(request('status') === 'closed')
@@ -274,6 +277,10 @@
                                             </span>
                                         </div>
 
+                                        <div>Required by:
+                                            <span class="font-medium text-slate-700">{{ $administrativeRequest->required_by?->format('d M Y') ?? 'Not set' }}</span>
+                                            @if ($administrativeRequest->is_overdue)<span class="ml-2 font-semibold text-red-700">Overdue</span>@endif
+                                        </div>
                                         @if ($administrativeRequest->execution_started_at)
 
                                             <div>

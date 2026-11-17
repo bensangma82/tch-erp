@@ -448,7 +448,7 @@ class RolePermissionSeeder extends Seeder
                 'name' => 'administration.verify',
                 'label' => 'Verify Administrative Request',
                 'module' => 'administration',
-                'description' => 'Verify submitted administrative requests.',
+                'description' => 'Verify submitted administrative requests before the MS decision.',
             ],
             [
                 'name' => 'administration.approve',
@@ -458,9 +458,26 @@ class RolePermissionSeeder extends Seeder
             ],
             [
                 'name' => 'administration.execute',
-                'label' => 'Execute Administrative Work',
+                'label' => 'Legacy Administrative Execute (inactive)',
                 'module' => 'administration',
-                'description' => 'Start and complete assigned administrative work.',
+                'description' => 'Retained for grant history; use the split workflow permissions.',
+            ],
+
+            [
+                'name' => 'administration.assign', 'label' => 'Assign Administrative Work',
+                'module' => 'administration', 'description' => 'Assign approved administrative requests to the designated executor.',
+            ],
+            [
+                'name' => 'administration.complete', 'label' => 'Complete Assigned Administrative Work',
+                'module' => 'administration', 'description' => 'Record completion of work assigned to the current user.',
+            ],
+            [
+                'name' => 'administration.verify-completion', 'label' => 'Verify Administrative Completion',
+                'module' => 'administration', 'description' => 'Verify completion before closure; ordinary users cannot verify their own execution.',
+            ],
+            [
+                'name' => 'administration.close', 'label' => 'Close Administrative Request',
+                'module' => 'administration', 'description' => 'Close work only after recorded completion verification.',
             ],
 
             // SYSTEM
@@ -693,8 +710,7 @@ class RolePermissionSeeder extends Seeder
         | Apply Baseline Role Permissions
         |--------------------------------------------------------------------------
         |
-        | These 14 standard roles are reset to the baseline above whenever
-        | this seeder is run.
+        | Configured roles are preserved. The baseline initializes a role only once.
         |
         */
 
@@ -704,13 +720,19 @@ class RolePermissionSeeder extends Seeder
 
             foreach ($rolePermissions as $role => $permissionNames) {
 
+                $inserted = DB::table('rbac_role_states')->insertOrIgnore([
+                    'role' => $role, 'version' => 0, 'created_at' => $now, 'updated_at' => $now,
+                ]);
+                DB::table('rbac_role_states')->where('role', $role)->lockForUpdate()->first();
+                if (! $inserted || DB::table('role_permission')->where('role', $role)->exists()) {
+                    continue;
+                }
+
                 $permissionIds = Permission::query()
                     ->whereIn('name', $permissionNames)
                     ->pluck('id');
 
-                DB::table('role_permission')
-                    ->where('role', $role)
-                    ->delete();
+                // Existing configured and deliberately empty roles are never reset.
 
                 foreach ($permissionIds as $permissionId) {
                     DB::table('role_permission')->insert([
