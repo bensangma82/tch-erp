@@ -44,6 +44,14 @@ class TallyJournalRecoveryWebController extends Controller
     public function approve(Request $request, TallyExport $tallyExport, TallyJournalRecoveryService $service): RedirectResponse
     {
         $userId = $this->guard($request);
+        if ($request->boolean('simple_recovery')) {
+            try {
+                $attempt = $service->prepareSimple($tallyExport->id, $userId);
+            } catch (\RuntimeException $e) {
+                throw ValidationException::withMessages(['recovery' => $e->getMessage()]);
+            }
+            return back()->with('success', 'Live check passed. Retry prepared; nothing sent. Click Retry export once.');
+        }
         $data = $request->validate([
             'reason' => 'required|string|min:15|max:1000',
             'evidence' => 'required|string|min:35|max:2000',
@@ -56,8 +64,20 @@ class TallyJournalRecoveryWebController extends Controller
     public function send(Request $request, TallyExport $tallyExport, TallyJournalRecoveryTransmissionService $service): RedirectResponse
     {
         $userId = $this->guard($request);
-        $request->validate(['absence_confirmed' => 'accepted', 'send_once' => 'accepted']);
-        $result = $service->send($tallyExport->id, $userId);
+        if ($request->boolean('simple_recovery')) {
+            $request->validate(['send_once' => 'accepted']);
+            $last = $tallyExport->journalExportAttempts()->where('status', 'authorized')->latest('id')->first();
+            if (! $last || ! str_starts_with((string) $last->reconciliation_evidence, '[AUTO-LIVE]')) {
+                throw ValidationException::withMessages(['recovery' => 'Run Check and prepare retry first.']);
+            }
+        } else {
+            $request->validate(['absence_confirmed' => 'accepted', 'send_once' => 'accepted']);
+        }
+        try {
+            $result = $service->send($tallyExport->id, $userId);
+        } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages(['recovery' => $e->getMessage()]);
+        }
         return back()->with('success', 'Recovery send result: '.($result['status'] ?? 'unknown')
             .'. Do NOT send again without reconciliation.');
     }

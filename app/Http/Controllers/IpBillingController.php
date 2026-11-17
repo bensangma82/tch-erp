@@ -4702,6 +4702,10 @@ throw ValidationException::withMessages([
                 ]
             );
 
+            if ($exception instanceof \App\Services\Accounting\MhisPackageVarianceReviewException) {
+                return redirect()->route('ip-billing.show', $admission)
+                    ->withErrors(['mhis_variance' => $exception->getMessage().' Open MHIS → Review package difference to continue.']);
+            }
             throw $exception;
         }
     }

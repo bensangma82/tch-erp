@@ -270,6 +270,19 @@ TallyExportLock::acquire(
             |--------------------------------------------------------------------------
             */
 
+            // Enforce Sales-before-Receipt dependency inside
+            // the locked export transaction.
+            $dependencyError = app(
+                \App\Services\Tally\TallyJournalExportPreflightService::class
+            )->failure($journal);
+
+            if ($dependencyError !== null) {
+                return [
+                    'ok' => false,
+                    'message' => $dependencyError,
+                ];
+            }
+
             $existingExport = TallyExport::query()
                 ->where('journal_entry_id', $journal->id)
                 ->exists();
@@ -612,4 +625,257 @@ TallyExportLock::acquire(
             );
         }
     }
+
+    /**
+     * Send up to 20 selected journals using the existing individual
+     * transmission workflow. No automatic retries.
+     */
+    public function sendSelected(
+        Request $request,
+        TallyJournalExportService $service,
+        TallyVoucherXmlRouter $builder,
+        TallyHttpClient $client,
+        TallyResponseParser $parser
+    ): RedirectResponse {
+        if (! filter_var(
+            config('tally.journal_export_enabled', false),
+            FILTER_VALIDATE_BOOLEAN
+        )) {
+            return back()->with('error', 'Tally export is disabled.');
+        }
+
+        $validated = $request->validate([
+            'journal_ids' => ['required', 'array', 'min:1', 'max:20'],
+            'journal_ids.*' => [
+                'required', 'integer', 'distinct',
+                'exists:journal_entries,id',
+            ],
+        ]);
+
+        $results = [];
+        $stopped = false;
+
+        foreach ($validated['journal_ids'] as $id) {
+            $journal = JournalEntry::findOrFail($id);
+            $number = $journal->journal_no;
+
+            // Never retry a journal with any existing export record.
+            if (
+                $journal->status !== 'posted'
+                || TallyExport::where('journal_entry_id', $id)->exists()
+            ) {
+                $results[] = [
+                    'journal' => $number,
+                    'status' => 'skipped',
+                    'message' => 'Not eligible or already exported.',
+                ];
+                continue;
+            }
+
+            if (! $journal->journal_date) {
+                $results[] = [
+                    'journal' => $number,
+                    'status' => 'preparation_failed',
+                    'message' => 'Accounting date missing.',
+                ];
+                continue;
+            }
+
+            try {
+                if ($journal->source_type === 'ip_billing_payment') {
+                    $guard = app(\App\Services\Tally\TallyCancelledReceiptGuard::class)->check($journal);
+                    if (! $guard['allowed']) {
+                        $results[] = ['journal' => $number, 'status' => 'skipped', 'message' => $guard['reason']];
+                        continue;
+                    }
+                }
+
+                $dependencyError = app(
+                    \App\Services\Tally\TallyJournalExportPreflightService::class
+                )->failure($journal);
+
+                if ($dependencyError !== null) {
+                    $results[] = [
+                        'journal' => $number,
+                        'status' => 'skipped',
+                        'message' => $dependencyError,
+                    ];
+                    continue;
+                }
+
+                $eligibility = $service->checkEligibility($journal);
+
+                if (! ($eligibility['eligible'] ?? false)) {
+                    $results[] = [
+                        'journal' => $number,
+                        'status' => 'skipped',
+                        'message' => 'Journal eligibility check failed.',
+                    ];
+                    continue;
+                }
+
+                // Individual journal dates are preserved.
+                $singleRequest = Request::create(
+                    $request->url(),
+                    'POST',
+                    [
+                        'tally_accounting_date' =>
+                            $journal->journal_date->format('Y-m-d'),
+                    ]
+                );
+
+                // Use the original individual transmission method.
+                $this->send(
+                    $singleRequest,
+                    $journal,
+                    $service,
+                    $builder,
+                    $client,
+                    $parser
+                );
+            } catch (Throwable $exception) {
+                report($exception);
+
+                $export = TallyExport::where(
+                    'journal_entry_id', $id
+                )->first();
+
+                if (! $export) {
+                    $results[] = [
+                        'journal' => $number,
+                        'status' => 'preparation_failed',
+                        'message' => 'Preparation failed; review server log.',
+                    ];
+                    continue;
+                }
+
+                // Exception after export preparation:
+                // do not assume transmission did not occur.
+                $results[] = [
+                    'journal' => $number,
+                    'status' => 'needs_review',
+                    'message' => 'Export outcome uncertain. Stop batch.',
+                ];
+
+                $stopped = true;
+                break;
+            }
+
+            $export = TallyExport::where(
+                'journal_entry_id', $id
+            )->first();
+
+            if (! $export) {
+                $results[] = [
+                    'journal' => $number,
+                    'status' => 'preparation_failed',
+                    'message' => 'No export created; review validation.',
+                ];
+                continue;
+            }
+
+            if ($export->status === 'confirmed') {
+                $results[] = [
+                    'journal' => $number,
+                    'status' => 'confirmed',
+                    'message' => 'Tally import confirmed.',
+                ];
+                continue;
+            }
+
+            // Any non-confirmed export requires investigation.
+            // Never automatically retry or continue transmitting.
+            $results[] = [
+                'journal' => $number,
+                'status' => 'needs_review',
+                'message' => 'Tally outcome not confirmed. Stop batch.',
+            ];
+
+            $stopped = true;
+            break;
+        }
+
+        // Replace individual send flash messages with batch results.
+        session()->forget(['success', 'error']);
+
+        return back()
+            ->with('tally_bulk_results', $results)
+            ->with('tally_bulk_stopped', $stopped);
+    }
+
+
+    public function sendGuarded(
+        Request $request,
+        JournalEntry $journalEntry,
+        TallyJournalExportService $service,
+        TallyVoucherXmlRouter $builder,
+        TallyHttpClient $client,
+        TallyResponseParser $parser
+    ): RedirectResponse {
+        try {
+            $dependencyError = app(
+                \App\Services\Tally\TallyJournalExportPreflightService::class
+            )->failure($journalEntry);
+
+            if ($dependencyError !== null) {
+                return back()->with('error', $dependencyError);
+            }
+
+            return $this->send(
+                $request,
+                $journalEntry,
+                $service,
+                $builder,
+                $client,
+                $parser
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            // Never presume a previously prepared export
+            // was not transmitted.
+            $export = TallyExport::query()
+                ->where('journal_entry_id', $journalEntry->id)
+                ->first();
+
+            if ($export !== null) {
+                return back()->with(
+                    'error',
+                    'Tally export failed or its outcome is uncertain. '
+                    .'Export status: '.$export->status.'. '
+                    .'Review the export record and reconcile '
+                    .'with Tally before taking further action.'
+                );
+            }
+
+            $knownErrors = [
+                'Export the referenced IPD Sales voucher first.',
+                'Referenced IPD final Sales journal was not found.',
+                'Advance application has no final invoice reference.',
+                'Final bill or patient reference is invalid.',
+                'Missing journal lines.',
+                'Missing Tally GL mapping.',
+                'Invalid debit/credit line.',
+                'Unsupported OPD Sales GL structure.',
+                'Invalid Patient Receivables line.',
+                'Invalid monetary amount.',
+            ];
+
+            if (in_array($exception->getMessage(), $knownErrors, true)) {
+                return back()->with(
+                    'error',
+                    'Tally export validation failed: '
+                    .$exception->getMessage()
+                );
+            }
+
+            return back()->with(
+                'error',
+                'Tally export preparation failed. '
+                .'No export record was found. '
+                .'Check the application log before retrying.'
+            );
+        }
+    }
+
 }

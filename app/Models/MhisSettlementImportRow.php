@@ -25,6 +25,8 @@ class MhisSettlementImportRow extends Model
         'match_status',
         'match_notes',
         'source_data',
+        'posted_receipt_id', 'posted_journal_id', 'posted_by',
+        'bank_verified_by', 'bank_verified_at', 'posted_at',
     ];
 
     protected $casts = [
@@ -35,6 +37,8 @@ class MhisSettlementImportRow extends Model
         'net_amount' => 'decimal:2',
         'payment_date' => 'date',
         'source_data' => 'array',
+        'bank_verified_at' => 'datetime',
+        'posted_at' => 'datetime',
     ];
 
     public function batch(): BelongsTo

@@ -1252,10 +1252,18 @@ Route::post(
     ->name('finance.tally.journals.view');
 
     Route::post(
+    '/admin/finance/tally/journals/send-selected',
+    [
+        \App\Http\Controllers\Finance\TallyJournalExportController::class,
+        'sendSelected',
+    ]
+)->name('finance.tally.journals.send-selected');
+
+    Route::post(
     '/admin/finance/tally/journals/{journalEntry}/send',
     [
         \App\Http\Controllers\Finance\TallyJournalExportController::class,
-        'send',
+        'sendGuarded',
     ]
 )
     ->whereNumber('journalEntry')
@@ -1368,6 +1376,14 @@ Route::post(
             ->whereNumber('batch')
             ->middleware('permission:finance.mhis-settlement-import.match')
             ->name('finance.mhis-settlement-import.match');
+
+        Route::post(
+            '/admin/finance/mhis-settlement-import/{batch}/post-settlements',
+            [\App\Http\Controllers\Finance\MhisSettlementImportController::class, 'postSettlements']
+        )
+            ->whereNumber('batch')
+            ->middleware('permission:finance.mhis-settlement-import.post')
+            ->name('finance.mhis-settlement-import.post');
 
         Route::post(
             '/admin/finance/mhis-legacy-settlements/{settlement}/verify',
@@ -3686,3 +3702,6 @@ Route::middleware([
         \Illuminate\Support\Facades\Route::post('/', [\App\Http\Controllers\MhisPackageVarianceApprovalController::class, 'store'])->name('store');
         \Illuminate\Support\Facades\Route::post('/{approval}/approve', [\App\Http\Controllers\MhisPackageVarianceApprovalController::class, 'approve'])->name('approve');
     });
+
+// TCH_ANNUAL_BUDGET_ROUTES_V1
+require __DIR__.'/annual-budgets.php';
