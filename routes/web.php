@@ -3702,5 +3702,8 @@ Route::middleware([
 // TCH_ANNUAL_BUDGET_ROUTES_V1
 require __DIR__.'/annual-budgets.php';
 
+// TCH_ERP_DIAGNOSTICS_ROUTES_V1
+require __DIR__.'/erp-diagnostics.php';
+
 // TCH_LOCAL_ERP_ASSISTANT_ROUTES_V1
 require __DIR__.'/erp-assistant.php';

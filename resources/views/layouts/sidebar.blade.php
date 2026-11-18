@@ -391,6 +391,8 @@
 
 
     $administrationOpen =
+        request()->routeIs('admin.erp-diagnostics.*')
+        ||
         request()->routeIs(
             'administration.*'
         )
@@ -2431,6 +2433,13 @@
                     class="ml-6 mt-1 space-y-0.5 border-l border-slate-800 pl-3"
                 >
 
+
+                    @if ($isAdmin)
+                        <a href="{{ route('admin.erp-diagnostics.index') }}"
+                           class="block rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150 {{ request()->routeIs('admin.erp-diagnostics.*') ? 'bg-slate-800/90 text-white' : 'text-slate-400 hover:bg-slate-900/70 hover:text-slate-100' }}">
+                            ERP Diagnostics
+                        </a>
+                    @endif
 
                     @if ($canAdministrationView)
 
