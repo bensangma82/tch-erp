@@ -182,12 +182,15 @@
 
                                 $export = $exports->get($journal->id);
 
-                                $status = $export
-                                    ? $export->status
-                                    : 'not_exported';
+                                $excludedReceipt = $excludedReceipts->has($journal->id);
+
+                                $status = $excludedReceipt
+                                    ? 'excluded_receipt'
+                                    : ($export?->status ?? 'not_exported');
 
                                 $statusLabels = [
                                     'not_exported' => 'Not Exported',
+                                    'excluded_receipt' => 'Cancelled · excluded from export',
                                     'sending' => 'Sending',
                                     'pending' => 'Pending',
                                     'exported' => 'Exported',
@@ -255,7 +258,7 @@
 
                             <tr class="transition hover:bg-gray-50">
                                 <td class="px-4 py-3">
-                                    @if (! $export)
+                                    @if (! $export && ! $excludedReceipt)
                                         <input
                                             type="checkbox"
                                             class="tally-bulk-checkbox"
@@ -321,7 +324,7 @@
 @endif
 
 {{-- Controlled manual journal export --}}
-      @if (! $journal->tallyExport)
+      @if (! $export && ! $excludedReceipt)
 
     <form
         method="POST"

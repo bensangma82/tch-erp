@@ -7,6 +7,8 @@ use App\Models\IpBillingPayment;
 
 class TallyCancelledReceiptGuard
 {
+    public const EXCLUDED_PAIR_REASON = 'Cancelled receipt pair: exclude from new export.';
+
     public function check(JournalEntry $journal): array
     {
         if ($journal->source_type !== 'ip_billing_payment') {
@@ -144,7 +146,7 @@ class TallyCancelledReceiptGuard
 
         return [
             'allowed' => false,
-            'reason' => 'Cancelled receipt pair: exclude from new export.',
+            'reason' => self::EXCLUDED_PAIR_REASON,
         ];
     }
 }

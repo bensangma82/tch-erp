@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\Tally\TallyCancelledReceiptGuard;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -94,14 +95,19 @@ class TallyBulkJournalExportTest extends TestCase
             ->assertSessionHasErrors('journal_ids.1');
     }
 
-    private function makeBulkJournal(User $user, int $sourceId): \App\Models\JournalEntry
+    private function makeBulkJournal(
+        User $user,
+        int $sourceId,
+        string $sourceType = 'bulk_export_test',
+        string $sourceEvent = 'test',
+    ): \App\Models\JournalEntry
     {
         return \App\Models\JournalEntry::create([
             'journal_no' => 'JRN-BULK-TEST-'.$sourceId,
             'journal_date' => '2026-11-06',
-            'source_type' => 'bulk_export_test',
+            'source_type' => $sourceType,
             'source_id' => $sourceId,
-            'source_event' => 'test',
+            'source_event' => $sourceEvent,
             'status' => 'posted',
             'created_by' => $user->id,
             'posted_by' => $user->id,
@@ -454,6 +460,37 @@ class TallyBulkJournalExportTest extends TestCase
     public function test_cancelled_reversal_is_skipped_before_preparation_and_batch_continues(): void
     {
         $this->assertGuardBlocksBeforePreparation('reversed', 990302);
+    }
+
+    public function test_cancelled_receipt_pair_is_labelled_and_cannot_be_selected_for_export(): void
+    {
+        $this->withoutVite();
+        $user = $this->makeBulkAdmin();
+
+        $receipt = $this->makeBulkJournal($user, 990401, 'ip_billing_payment', 'received');
+        $reversal = $this->makeBulkJournal($user, 990402, 'ip_billing_payment', 'reversed');
+        $other = $this->makeBulkJournal($user, 990403);
+
+        $guard = \Mockery::mock(TallyCancelledReceiptGuard::class);
+        $guard->shouldReceive('check')->twice()->andReturn([
+            'allowed' => false,
+            'reason' => TallyCancelledReceiptGuard::EXCLUDED_PAIR_REASON,
+        ]);
+        $this->app->instance(TallyCancelledReceiptGuard::class, $guard);
+
+        $response = $this->actingAs($user)->get(route('finance.tally.journals.index', [
+            'status' => 'not_exported',
+            'search' => 'JRN-BULK-TEST-99040',
+        ]));
+
+        $response->assertOk()->assertSeeText('Cancelled · excluded from export');
+        foreach ([$receipt, $reversal] as $journal) {
+            $response->assertSee(route('finance.tally.journals.view', $journal->id))
+                ->assertDontSee('aria-label="Select '.$journal->journal_no.'"', false)
+                ->assertDontSee(route('finance.tally.journals.send', $journal->id));
+        }
+        $response->assertSee('aria-label="Select '.$other->journal_no.'"', false)
+            ->assertSee(route('finance.tally.journals.send', $other->id));
     }
 
     private function assertGuardBlocksBeforePreparation(string $event, int $sourceId): void

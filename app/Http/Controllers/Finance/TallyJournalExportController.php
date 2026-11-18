@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\JournalEntry;
 use App\Models\TallyExport;
+use App\Services\Tally\TallyCancelledReceiptGuard;
 use App\Services\Tally\TallyHttpClient;
 use App\Services\Tally\TallyExportLock;
 use App\Services\Tally\TallyJournalExportService;
@@ -25,7 +26,7 @@ class TallyJournalExportController extends Controller
     /**
      * Display posted journals and Tally export status.
      */
-    public function index(): View
+    public function index(TallyCancelledReceiptGuard $receiptGuard): View
     {
         $request = request();
 
@@ -88,9 +89,21 @@ class TallyJournalExportController extends Controller
             ->get()
             ->keyBy('journal_entry_id');
 
+        $excludedReceipts = $journals->getCollection()
+            ->filter(function (JournalEntry $journal) use ($exports, $receiptGuard): bool {
+                if ($journal->source_type !== 'ip_billing_payment' || $exports->has($journal->id)) {
+                    return false;
+                }
+
+                return $receiptGuard->check($journal)['reason']
+                    === TallyCancelledReceiptGuard::EXCLUDED_PAIR_REASON;
+            })
+            ->keyBy('id');
+
         return view('finance.tally.journals.index', [
             'journals' => $journals,
             'exports' => $exports,
+            'excludedReceipts' => $excludedReceipts,
             'tallyCompany' => config('tally.company'),
             'selectedStatus' => $status,
         ]);
@@ -696,7 +709,7 @@ TallyExportLock::acquire(
 
             try {
                 if ($journal->source_type === 'ip_billing_payment') {
-                    $guard = app(\App\Services\Tally\TallyCancelledReceiptGuard::class)->check($journal);
+                    $guard = app(TallyCancelledReceiptGuard::class)->check($journal);
                     if (! $guard['allowed']) {
                         $results[] = ['journal' => $number, 'status' => 'skipped', 'message' => $guard['reason']];
                         continue;
