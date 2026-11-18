@@ -34,6 +34,9 @@ class TallyRecoveryLiveCheck
             $export->journalExportAttempts->pluck('export_reference')->all()
         ));
         $isIpdSales = $journal->source_type === 'ip_billing_account' && $journal->source_event === 'finalized';
+        $isInvoiceSales = $journal->source_type === 'invoice'
+            && $journal->source_event === 'issued'
+            && str_starts_with(strtoupper($billReference), 'INV-');
         $isMhisEntitlement = $journal->source_type === 'ip_billing_mhis_claim'
             && $journal->source_event === 'approved'
             && str_starts_with(strtoupper($billReference), 'IPF-');
@@ -51,8 +54,8 @@ class TallyRecoveryLiveCheck
             if ($billReference === '' || ! $this->containsIdentity($text, $billReference)) {
                 continue;
             }
-            // A Receipt can refer to an IPD bill without being the original Sales voucher.
-            if ($isIpdSales && strcasecmp($type, 'Receipt') === 0) {
+            // A Receipt can refer to the bill or invoice without being the Sales voucher.
+            if (($isIpdSales || $isInvoiceSales) && strcasecmp($type, 'Receipt') === 0) {
                 $relatedReceipts++;
                 continue;
             }

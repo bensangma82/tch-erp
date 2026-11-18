@@ -175,6 +175,54 @@ class TallySimpleRecoveryLiveCheckTest extends TestCase
         return $export;
     }
 
+    public function test_invoice_sales_recovery_excludes_receipt_sharing_only_the_invoice(): void
+    {
+        $export = $this->invoiceSalesExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER><VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>'
+            .'<VOUCHERNUMBER>40</VOUCHERNUMBER><NARRATION>Receipt for INV-20261104-000002</NARRATION>'
+            .'</VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $evidence = app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+
+        $this->assertStringContainsString('bill-only references in Receipts excluded: 1', $evidence);
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn ($request) => str_contains($request->body(), '<TALLYREQUEST>Import'));
+    }
+
+    public function test_invoice_sales_recovery_still_blocks_sales_with_the_same_invoice(): void
+    {
+        $export = $this->invoiceSalesExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>'
+            .'<REFERENCE>INV-20261104-000002</REFERENCE></VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+    }
+
+    public function test_invoice_sales_recovery_still_blocks_receipt_with_the_original_export_id(): void
+    {
+        $export = $this->invoiceSalesExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER REMOTEID="original-guid">'
+            .'<VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME><REFERENCE>INV-20261104-000002</REFERENCE>'
+            .'</VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+    }
+
+    private function invoiceSalesExport(): TallyExport
+    {
+        $export = $this->export();
+        $export->journalEntry->setRawAttributes([
+            'journal_no' => 'JRN-INV-219',
+            'reference_no' => 'INV-20261104-000002',
+            'source_type' => 'invoice',
+            'source_event' => 'issued',
+        ]);
+
+        return $export;
+    }
+
     public function test_company_not_loaded_blocks_retry(): void
     {
         $export = $this->export();
