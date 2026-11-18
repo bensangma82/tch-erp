@@ -585,6 +585,11 @@
         {{-- DASHBOARD --}}
         {{-- ===================================================== --}}
 
+        <a href="{{ route('erp-assistant.index') }}"
+           class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors {{ request()->routeIs('erp-assistant.*') ? 'bg-slate-800/90 text-white' : 'text-slate-300 hover:bg-slate-900/70 hover:text-white' }}">
+            <span aria-hidden="true" class="text-sky-300">✦</span><span>ERP Assistant</span>
+        </a>
+
         <a
             href="{{ route('dashboard') }}"
             class="group flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-semibold tracking-[0.01em] transition-colors duration-150

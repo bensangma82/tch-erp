@@ -51,6 +51,12 @@
 
     </div>
 
+    @auth
+        @if(auth()->user()->is_active && !request()->routeIs('erp-assistant.*'))
+            @include('assistant.widget')
+        @endif
+    @endauth
+
 </body>
 
 </html>
