@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HospitalExpense extends Model
 {
+    public const SUPPLIER_PAYABLE_TYPES = ['operating', 'capital'];
+
     protected $fillable = [
         'expense_no',
         'finance_head_id',

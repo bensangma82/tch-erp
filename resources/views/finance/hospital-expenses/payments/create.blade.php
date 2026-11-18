@@ -159,6 +159,7 @@
                         <input type="text"
                                name="reference_no"
                                value="{{ old('reference_no') }}"
+                               @required($hospitalExpense->expense_type === 'capital')
                                maxlength="100"
                                class="mt-1 w-full rounded-lg border-gray-300">
                     </div>

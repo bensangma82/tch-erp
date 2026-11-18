@@ -4,6 +4,7 @@ namespace App\Services\Tally;
 
 use App\Models\JournalEntry;
 use App\Models\FinanceVoucher;
+use App\Models\HospitalExpensePayment;
 use App\Models\TallyExport;
 use App\Models\TallyLedgerMaster;
 
@@ -98,9 +99,18 @@ class TallyJournalExportService
 if (
     $journal->source_type === 'hospital_expense_payment'
     && $journal->source_event === 'supplier_payment'
-    && $journal->finance_voucher_id === null
 ) {
-    $errors[] = 'Supplier payment journal is missing its Finance Voucher link.';
+    if ($journal->finance_voucher_id === null) {
+        $errors[] = 'Supplier payment journal is missing its Finance Voucher link.';
+    }
+
+    $expense = HospitalExpensePayment::with('expense')->find($journal->source_id)?->expense;
+    if ($expense !== null) {
+        $dependency = app(TallyHospitalExpenseResolver::class)->capitalPaymentDependency($expense);
+        if ($dependency !== null) {
+            $errors[] = $dependency;
+        }
+    }
 }
         /*
         |--------------------------------------------------------------------------

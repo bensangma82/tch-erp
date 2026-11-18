@@ -75,8 +75,12 @@ class TallyHospitalSupplierPaymentXmlBuilder
             );
         }
 
-        $details = app(TallyHospitalExpenseResolver::class)
-            ->resolve($expense);
+        $resolver = app(TallyHospitalExpenseResolver::class);
+        $dependency = $resolver->capitalPaymentDependency($expense);
+        if ($dependency !== null) {
+            throw new RuntimeException($dependency);
+        }
+        $details = $resolver->resolve($expense);
 
         $toPaise = static function ($value): int {
             $value = (string) $value;

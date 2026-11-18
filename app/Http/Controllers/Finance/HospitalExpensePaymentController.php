@@ -26,7 +26,7 @@ public function index(
 
     $expenses = HospitalExpense::query()
         ->where('status', 'posted')
-        ->where('expense_type', 'operating')
+        ->whereIn('expense_type', HospitalExpense::SUPPLIER_PAYABLE_TYPES)
         ->whereNotNull('journal_entry_id')
         ->with('payments')
         ->orderByDesc('expense_date')
@@ -51,10 +51,10 @@ public function index(
 
         abort_unless(
             $hospitalExpense->status === 'posted'
-                && $hospitalExpense->expense_type === 'operating'
+                && in_array($hospitalExpense->expense_type, HospitalExpense::SUPPLIER_PAYABLE_TYPES, true)
                 && $hospitalExpense->journal_entry_id !== null,
             422,
-            'Only posted operating expenses can be paid.'
+            'Only posted operating expenses and capital purchases can be paid.'
         );
 
         $accounts = FinanceAccount::query()

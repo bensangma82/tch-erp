@@ -68,12 +68,31 @@ class HospitalExpensePaymentService
 
             if (
                 $expense->status !== 'posted'
-                || $expense->expense_type !== 'operating'
+                || ! in_array($expense->expense_type, HospitalExpense::SUPPLIER_PAYABLE_TYPES, true)
                 || ! $expense->journal_entry_id
             ) {
                 throw ValidationException::withMessages([
-                    'expense' => 'Only posted operating expenses with a GL journal can be paid.',
+                    'expense' => 'Only posted operating expenses or capital purchases with a GL journal can be paid.',
                 ]);
+            }
+
+            if ($expense->expense_type === 'capital') {
+                if (! $expense->supplier()->where('is_active', true)->exists()) {
+                    throw ValidationException::withMessages([
+                        'expense' => 'An active supplier link is required for capital payments.',
+                    ]);
+                }
+
+                $referenceNo = trim((string) $referenceNo);
+                if ($referenceNo === '' || HospitalExpensePayment::query()
+                    ->where('hospital_expense_id', $expense->id)
+                    ->whereIn('status', ['recorded', 'posted'])
+                    ->whereRaw('LOWER(TRIM(reference_no)) = LOWER(?)', [$referenceNo])
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'reference_no' => 'Enter a payment reference that has not been recorded for this capital purchase.',
+                    ]);
+                }
             }
 
             $financeAccount = FinanceAccount::query()

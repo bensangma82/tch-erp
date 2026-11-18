@@ -123,15 +123,17 @@
                             <option value="{{ $account->id }}"
                                 x-show="expenseType === 'operating'
                                     ? {{ \Illuminate\Support\Js::from($account->account_type === 'expense') }}
-                                    : {{ \Illuminate\Support\Js::from($account->account_type === 'asset') }}"
+                                    : (expenseType === 'capital'
+                                        ? {{ \Illuminate\Support\Js::from($account->isFixedAsset()) }}
+                                        : {{ \Illuminate\Support\Js::from($account->account_type === 'asset') }})"
                                 @selected(old('general_ledger_account_id') == $account->id)>
                                 {{ $account->account_code }} — {{ $account->account_name }}
                             </option>
                         @endforeach
                     </select>
                     <p class="mt-1 text-xs text-gray-500">
-                        Operating expenses use expense accounts; inventory
-                        and capital acquisitions use asset accounts.
+                        Operating expenses use expense accounts, inventory acquisitions use asset accounts,
+                        and capital purchases use Fixed Assets accounts.
                     </p>
                 </div>
 

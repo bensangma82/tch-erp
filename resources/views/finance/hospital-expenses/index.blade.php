@@ -284,7 +284,7 @@
                                         {{-- Post Approved Expense to GL --}}
                                         @if (
                                             $expense->status === 'approved'
-                                            && $expense->expense_type === 'operating'
+                                            && in_array($expense->expense_type, \App\Models\HospitalExpense::SUPPLIER_PAYABLE_TYPES, true)
                                             && $expense->journal_entry_id === null
                                             && auth()->user()->hasPermission('hospital_expenses.post')
                                         )
@@ -297,6 +297,36 @@
                                             >
                                                 @csrf
 
+                                                @if ($expense->expense_type === 'capital')
+                                                    @if ($expense->supplier_id === null)
+                                                        <label class="block text-xs">
+                                                            Invoice supplier
+                                                            <select name="capital_supplier_id" required
+                                                                    class="block w-full rounded border-gray-300 text-xs">
+                                                                <option value="">Select supplier</option>
+                                                                @foreach ($capitalSuppliers as $supplier)
+                                                                    <option value="{{ $supplier->id }}">
+                                                                        {{ $supplier->supplier_name }} ({{ $supplier->supplier_code }})
+                                                                    </option>
+                                                                @endforeach
+                                                            </select>
+                                                        </label>
+                                                    @endif
+                                                    @if (blank($expense->invoice_no))
+                                                        <label class="block text-xs">
+                                                            Supplier invoice number
+                                                            <input name="capital_invoice_no" type="text" maxlength="100" required
+                                                                   class="block w-full rounded border-gray-300 text-xs">
+                                                        </label>
+                                                    @endif
+                                                    @if ((float) $expense->tax_amount > 0)
+                                                        <label class="block text-xs">
+                                                            <input type="checkbox" name="capitalize_tax" value="1" required>
+                                                            Invoice tax is non-recoverable
+                                                        </label>
+                                                    @endif
+                                                @endif
+
                                                 <button
                                                     type="submit"
                                                     onclick="return confirm('Post this expense to the General Ledger? This creates a permanent accounting journal.');"
@@ -305,7 +335,7 @@
                                                            font-semibold text-white
                                                            hover:bg-emerald-700"
                                                 >
-                                                    Post to GL
+                                                    {{ $expense->expense_type === 'capital' ? 'Post Capital Purchase' : 'Post to GL' }}
                                                 </button>
                                             </form>
                                         @endif
@@ -313,7 +343,7 @@
                                         {{-- Supplier Payment --}}
                                         @if (
                                             $expense->status === 'posted'
-                                            && $expense->expense_type === 'operating'
+                                            && in_array($expense->expense_type, \App\Models\HospitalExpense::SUPPLIER_PAYABLE_TYPES, true)
                                             && $expense->journal_entry_id !== null
                                             && auth()->user()->hasPermission('hospital_expenses.pay')
                                         )

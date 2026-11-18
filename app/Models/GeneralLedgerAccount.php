@@ -29,6 +29,12 @@ class GeneralLedgerAccount extends Model
         'allow_posting' => 'boolean',
     ];
 
+    public function isFixedAsset(): bool
+    {
+        return $this->account_type === 'asset'
+            && strcasecmp(trim((string) $this->account_group), 'Fixed Assets') === 0;
+    }
+
     public function parent(): BelongsTo
     {
         return $this->belongsTo(

@@ -102,11 +102,13 @@ class TallyHospitalExpenseXmlBuilder
             } else {
                 if (
                     $cr !== 0
-                    || $gl->account_type !== 'expense'
+                    || ($expense->expense_type === 'capital'
+                        ? (! $gl->isFixedAsset() || (int) $gl->id !== (int) $expense->general_ledger_account_id)
+                        : $gl->account_type !== 'expense')
                     || blank($gl->tally_ledger_name)
                 ) {
                     throw new RuntimeException(
-                        'Unsupported expense GL structure or mapping.'
+                        'Unsupported expense or fixed-asset GL structure or mapping.'
                     );
                 }
 

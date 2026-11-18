@@ -4,10 +4,27 @@ namespace App\Services\Tally;
 
 use App\Models\HospitalExpense;
 use App\Models\JournalEntry;
+use App\Models\TallyExport;
 use RuntimeException;
 
 class TallyHospitalExpenseResolver
 {
+    public function capitalPaymentDependency(HospitalExpense $expense): ?string
+    {
+        if ($expense->expense_type !== 'capital') {
+            return null;
+        }
+
+        if (! $expense->journal_entry_id || ! TallyExport::query()
+            ->where('journal_entry_id', $expense->journal_entry_id)
+            ->where('status', 'confirmed')
+            ->exists()) {
+            return 'Export and confirm the capital purchase journal in Tally before sending this payment.';
+        }
+
+        return null;
+    }
+
     public function resolve(HospitalExpense $expense): array
     {
         if (

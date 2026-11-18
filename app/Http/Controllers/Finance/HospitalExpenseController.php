@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\FinanceHead;
 use App\Models\GeneralLedgerAccount;
 use App\Models\HospitalExpense;
+use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use App\Services\Finance\HospitalExpenseNumberService;
@@ -43,8 +44,16 @@ class HospitalExpenseController extends Controller
             ->latest('id')
             ->paginate(20);
 
+        $hasUnlinkedCapitalPurchases = $request->user()->hasPermission('hospital_expenses.post')
+            && $expenses->contains(fn (HospitalExpense $expense) => $expense->expense_type === 'capital'
+                && $expense->status === 'approved' && $expense->supplier_id === null);
+
         return view('finance.hospital-expenses.index', [
             'expenses' => $expenses,
+            'capitalSuppliers' => $hasUnlinkedCapitalPurchases
+                ? Supplier::query()->where('is_active', true)->orderBy('supplier_name')
+                    ->get(['id', 'supplier_code', 'supplier_name'])
+                : collect(),
         ]);
     }
 
@@ -306,6 +315,7 @@ class HospitalExpenseController extends Controller
             ! $account->is_active
             || ! $account->allow_posting
             || $account->account_type !== $expectedType
+            || ($validated['expense_type'] === 'capital' && ! $account->isFixedAsset())
         ) {
             throw ValidationException::withMessages([
                 'general_ledger_account_id' =>
@@ -659,9 +669,20 @@ class HospitalExpenseController extends Controller
             403
         );
 
+        $capital = $hospitalExpense->expense_type === 'capital'
+            ? $request->validate([
+                'capital_supplier_id' => ['nullable', 'integer'],
+                'capitalize_tax' => ['sometimes', 'boolean'],
+                'capital_invoice_no' => ['nullable', 'string', 'max:100'],
+            ])
+            : [];
+
         $journal = $postingService->post(
             $hospitalExpense,
-            (int) $request->user()->id
+            (int) $request->user()->id,
+            isset($capital['capital_supplier_id']) ? (int) $capital['capital_supplier_id'] : null,
+            (bool) ($capital['capitalize_tax'] ?? false),
+            $capital['capital_invoice_no'] ?? null
         );
 
         return redirect()

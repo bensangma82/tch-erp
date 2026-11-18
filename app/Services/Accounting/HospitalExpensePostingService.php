@@ -6,6 +6,7 @@ use App\Models\GeneralLedgerAccount;
 use App\Models\HospitalExpense;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -18,7 +19,10 @@ class HospitalExpensePostingService
 
     public function post(
         HospitalExpense $hospitalExpense,
-        int $postingUserId
+        int $postingUserId,
+        ?int $capitalSupplierId = null,
+        bool $capitalizeTax = false,
+        ?string $capitalInvoiceNo = null
     ): JournalEntry {
         if (
             ! auth()->check()
@@ -30,7 +34,10 @@ class HospitalExpensePostingService
 
         return DB::transaction(function () use (
             $hospitalExpense,
-            $postingUserId
+            $postingUserId,
+            $capitalSupplierId,
+            $capitalizeTax,
+            $capitalInvoiceNo
         ) {
             /*
             |--------------------------------------------------------------------------
@@ -48,9 +55,9 @@ class HospitalExpensePostingService
                 ]);
             }
 
-            if ($expense->expense_type !== 'operating') {
+            if (! in_array($expense->expense_type, HospitalExpense::SUPPLIER_PAYABLE_TYPES, true)) {
                 throw ValidationException::withMessages([
-                    'expense' => 'Inventory and capital purchases require '
+                    'expense' => 'Inventory purchases require '
                         .'a separate accounting workflow.',
                 ]);
             }
@@ -109,6 +116,8 @@ class HospitalExpensePostingService
                 ->whereKey($expense->general_ledger_account_id)
                 ->firstOrFail();
 
+            $isCapital = $expense->expense_type === 'capital';
+
             $payableAccount = GeneralLedgerAccount::query()
                 ->where('account_code', '2200')
                 ->first();
@@ -116,11 +125,13 @@ class HospitalExpensePostingService
             if (
                 ! $expenseAccount->is_active
                 || ! $expenseAccount->allow_posting
-                || $expenseAccount->account_type !== 'expense'
+                || ($isCapital ? ! $expenseAccount->isFixedAsset() : $expenseAccount->account_type !== 'expense')
                 || $expenseAccount->normal_balance !== 'debit'
             ) {
                 throw ValidationException::withMessages([
-                    'expense' => 'Invalid expense General Ledger account.',
+                    'expense' => $isCapital
+                        ? 'Select a postable Fixed Assets account for a capital purchase.'
+                        : 'Invalid expense General Ledger account.',
                 ]);
             }
 
@@ -170,6 +181,16 @@ class HospitalExpensePostingService
                 throw ValidationException::withMessages([
                     'expense' => 'Expense amounts do not reconcile.',
                 ]);
+            }
+
+            if ($isCapital) {
+                if ($taxPaise > 0 && ! $capitalizeTax) {
+                    throw ValidationException::withMessages([
+                        'expense' => 'Confirm that the invoice tax is non-recoverable before capitalizing it.',
+                    ]);
+                }
+
+                $this->validateCapitalInvoice($expense, $capitalSupplierId, $capitalInvoiceNo);
             }
 
             $allocations = $expense->allocations()
@@ -238,7 +259,8 @@ class HospitalExpensePostingService
                 'source_id' => (string) $expense->id,
                 'source_event' => 'accrual_posted',
                 'reference_no' => $expense->expense_no,
-                'narration' => 'Hospital expense accrual: '.$expense->description,
+                'narration' => ($isCapital ? 'Capital purchase accrual: ' : 'Hospital expense accrual: ')
+                    .$expense->description,
                 'status' => 'draft',
                 'created_by' => $postingUserId,
             ]);
@@ -305,5 +327,62 @@ class HospitalExpensePostingService
 
             return $postedJournal;
         }, 3);
+    }
+    private function validateCapitalInvoice(
+        HospitalExpense $expense,
+        ?int $supplierId,
+        ?string $invoiceNo
+    ): void {
+        $invoiceNo = trim((string) $invoiceNo);
+        $recordedInvoice = trim((string) $expense->invoice_no);
+
+        if ($recordedInvoice !== '' && $invoiceNo !== '' && $recordedInvoice !== $invoiceNo) {
+            throw ValidationException::withMessages([
+                'expense' => 'The invoice number differs from the approved expense.',
+            ]);
+        }
+
+        $invoiceNo = $recordedInvoice !== '' ? $recordedInvoice : $invoiceNo;
+        if ($invoiceNo === '' || mb_strlen($invoiceNo) > 100) {
+            throw ValidationException::withMessages([
+                'expense' => 'A supplier invoice number is required to post a capital purchase.',
+            ]);
+        }
+
+        if ($expense->supplier_id !== null && $supplierId !== null
+            && (int) $expense->supplier_id !== $supplierId) {
+            throw ValidationException::withMessages([
+                'expense' => 'The selected supplier differs from the linked supplier.',
+            ]);
+        }
+
+        $supplier = Supplier::query()
+            ->whereKey($expense->supplier_id ?? $supplierId)
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $supplier || (filled($expense->supplier_name)
+            && mb_strtolower(trim($expense->supplier_name)) !== mb_strtolower(trim($supplier->supplier_name)))) {
+            throw ValidationException::withMessages([
+                'expense' => 'Select an active supplier whose master name matches the approved invoice payee.',
+            ]);
+        }
+
+        $duplicateInvoice = HospitalExpense::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('status', 'posted')
+            ->whereRaw('LOWER(TRIM(invoice_no)) = LOWER(?)', [$invoiceNo])
+            ->exists();
+
+        if ($duplicateInvoice) {
+            throw ValidationException::withMessages([
+                'expense' => 'A posted expense already exists for this supplier invoice.',
+            ]);
+        }
+
+        $expense->supplier()->associate($supplier);
+        $expense->supplier_name = $supplier->supplier_name;
+        $expense->invoice_no = $invoiceNo;
     }
 }
