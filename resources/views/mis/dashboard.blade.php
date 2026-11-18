@@ -1559,6 +1559,9 @@
         </div>
     </div>
 
+    {{-- Welfare shares use the existing date-filtered MIS figures. --}}
+    @include('mis.partials.welfare-revenue-shares')
+
     {{-- Revenue attribution --}}
 
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -2629,6 +2632,8 @@
 </div>
 
 <div x-show="financeTab === 'welfare'" x-cloak class="space-y-5">
+
+@include('mis.partials.welfare-revenue-shares')
 
 {{-- =============================================== --}}
 {{-- FINANCE MIS: CHARITY & STAFF MEDICAL BENEFITS --}}
