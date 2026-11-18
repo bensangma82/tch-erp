@@ -102,7 +102,6 @@ final class TallyAutomaticJournalMatchService
             ->where('tally_company', $company)
             ->whereRaw('LOWER(voucher_type) = ?', [strtolower(trim($type))])
             ->whereDate('voucher_date', $date)
-            ->with('entries')
             ->get()
             ->filter(fn (TallyImportedVoucher $v) => $this->identityMatches($journal, $export, $v)
                 || ($export?->status === 'confirmed' && $this->confirmedExportSourceMatches($journal, $v)))

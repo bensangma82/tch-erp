@@ -42,7 +42,6 @@ class TallyJournalReconciliationService
         $candidates = TallyImportedVoucher::query()
             ->where('tally_company', $company)
             ->whereRaw('LOWER(voucher_type) = ?', [strtolower($voucherType)])
-            ->with('entries')
             ->get()
             ->filter(function ($voucher) use (
                 $journal,
@@ -82,7 +81,7 @@ class TallyJournalReconciliationService
             );
         }
 
-        $voucher = $candidates->first();
+        $voucher = $candidates->first()->loadMissing('entries');
 
         $errors = [];
 
