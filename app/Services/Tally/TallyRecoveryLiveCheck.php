@@ -25,27 +25,57 @@ class TallyRecoveryLiveCheck
         $raw = $client->postXml($this->request($company, 'Recovery Vouchers', 'Voucher', 'DATE,VOUCHERTYPENAME,VOUCHERNUMBER,NARRATION,REFERENCE,REMOTEID,GUID,MASTERID'));
         $collection = $this->collection($raw);
         $export->loadMissing('journalEntry', 'journalExportAttempts');
+        if (! $export->journalEntry || ! $export->remote_id) throw new RuntimeException('Original export identity is missing.');
+        $journal = $export->journalEntry;
+        $billReference = trim((string) $journal->reference_no);
         $identities = array_filter(array_merge(
-            [(string) $export->remote_id, (string) $export->export_reference,
-                (string) $export->journalEntry?->journal_no, (string) $export->journalEntry?->reference_no],
+            [(string) $export->remote_id, (string) $export->export_reference, (string) $journal->journal_no],
             $export->journalExportAttempts->pluck('remote_id')->all(),
             $export->journalExportAttempts->pluck('export_reference')->all()
         ));
-        if (! $export->journalEntry || ! $export->remote_id) throw new RuntimeException('Original export identity is missing.');
+        $isIpdSales = $journal->source_type === 'ip_billing_account' && $journal->source_event === 'finalized';
+        $relatedReceipts = 0;
+
         foreach ($collection->xpath('.//VOUCHER') ?: [] as $node) {
-            $text = (string) $node->asXML();
+            $type = trim((string) $node->VOUCHERTYPENAME);
+            $text = html_entity_decode((string) $node->asXML(), ENT_QUOTES | ENT_XML1, 'UTF-8');
             foreach ($identities as $identity) {
-                // Any original/recovery identity is a candidate. No amount-only auto-confirmation.
-                if (preg_match('/(?<![A-Za-z0-9_-])'.preg_quote((string) $identity, '/').'(?![A-Za-z0-9_-])/i', html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8'))) {
-                    throw ValidationException::withMessages(['recovery' => 'A possible existing voucher was found in live Tally (voucher '.(string) $node->VOUCHERNUMBER.'). Nothing resent. Reconcile the existing voucher.']);
+                if ($this->containsIdentity($text, (string) $identity)) {
+                    $this->blockForMatch($node, $type);
                 }
             }
+            if ($billReference === '' || ! $this->containsIdentity($text, $billReference)) {
+                continue;
+            }
+            // A Receipt can refer to an IPD bill without being the original Sales voucher.
+            if ($isIpdSales && strcasecmp($type, 'Receipt') === 0) {
+                $relatedReceipts++;
+                continue;
+            }
+            $this->blockForMatch($node, $type);
         }
+
         return '[AUTO-LIVE] Day Book identity check; company '.$company
             .'; journal '.$export->journalEntry->journal_no.'; export #'.$export->id
             .'; checked at '.now()->toIso8601String().'; user '.auth()->id()
-            .'; complete voucher collection requested for 1900-2099; no export, journal or invoice identity found'
+            .'; complete voucher collection requested for 1900-2099; no matching export, journal or original voucher bill identity found'
+            .($relatedReceipts ? '; bill-only references in Receipts excluded: '.$relatedReceipts : '')
             .'; response SHA256 '.hash('sha256', $raw).'.';
+    }
+
+    private function containsIdentity(string $text, string $identity): bool
+    {
+        return preg_match('/(?<![A-Za-z0-9_-])'.preg_quote($identity, '/').'(?![A-Za-z0-9_-])/i', $text) === 1;
+    }
+
+    private function blockForMatch(SimpleXMLElement $node, string $type): never
+    {
+        $details = implode(' ', array_filter([$type, 'voucher '.(string) $node->VOUCHERNUMBER,
+            (string) $node->DATE]));
+        throw ValidationException::withMessages([
+            'recovery' => 'A possible existing voucher was found in live Tally ('.$details
+                .'). Nothing resent. Reconcile the existing voucher.',
+        ]);
     }
 
     private function request(string $company, string $name, string $type, string $fetch): string

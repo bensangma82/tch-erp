@@ -74,6 +74,55 @@ class TallySimpleRecoveryLiveCheckTest extends TestCase
         app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
     }
 
+    public function test_ipd_sales_recovery_ignores_receipt_that_only_references_the_bill(): void
+    {
+        $export = $this->ipdSalesExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER><VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>'
+            .'<VOUCHERNUMBER>100</VOUCHERNUMBER><DATE>20261024</DATE><REFERENCE>IPF-20261018-000001</REFERENCE>'
+            .'</VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $evidence = app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+
+        $this->assertStringContainsString('bill-only references in Receipts excluded: 1', $evidence);
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn ($request) => str_contains($request->body(), '<TALLYREQUEST>Import'));
+    }
+
+    public function test_ipd_sales_recovery_blocks_sales_voucher_with_the_same_bill(): void
+    {
+        $export = $this->ipdSalesExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>'
+            .'<VOUCHERNUMBER>101</VOUCHERNUMBER><REFERENCE>IPF-20261018-000001</REFERENCE>'
+            .'</VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+    }
+
+    public function test_ipd_sales_recovery_blocks_receipt_with_original_remote_identity(): void
+    {
+        $export = $this->ipdSalesExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER REMOTEID="original-guid">'
+            .'<VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME><REFERENCE>IPF-20261018-000001</REFERENCE>'
+            .'</VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+    }
+
+    private function ipdSalesExport(): TallyExport
+    {
+        $export = $this->export();
+        $export->journalEntry->setRawAttributes([
+            'journal_no' => 'JRN-IPD-12',
+            'reference_no' => 'IPF-20261018-000001',
+            'source_type' => 'ip_billing_account',
+            'source_event' => 'finalized',
+        ]);
+
+        return $export;
+    }
+
     public function test_company_not_loaded_blocks_retry(): void
     {
         $export = $this->export();
