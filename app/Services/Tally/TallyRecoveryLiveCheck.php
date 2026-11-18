@@ -34,7 +34,11 @@ class TallyRecoveryLiveCheck
             $export->journalExportAttempts->pluck('export_reference')->all()
         ));
         $isIpdSales = $journal->source_type === 'ip_billing_account' && $journal->source_event === 'finalized';
+        $isMhisEntitlement = $journal->source_type === 'ip_billing_mhis_claim'
+            && $journal->source_event === 'approved'
+            && str_starts_with(strtoupper($billReference), 'IPF-');
         $relatedReceipts = 0;
+        $relatedMhisVouchers = 0;
 
         foreach ($collection->xpath('.//VOUCHER') ?: [] as $node) {
             $type = trim((string) $node->VOUCHERTYPENAME);
@@ -52,6 +56,11 @@ class TallyRecoveryLiveCheck
                 $relatedReceipts++;
                 continue;
             }
+            // The original sale and patient receipt can both reference the IPD bill.
+            if ($isMhisEntitlement && in_array(strtolower($type), ['receipt', 'sales'], true)) {
+                $relatedMhisVouchers++;
+                continue;
+            }
             $this->blockForMatch($node, $type);
         }
 
@@ -60,6 +69,7 @@ class TallyRecoveryLiveCheck
             .'; checked at '.now()->toIso8601String().'; user '.auth()->id()
             .'; complete voucher collection requested for 1900-2099; no matching export, journal or original voucher bill identity found'
             .($relatedReceipts ? '; bill-only references in Receipts excluded: '.$relatedReceipts : '')
+            .($relatedMhisVouchers ? '; bill-only references in Sales or Receipts excluded: '.$relatedMhisVouchers : '')
             .'; response SHA256 '.hash('sha256', $raw).'.';
     }
 

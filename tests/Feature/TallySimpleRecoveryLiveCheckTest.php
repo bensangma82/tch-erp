@@ -123,6 +123,58 @@ class TallySimpleRecoveryLiveCheckTest extends TestCase
         return $export;
     }
 
+    public function test_mhis_entitlement_ignores_sales_and_receipt_with_only_the_same_ipd_bill(): void
+    {
+        $export = $this->mhisEntitlementExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION>'
+            .'<VOUCHER><VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME><VOUCHERNUMBER>197</VOUCHERNUMBER>'
+            .'<NARRATION>Patient receipt against IPF-20261117-000004</NARRATION></VOUCHER>'
+            .'<VOUCHER><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><VOUCHERNUMBER>206</VOUCHERNUMBER>'
+            .'<REFERENCE>IPF-20261117-000004</REFERENCE></VOUCHER>'
+            .'</COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $evidence = app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+
+        $this->assertStringContainsString('bill-only references in Sales or Receipts excluded: 2', $evidence);
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn ($request) => str_contains($request->body(), '<TALLYREQUEST>Import'));
+    }
+
+    public function test_mhis_entitlement_still_blocks_a_journal_with_the_same_bill(): void
+    {
+        $export = $this->mhisEntitlementExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER><VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>'
+            .'<VOUCHERNUMBER>207</VOUCHERNUMBER><REFERENCE>IPF-20261117-000004</REFERENCE>'
+            .'</VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+    }
+
+    public function test_mhis_entitlement_still_blocks_a_receipt_with_the_original_export_id(): void
+    {
+        $export = $this->mhisEntitlementExport();
+        $this->responses('<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER REMOTEID="original-guid">'
+            .'<VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME><REFERENCE>IPF-20261117-000004</REFERENCE>'
+            .'</VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>');
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(TallyRecoveryLiveCheck::class)->assertAbsent($export);
+    }
+
+    private function mhisEntitlementExport(): TallyExport
+    {
+        $export = $this->export();
+        $export->journalEntry->setRawAttributes([
+            'journal_no' => 'JRN-MHIS-34',
+            'reference_no' => 'IPF-20261117-000004',
+            'source_type' => 'ip_billing_mhis_claim',
+            'source_event' => 'approved',
+        ]);
+
+        return $export;
+    }
+
     public function test_company_not_loaded_blocks_retry(): void
     {
         $export = $this->export();
