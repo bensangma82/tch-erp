@@ -343,7 +343,7 @@ class InvestigationCancellationAccountingService
                 );
             }
 
-            $this->blockTallyLinked($invoiceJournal);
+            InvestigationRefundTallyPolicy::assertCompatible($invoiceJournal);
 
             foreach ($payments as $receiptPayment) {
                 $receipt = JournalEntry::query()
@@ -362,7 +362,7 @@ class InvestigationCancellationAccountingService
                     );
                 }
 
-                $this->blockTallyLinked($receipt);
+                InvestigationRefundTallyPolicy::assertCompatible($receipt);
             }
 
             $reversals = InvestigationCancellationRequest::query()
@@ -392,7 +392,7 @@ class InvestigationCancellationAccountingService
                     );
                 }
 
-                $this->blockTallyLinked($journal);
+                InvestigationRefundTallyPolicy::assertCompatible($journal);
             }
 
             // Lock all refund records linked to this invoice.
