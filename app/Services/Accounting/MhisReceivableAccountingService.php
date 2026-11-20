@@ -423,6 +423,14 @@ class MhisReceivableAccountingService
             $reference = $claim->claim_no
                 ?: $account->final_bill_no;
 
+            $narration = 'MHIS entitlement recognized';
+            if ($account->mhis_category === 'free') {
+                $narration .= ' | MHIS Free';
+                if (filled($account->final_bill_no)) {
+                    $narration .= ' | IP Bill '.$account->final_bill_no;
+                }
+            }
+
             $journal = JournalEntry::create([
                 'journal_no' => 'JRN-MHIS-'.$claim->id,
                 'journal_date' => $claim->approval_date,
@@ -430,7 +438,7 @@ class MhisReceivableAccountingService
                 'source_id' => (string) $claim->id,
                 'source_event' => 'approved',
                 'reference_no' => $reference,
-                'narration' => 'MHIS entitlement recognized',
+                'narration' => $narration,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
             ]);

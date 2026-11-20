@@ -590,6 +590,10 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
             ->recognize($claim);
 
         $this->assertSame('posted', $journal->fresh()->status);
+        $this->assertSame(
+            'MHIS entitlement recognized | MHIS Free | IP Bill '.$f['account']->final_bill_no,
+            $journal->narration
+        );
         $this->assertCount(3, $journal->lines);
 
         $lines = $this->amounts($journal);
@@ -745,6 +749,7 @@ class IpdFinalBillMhisTransactionAcceptanceTest extends TestCase
         ]);
         $before=DB::table('tally_exports')->count();
         $j=app(MhisReceivableAccountingService::class)->recognize($claim);
+        $this->assertSame('MHIS entitlement recognized', $j->narration);
         $this->assertSame('posted', $j->fresh()->status);
         $this->assertSame(['dr'=>'750.00','cr'=>'0.00'], $this->amounts($j)['1210']);
         $this->assertSame(['dr'=>'0.00','cr'=>'750.00'], $this->amounts($j)['1200']);
