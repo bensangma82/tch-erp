@@ -13,6 +13,8 @@ class EmployeeSalaryStructure extends Model
         'effective_from',
         'effective_to',
         'monthly_salary',
+        'pay_grade',
+        'staff_group',
         'status',
         'remarks',
         'approved_by',

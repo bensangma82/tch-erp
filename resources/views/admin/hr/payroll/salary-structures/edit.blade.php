@@ -265,6 +265,20 @@
                         </table>
                     </div>
 
+                    @if ($salaryStructure->staff_group)
+                        <div class="mt-4 text-sm text-slate-700">
+                            <span class="font-semibold">Staff Group</span>
+                            {{ \Illuminate\Support\Str::title($salaryStructure->staff_group) }}
+                        </div>
+                    @endif
+
+                    @if ($salaryStructure->pay_grade)
+                        <div class="mt-4 text-sm text-slate-700">
+                            <span class="font-semibold">Pay Grade</span>
+                            {{ $salaryStructure->pay_grade }}
+                        </div>
+                    @endif
+
                     @if ($salaryStructure->remarks)
                         <div class="mt-6 rounded-lg bg-slate-50 p-4">
                             <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">

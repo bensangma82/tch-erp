@@ -282,7 +282,7 @@
                         for="default_amount"
                         class="block text-sm font-semibold text-slate-700"
                     >
-                        Default Amount
+                        {{ $editing && $salaryComponent->code === 'BASIC' ? 'Legacy Default Amount' : 'Default Amount' }}
                     </label>
 
                     <div class="relative mt-2">
@@ -305,7 +305,11 @@
                     </div>
 
                     <p class="mt-1 text-xs text-slate-400">
-                        Can be overridden in an employee salary structure.
+                        @if ($editing && $salaryComponent->code === 'BASIC')
+                            Basic Pay amounts on new salary structures come from Basic Pay Rates or manual entry.
+                        @else
+                            Can be overridden in an employee salary structure.
+                        @endif
                     </p>
 
                 </div>

@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Hr;
 
 use App\Http\Controllers\Controller;
+use App\Models\BasicPayRate;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryStructure;
 use App\Models\SalaryComponent;
+use App\Services\Payroll\PayrollCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use RuntimeException;
 
 class EmployeeSalaryStructureController extends Controller
 {
@@ -77,7 +81,7 @@ class EmployeeSalaryStructureController extends Controller
                 'employees',
                 'components',
                 'selectedEmployeeId'
-            )
+            ) + ['basicPayRates' => BasicPayRate::all()]
         );
     }
 
@@ -93,7 +97,8 @@ class EmployeeSalaryStructureController extends Controller
                 'employee_id' => $validated['employee_id'],
                 'effective_from' => $validated['effective_from'],
                 'effective_to' => $validated['effective_to'] ?? null,
-                'monthly_salary' => $validated['monthly_salary'] ?? null,
+                'pay_grade' => $validated['pay_grade'] ?? null,
+                'staff_group' => $validated['staff_group'] ?? null,
                 'status' => 'draft',
                 'remarks' => $validated['remarks'] ?? null,
                 'created_by' => auth()->id(),
@@ -104,6 +109,8 @@ class EmployeeSalaryStructureController extends Controller
                 $structure,
                 $validated['items'] ?? []
             );
+
+            $structure->update(['monthly_salary' => $this->calculateGross($structure)]);
 
             return $structure;
         });
@@ -138,7 +145,9 @@ class EmployeeSalaryStructureController extends Controller
             ->get();
 
         $components = SalaryComponent::query()
-            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->where('is_active', true)
+                ->orWhereIn('id', $salaryStructure->items->pluck('salary_component_id')))
             ->with('percentageOfComponent')
             ->orderBy('type')
             ->orderBy('sort_order')
@@ -151,7 +160,7 @@ class EmployeeSalaryStructureController extends Controller
                 'salaryStructure',
                 'employees',
                 'components'
-            )
+            ) + ['basicPayRates' => $salaryStructure->isDraft() ? BasicPayRate::all() : collect()]
         );
     }
 
@@ -178,11 +187,24 @@ class EmployeeSalaryStructureController extends Controller
             $validated,
             $salaryStructure
         ) {
+            $salaryStructure = EmployeeSalaryStructure::query()
+                ->lockForUpdate()
+                ->findOrFail($salaryStructure->id);
+
+            if (! $salaryStructure->isDraft()) {
+                throw ValidationException::withMessages([
+                    'items' => 'Only draft salary structures can be edited.',
+                ]);
+            }
+
             $salaryStructure->update([
                 'employee_id' => $validated['employee_id'],
                 'effective_from' => $validated['effective_from'],
                 'effective_to' => $validated['effective_to'] ?? null,
-                'monthly_salary' => $validated['monthly_salary'] ?? null,
+                'pay_grade' => $validated['pay_grade'] ?? null,
+                'staff_group' => array_key_exists('staff_group', $validated)
+                    ? $validated['staff_group']
+                    : $salaryStructure->staff_group,
                 'remarks' => $validated['remarks'] ?? null,
                 'updated_by' => auth()->id(),
             ]);
@@ -193,6 +215,8 @@ class EmployeeSalaryStructureController extends Controller
                 $salaryStructure,
                 $validated['items'] ?? []
             );
+
+            $salaryStructure->update(['monthly_salary' => $this->calculateGross($salaryStructure)]);
         });
 
         return redirect()
@@ -236,6 +260,13 @@ class EmployeeSalaryStructureController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            if (! $structure->isDraft()) {
+                throw ValidationException::withMessages([
+                    'items' => 'Only a draft salary structure can be activated.',
+                ]);
+            }
+
+            $monthlySalary = $this->calculateGross($structure);
             $effectiveFrom = $structure->effective_from->copy()->startOfDay();
 
             $previousStructures = EmployeeSalaryStructure::query()
@@ -265,6 +296,7 @@ class EmployeeSalaryStructureController extends Controller
 
             $structure->update([
                 'status' => 'active',
+                'monthly_salary' => $monthlySalary,
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
                 'updated_by' => auth()->id(),
@@ -286,6 +318,8 @@ class EmployeeSalaryStructureController extends Controller
         Request $request,
         ?EmployeeSalaryStructure $salaryStructure = null
     ): array {
+        $existingComponentIds = $salaryStructure?->items()->pluck('salary_component_id') ?? [];
+
         return $request->validate([
             'employee_id' => [
                 'required',
@@ -307,12 +341,8 @@ class EmployeeSalaryStructureController extends Controller
                 'after_or_equal:effective_from',
             ],
 
-            'monthly_salary' => [
-                'nullable',
-                'numeric',
-                'min:0',
-                'max:9999999999.99',
-            ],
+            'pay_grade' => ['nullable', 'string', 'max:60'],
+            'staff_group' => ['nullable', 'string', 'max:100'],
 
             'remarks' => [
                 'nullable',
@@ -332,7 +362,9 @@ class EmployeeSalaryStructureController extends Controller
                 'distinct',
                 Rule::exists('salary_components', 'id')
                     ->where(fn ($query) => $query
-                        ->where('is_active', true)),
+                        ->where(fn ($query) => $query
+                            ->where('is_active', true)
+                            ->orWhereIn('id', $existingComponentIds))),
             ],
 
             'items.*.calculation_type' => [
@@ -393,6 +425,25 @@ class EmployeeSalaryStructureController extends Controller
         ]);
     }
 
+    private function calculateGross(EmployeeSalaryStructure $salaryStructure): float
+    {
+        $salaryStructure->load('items.salaryComponent', 'items.percentageOfComponent');
+
+        try {
+            $gross = app(PayrollCalculator::class)->calculate($salaryStructure)['gross_earnings'];
+        } catch (RuntimeException $exception) {
+            throw ValidationException::withMessages(['items' => $exception->getMessage()]);
+        }
+
+        if ($gross > 9999999999.99) {
+            throw ValidationException::withMessages([
+                'items' => 'Gross monthly earnings exceed the supported amount.',
+            ]);
+        }
+
+        return $gross;
+    }
+
     /**
      * Save salary structure component rows.
      */
@@ -400,6 +451,8 @@ class EmployeeSalaryStructureController extends Controller
         EmployeeSalaryStructure $salaryStructure,
         array $items
     ): void {
+        $items = array_filter($items, fn ($item) => (bool) ($item['is_active'] ?? true));
+
         $components = SalaryComponent::query()
             ->whereIn(
                 'id',
@@ -427,6 +480,10 @@ class EmployeeSalaryStructureController extends Controller
             $percentageOfComponentId = null;
 
             if ($calculationType === 'fixed') {
+                if ($component->code === 'BASIC' && ! isset($item['amount'])) {
+                    throw ValidationException::withMessages(['items' => 'Enter an amount for Basic Pay.']);
+                }
+
                 $amount = $item['amount'] ?? 0;
             }
 
@@ -448,7 +505,7 @@ class EmployeeSalaryStructureController extends Controller
                 'percentage_of_component_id' => $percentageOfComponentId,
                 'minimum_amount' => $item['minimum_amount'] ?? null,
                 'maximum_amount' => $item['maximum_amount'] ?? null,
-                'is_active' => (bool) ($item['is_active'] ?? true),
+                'is_active' => true,
                 'sort_order' => $item['sort_order']
                     ?? $component->sort_order
                     ?? 0,

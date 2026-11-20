@@ -232,7 +232,7 @@ class PayrollRunController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($payrollRun) {
+            $employeeCount = DB::transaction(function () use ($payrollRun): int {
 
 
                  /*
@@ -490,7 +490,13 @@ class PayrollRunController extends Controller
 
                     'updated_by' => auth()->id(),
                 ]);
+
+                return $employeeCount;
             });
+
+            if ($employeeCount === 0) {
+                return redirect()->route('admin.hr.payroll.runs.show', $payrollRun);
+            }
 
             return redirect()
                 ->route(
@@ -1205,29 +1211,18 @@ class PayrollRunController extends Controller
     public function approve(
         PayrollRun $payrollRun
     ): RedirectResponse {
-        if (!$payrollRun->canBeApproved()) {
-            return back()->with(
-                'error',
-                'Only a calculated payroll run can be approved.'
-            );
-        }
-
-        DB::transaction(function () use ($payrollRun) {
+        $error = DB::transaction(function () use ($payrollRun): ?string {
             $run = PayrollRun::query()
                 ->whereKey($payrollRun->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
             if (!$run->canBeApproved()) {
-                throw new RuntimeException(
-                    'This payroll run is no longer available for approval.'
-                );
+                return 'Only a calculated payroll run can be approved.';
             }
 
-            if ($run->entries()->count() === 0) {
-                throw new RuntimeException(
-                    'A payroll run with no employees cannot be approved.'
-                );
+            if ($run->entries()->doesntExist()) {
+                return 'Approval requires at least one payroll entry.';
             }
 
             $run->entries()->update([
@@ -1242,17 +1237,17 @@ class PayrollRunController extends Controller
                 'approved_by' => auth()->id(),
                 'updated_by' => auth()->id(),
             ]);
+
+            return null;
         });
 
-        return redirect()
-            ->route(
-                'admin.hr.payroll.runs.show',
-                $payrollRun
-            )
-            ->with(
-                'success',
-                'Payroll approved successfully.'
-            );
+        $response = redirect()->route('admin.hr.payroll.runs.show', $payrollRun);
+
+        if ($error !== null) {
+            return $response->with('error', $error);
+        }
+
+        return $response->with('success', 'Payroll approved successfully.');
     }
 
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Hr;
 
 use App\Http\Controllers\Controller;
+use App\Models\BasicPayRate;
 use App\Models\SalaryComponent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,10 +24,50 @@ class SalaryComponentController extends Controller
             ->orderBy('name')
             ->get();
 
+        $basicPayRates = BasicPayRate::query()
+            ->orderBy('staff_group')
+            ->orderBy('employee_category')
+            ->orderBy('grade_key')
+            ->get();
+        $staffGroups = BasicPayRate::staffGroups($basicPayRates);
+
         return view(
             'admin.hr.payroll.salary-components.index',
-            compact('components')
+            compact('components', 'basicPayRates', 'staffGroups')
         );
+    }
+
+    public function saveBasicPayRate(Request $request): RedirectResponse
+    {
+        $validated = $request->validateWithBag('basicPayRate', [
+            'staff_group' => ['required_without:employee_category', 'nullable', 'string', 'max:100'],
+            'employee_category' => ['required_without:staff_group', 'nullable', 'string', 'max:255'],
+            'pay_grade' => ['required', 'string', 'max:60'],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:9999999999.99'],
+        ]);
+
+        $group = BasicPayRate::key($validated['staff_group'] ?? '');
+        $category = $group === '' ? BasicPayRate::key($validated['employee_category']) : '';
+        $grade = trim($validated['pay_grade']);
+
+        BasicPayRate::upsert([[
+            'staff_group' => $group,
+            'employee_category' => $category,
+            'pay_grade' => $grade,
+            'grade_key' => BasicPayRate::key($grade),
+            'amount' => $validated['amount'],
+        ]], ['staff_group', 'employee_category', 'grade_key'], ['pay_grade', 'amount']);
+
+        return redirect()->to(route('admin.hr.payroll.salary-components.index') . '#basic-pay-rates')
+            ->with('success', 'Basic Pay rate saved.');
+    }
+
+    public function removeBasicPayRate(BasicPayRate $basicPayRate): RedirectResponse
+    {
+        $basicPayRate->delete();
+
+        return redirect()->to(route('admin.hr.payroll.salary-components.index') . '#basic-pay-rates')
+            ->with('success', 'Basic Pay rate removed.');
     }
 
     /**
@@ -303,6 +344,7 @@ class SalaryComponentController extends Controller
                         $request->input(
                             'calculation_type'
                         ) === 'fixed'
+                        && strtoupper($request->string('code')->trim()->toString()) !== 'BASIC'
                 ),
 
                 'nullable',

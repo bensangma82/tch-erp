@@ -589,6 +589,16 @@ Route::post(
                 [SalaryComponentController::class, 'index']
             )->name('hr.payroll.salary-components.index');
 
+            Route::put(
+                '/hr/payroll/salary-components/basic-pay-rates',
+                [SalaryComponentController::class, 'saveBasicPayRate']
+            )->name('hr.payroll.salary-components.basic-pay-rates.save');
+
+            Route::delete(
+                '/hr/payroll/salary-components/basic-pay-rates/{basicPayRate}',
+                [SalaryComponentController::class, 'removeBasicPayRate']
+            )->whereNumber('basicPayRate')->name('hr.payroll.salary-components.basic-pay-rates.remove');
+
             Route::get(
                 '/hr/payroll/salary-components/create',
                 [SalaryComponentController::class, 'create']

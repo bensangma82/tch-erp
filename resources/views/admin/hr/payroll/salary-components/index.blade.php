@@ -417,7 +417,11 @@
 
                                         <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-700">
 
-                                            @if ($component->calculation_type === 'percentage')
+                                            @if ($component->code === 'BASIC' && $component->calculation_type === 'fixed')
+                                                <a href="#basic-pay-rates" class="font-semibold text-cyan-700 hover:underline">
+                                                    Manage Basic Pay Rates
+                                                </a>
+                                            @elseif ($component->calculation_type === 'percentage')
 
                                                 <span class="font-semibold">
                                                     {{ number_format((float) $component->default_percentage, 2) }}%
@@ -619,6 +623,8 @@
                 </p>
 
             </section>
+
+            @include('admin.hr.payroll.salary-components._basic-pay-rates')
 
 
         </div>

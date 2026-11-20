@@ -31,7 +31,17 @@
         ? $salaryStructure->items->keyBy('salary_component_id')
         : collect();
 
-    $oldItems = old('items');
+    $restoringInput = session()->hasOldInput('employee_id');
+    $oldItems = collect(old('items', []))
+        ->filter(fn ($item) => is_array($item))
+        ->keyBy('salary_component_id');
+    $employeeCategory = $employees->firstWhere('id', $selectedEmployee)?->employee_type;
+    $staffGroups = \App\Models\BasicPayRate::staffGroups($basicPayRates);
+    $selectedStaffGroup = old('staff_group', $editing ? $salaryStructure->staff_group : null);
+
+    if (is_string($selectedStaffGroup) && $selectedStaffGroup !== '' && !$staffGroups->has($selectedStaffGroup)) {
+        $staffGroups->put($selectedStaffGroup, \Illuminate\Support\Str::title($selectedStaffGroup));
+    }
 @endphp
 
 {{-- Validation Errors --}}
@@ -85,6 +95,8 @@
                     @foreach ($employees as $employee)
                         <option
                             value="{{ $employee->id }}"
+                            data-employee-category="{{ $employee->employee_type }}"
+                            data-category-key="{{ \App\Models\BasicPayRate::key((string) $employee->employee_type) }}"
                             @selected((string) $selectedEmployee === (string) $employee->id)
                         >
                             {{ $employee->employee_code }}
@@ -139,6 +151,42 @@
                 </p>
             </div>
 
+
+            <div class="lg:col-span-2">
+                <span class="mb-1 block text-sm font-medium text-slate-700">Employment Type</span>
+                <output id="employee-category" for="employee_id" class="block text-sm text-slate-700">
+                    {{ $employeeCategory ?: '—' }}
+                </output>
+            </div>
+
+            <div>
+                <label for="staff_group" class="mb-1 block text-sm font-medium text-slate-700">
+                    Staff Group
+                </label>
+                <select id="staff_group" name="staff_group"
+                    class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-cyan-600 focus:ring-cyan-600">
+                    <option value="">Select staff group</option>
+                    @foreach ($staffGroups as $key => $label)
+                        <option value="{{ $key }}" @selected($selectedStaffGroup === (string) $key)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="pay_grade" class="mb-1 block text-sm font-medium text-slate-700">
+                    Pay Grade
+                </label>
+                <input
+                    type="text"
+                    id="pay_grade"
+                    name="pay_grade"
+                    maxlength="60"
+                    list="basic-pay-grades"
+                    value="{{ old('pay_grade', $editing ? $salaryStructure->pay_grade : '') }}"
+                    class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-cyan-600 focus:ring-cyan-600"
+                >
+                <datalist id="basic-pay-grades"></datalist>
+            </div>
         </div>
     </div>
 
@@ -150,7 +198,7 @@
             </h3>
 
             <p class="mt-1 text-sm text-slate-500">
-                Enter the employee-specific amount or percentage for each component.
+                Select the earnings and deductions that apply, then enter the amount or percentage.
             </p>
         </div>
 
@@ -194,13 +242,7 @@
                         @php
                             $existingItem = $existingItems->get($salaryComponent->id);
 
-                            $oldItem = is_array($oldItems)
-                                ? collect($oldItems)->first(
-                                    fn ($item) =>
-                                        (string) ($item['salary_component_id'] ?? '')
-                                        === (string) $salaryComponent->id
-                                )
-                                : null;
+                            $oldItem = $oldItems->get($salaryComponent->id);
 
                             $calculationType =
                                 $oldItem['calculation_type']
@@ -208,11 +250,12 @@
                                 ?? $salaryComponent->calculation_type
                                 ?? 'fixed';
 
-                            $amount =
-                                $oldItem['amount']
-                                ?? $existingItem?->amount
-                                ?? $salaryComponent->default_amount
-                                ?? 0;
+                            $isFixedBasicPay = $salaryComponent->code === 'BASIC'
+                                && $calculationType === 'fixed';
+
+                            $amount = $isFixedBasicPay
+                                ? ($restoringInput ? ($oldItem['amount'] ?? '') : ($existingItem?->amount ?? ''))
+                                : ($oldItem['amount'] ?? $existingItem?->amount ?? $salaryComponent->default_amount ?? 0);
 
                             $percentage =
                                 $oldItem['percentage']
@@ -226,9 +269,14 @@
                                 ?? $salaryComponent->percentage_of_component_id
                                 ?? '';
 
-                            $included = is_array($oldItems)
-                                ? $oldItem !== null
-                                : ($editing ? $existingItem !== null : true);
+                            $included = $restoringInput
+                                ? in_array($oldItem['is_active'] ?? null, [true, 1, '1'], true)
+                                : ($existingItem?->is_active ?? false);
+
+                            $sortOrder = $oldItem['sort_order']
+                                ?? $existingItem?->sort_order
+                                ?? $salaryComponent->sort_order
+                                ?? $index;
 
                             $minimumAmount =
                                 $oldItem['minimum_amount']
@@ -249,21 +297,21 @@
                         <tr
                             class="salary-component-row"
                             data-component-id="{{ $salaryComponent->id }}"
-                            data-component-code="{{ $salaryComponent->code }}"
                             data-component-type="{{ $salaryComponent->type }}"
+                            data-sort-order="{{ $sortOrder }}"
+                            data-minimum-amount="{{ $minimumAmount }}"
+                            data-maximum-amount="{{ $maximumAmount }}"
                         >
                             <td class="px-4 py-4 align-top">
-                                <input
-                                    type="checkbox"
-                                    class="component-enabled rounded border-slate-300 text-cyan-700 focus:ring-cyan-600"
-                                    @checked($included)
-                                >
+                                <input type="hidden" name="items[{{ $index }}][is_active]" value="0">
 
                                 <input
-                                    type="hidden"
-                                    class="component-active-input"
+                                    type="checkbox"
                                     name="items[{{ $index }}][is_active]"
-                                    value="{{ $included ? '1' : '0' }}"
+                                    value="1"
+                                    aria-label="Include {{ $salaryComponent->name }}"
+                                    class="component-enabled rounded border-slate-300 text-cyan-700 focus:ring-cyan-600"
+                                    @checked($included)
                                 >
 
                                 <input
@@ -281,7 +329,7 @@
                                 <input
                                     type="hidden"
                                     name="items[{{ $index }}][sort_order]"
-                                    value="{{ $salaryComponent->sort_order ?? $index }}"
+                                    value="{{ $sortOrder }}"
                                 >
 
                                 <input
@@ -311,6 +359,10 @@
                                 <div class="mt-1 text-xs font-medium text-slate-500">
                                     {{ $salaryComponent->code }}
                                 </div>
+
+                                @unless ($salaryComponent->is_active)
+                                    <div class="mt-1 text-xs text-slate-500">Inactive in Salary Components</div>
+                                @endunless
 
                                 @if ($salaryComponent->is_statutory)
                                     <div class="mt-1">
@@ -375,9 +427,23 @@
                                             min="0"
                                             name="items[{{ $index }}][amount]"
                                             value="{{ $amount }}"
+                                            @if ($isFixedBasicPay)
+                                                id="basic-pay-amount"
+                                                aria-label="Basic Pay amount"
+                                                aria-describedby="basic-pay-rate-status"
+                                                data-preserve-amount="{{ $restoringInput || $existingItem?->amount !== null ? '1' : '0' }}"
+                                            @endif
                                             class="component-amount w-36 rounded-lg border-slate-300 text-right text-sm shadow-sm focus:border-cyan-600 focus:ring-cyan-600"
                                         >
                                     </div>
+
+                                    @if ($isFixedBasicPay)
+                                        <p id="basic-pay-rate-status" aria-live="polite" class="mt-1 text-xs text-slate-600"></p>
+                                        <button id="apply-basic-pay-rate" type="button" hidden
+                                            class="mt-1 text-xs font-medium text-cyan-700 hover:underline">
+                                            Use Grade Rate
+                                        </button>
+                                    @endif
 
                                     <input
                                         type="hidden"
@@ -491,13 +557,6 @@
 
     </div>
 
-    <input
-        type="hidden"
-        id="monthly_salary"
-        name="monthly_salary"
-        value="{{ old('monthly_salary', $editing ? $salaryStructure->monthly_salary : 0) }}"
-    >
-
     {{-- Remarks --}}
     <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <label
@@ -547,7 +606,64 @@ document.addEventListener('DOMContentLoaded', function () {
     const grossDisplay = document.getElementById('grossEarningsDisplay');
     const deductionsDisplay = document.getElementById('totalDeductionsDisplay');
     const netDisplay = document.getElementById('netSalaryDisplay');
-    const monthlySalaryInput = document.getElementById('monthly_salary');
+    const employee = document.getElementById('employee_id');
+    const category = document.getElementById('employee-category');
+    employee.addEventListener('change', function () {
+        category.textContent = employee.selectedOptions[0]?.dataset.employeeCategory || '—';
+    });
+
+    const basicPayAmount = document.getElementById('basic-pay-amount');
+    const grade = document.getElementById('pay_grade');
+    const staffGroup = document.getElementById('staff_group');
+    const gradeOptions = document.getElementById('basic-pay-grades');
+    const rateStatus = document.getElementById('basic-pay-rate-status');
+    const applyRate = document.getElementById('apply-basic-pay-rate');
+    const basicPayRates = {{ \Illuminate\Support\Js::from($basicPayRates->map(fn ($rate) => [
+        'group' => $rate->staff_group,
+        'category' => $rate->employee_category,
+        'grade' => $rate->grade_key,
+        'gradeLabel' => $rate->pay_grade,
+        'amount' => $rate->amount,
+    ])->all()) }};
+    let preserveBasicPay = basicPayAmount?.dataset.preserveAmount === '1';
+    let availableRates = [];
+
+    function updateAvailableRates() {
+        const categoryKey = employee.selectedOptions[0]?.dataset.categoryKey;
+        const group = staffGroup.value;
+        availableRates = basicPayRates.filter(rate => group
+            ? rate.group === group
+            : !rate.group && rate.category === categoryKey);
+
+        gradeOptions.replaceChildren(...availableRates.map(rate => {
+            const option = document.createElement('option');
+            option.value = rate.gradeLabel;
+            return option;
+        }));
+
+        updateBasicPayRate();
+    }
+
+    function updateBasicPayRate() {
+        const gradeKey = grade.value.trim().toLowerCase();
+        const rate = availableRates.find(item => item.grade === gradeKey);
+
+        if (!preserveBasicPay) {
+            basicPayAmount.value = rate?.amount ?? '';
+        }
+
+        applyRate.hidden = !rate || !preserveBasicPay;
+        rateStatus.textContent = rate
+            ? 'Grade rate ' + money(rate.amount)
+            : 'Enter Basic Pay for this employee.';
+        recalculate();
+    }
+
+    rows.sort((left, right) => Number(left.dataset.sortOrder) - Number(right.dataset.sortOrder));
+
+    function roundAmount(value) {
+        return Number(value.toFixed(2));
+    }
 
     function numberValue(value) {
         const parsed = parseFloat(value);
@@ -571,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function fixedAmount(row) {
         const input = row.querySelector('.component-amount');
 
-        return input ? numberValue(input.value) : 0;
+        return roundAmount(numberValue(input.value));
     }
 
     function percentageAmount(row, calculatedById) {
@@ -583,11 +699,20 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const percentage = numberValue(percentageInput.value);
-        const baseComponentId = baseSelect.value;
+        const baseAmount = calculatedById[baseSelect.value];
+        if (baseAmount === undefined) {
+            return null;
+        }
 
-        const baseAmount = calculatedById[baseComponentId] ?? 0;
+        let amount = baseAmount * (percentage / 100);
+        if (row.dataset.minimumAmount !== '') {
+            amount = Math.max(amount, numberValue(row.dataset.minimumAmount));
+        }
+        if (row.dataset.maximumAmount !== '') {
+            amount = Math.min(amount, numberValue(row.dataset.maximumAmount));
+        }
 
-        return baseAmount * (percentage / 100);
+        return roundAmount(amount);
     }
 
     function recalculate() {
@@ -598,15 +723,7 @@ document.addEventListener('DOMContentLoaded', function () {
          * Calculate fixed components first.
          */
         rows.forEach(function (row) {
-            const activeInput = row.querySelector('.component-active-input');
-            const enabled = rowEnabled(row);
-
-            if (activeInput) {
-                activeInput.value = enabled ? '1' : '0';
-            }
-
-            if (!enabled) {
-                calculatedById[row.dataset.componentId] = 0;
+            if (!rowEnabled(row)) {
                 return;
             }
 
@@ -624,7 +741,6 @@ document.addEventListener('DOMContentLoaded', function () {
          */
         rows.forEach(function (row) {
             if (!rowEnabled(row)) {
-                calculatedById[row.dataset.componentId] = 0;
                 return;
             }
 
@@ -633,8 +749,10 @@ document.addEventListener('DOMContentLoaded', function () {
             );
 
             if (percentageInput) {
-                calculatedById[row.dataset.componentId] =
-                    percentageAmount(row, calculatedById);
+                const amount = percentageAmount(row, calculatedById);
+                if (amount !== null) {
+                    calculatedById[row.dataset.componentId] = amount;
+                }
             }
         });
 
@@ -650,7 +768,9 @@ document.addEventListener('DOMContentLoaded', function () {
             );
 
             if (calculatedDisplay) {
-                calculatedDisplay.textContent = money(amount);
+                calculatedDisplay.textContent = rowEnabled(row) && !(row.dataset.componentId in calculatedById)
+                    ? 'Check base component'
+                    : money(amount);
             }
 
             if (!rowEnabled(row)) {
@@ -674,11 +794,6 @@ document.addEventListener('DOMContentLoaded', function () {
         grossDisplay.textContent = money(gross);
         deductionsDisplay.textContent = money(deductions);
         netDisplay.textContent = money(net);
-
-        /*
-         * monthly_salary stores gross monthly earnings.
-         */
-        monthlySalaryInput.value = gross.toFixed(2);
     }
 
     rows.forEach(function (row) {
@@ -690,6 +805,21 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    recalculate();
+    if (basicPayAmount) {
+        employee.addEventListener('change', updateAvailableRates);
+        staffGroup.addEventListener('change', updateAvailableRates);
+        grade.addEventListener('input', updateBasicPayRate);
+        basicPayAmount.addEventListener('input', function () {
+            preserveBasicPay = true;
+            updateBasicPayRate();
+        });
+        applyRate.addEventListener('click', function () {
+            preserveBasicPay = false;
+            updateBasicPayRate();
+        });
+        updateAvailableRates();
+    } else {
+        recalculate();
+    }
 });
 </script>

@@ -127,6 +127,19 @@
 
             </div>
 
+            @if ($payrollRun->canBeApproved() && $payrollRun->entries->isEmpty())
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+                    role="status">
+                    <p class="font-semibold">No employees were included in this payroll run.</p>
+                    <p class="mt-1">
+                        Open <a href="{{ route('admin.hr.payroll.salary-structures.index') }}"
+                            class="font-semibold underline">Salary Structures</a> and activate a structure
+                        for each eligible employee. Its effective dates must overlap this payroll period.
+                        Then select Recalculate Payroll.
+                    </p>
+                </div>
+            @endif
+
             {{-- Payroll Controls --}}
             <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -163,7 +176,7 @@
                             </form>
                         @endif
 
-                        @if ($payrollRun->canBeApproved())
+                        @if ($payrollRun->canBeApproved() && $payrollRun->entries->isNotEmpty())
                             <form
                                 method="POST"
                                 action="{{ route('admin.hr.payroll.runs.approve', $payrollRun) }}"
