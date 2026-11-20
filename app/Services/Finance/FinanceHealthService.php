@@ -830,53 +830,9 @@ foreach ($allPharmacySupplierPayments as $supplierPayment) {
         |--------------------------------------------------------------------------
         */
 
-        $expenseHeads = FinanceHead::query()
-            ->where(
-                'head_type',
-                'expense'
-            )
-            ->where(
-                'is_active',
-                true
-            )
-            ->where(
-                'include_in_break_even',
-                true
-            )
+        $unclassifiedHeads = FinanceHead::query()
+            ->missingBreakEvenClassification()
             ->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Validate Expense Classification
-        |--------------------------------------------------------------------------
-        */
-
-        $unclassifiedHeads =
-            $expenseHeads
-                ->filter(
-                    function (
-                        FinanceHead $head
-                    ) {
-                        if (
-                            !$head->cost_behavior
-                        ) {
-                            return true;
-                        }
-
-                        if (
-                            $head->cost_behavior
-                                === 'mixed'
-                            &&
-                            $head->variable_percentage
-                                === null
-                        ) {
-                            return true;
-                        }
-
-                        return false;
-                    }
-                )
-                ->values();
 
         /*
         |--------------------------------------------------------------------------

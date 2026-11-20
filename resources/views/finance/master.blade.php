@@ -1104,12 +1104,25 @@
 
 
             {{-- Expense Heads --}}
-            <div>
+            <div id="break-even-expense-heads" class="scroll-mt-24">
 
                 <div class="bg-rose-50 px-5 py-3">
                     <h3 class="font-semibold text-rose-800">
-                        Expense Heads
+                        {{ $classifyBreakEven ? 'Expense Heads Requiring Break-even Classification' : 'Expense Heads' }}
                     </h3>
+
+                    @if ($classifyBreakEven)
+                        <p class="mt-1 text-sm text-slate-600">
+                            Set Cost Behaviour for each listed expense head. Enter Variable % when you select Mixed.
+                        </p>
+                        <div class="mt-2 flex flex-wrap gap-4 text-sm font-medium text-indigo-700">
+                            <a href="{{ route('finance.master.index') }}#break-even-expense-heads" class="underline">Show all expense heads</a>
+                            <a href="{{ route('finance.dashboard') }}" class="underline">Back to Finance Dashboard</a>
+                        </div>
+                        @if (session('success'))
+                            <p role="status" class="mt-2 text-sm font-medium text-emerald-700">{{ session('success') }}</p>
+                        @endif
+                    @endif
                 </div>
 
                 <div class="overflow-x-auto">
@@ -1211,7 +1224,7 @@
                                 {{-- Edit Row --}}
                                 <tr
                                     id="head-edit-{{ $head->id }}"
-                                    class="hidden bg-rose-50/40"
+                                    class="{{ $classifyBreakEven && $loop->first ? '' : 'hidden ' }}bg-rose-50/40"
                                 >
                                     <td colspan="9" class="px-5 py-5">
 
@@ -1221,6 +1234,9 @@
                                         >
                                             @csrf
                                             @method('PUT')
+                                            @if ($classifyBreakEven)
+                                                <input type="hidden" name="classify_break_even" value="1">
+                                            @endif
 
                                             <div class="mb-4 flex items-center justify-between">
                                                 <div>
@@ -1416,7 +1432,7 @@
                                         colspan="9"
                                         class="px-4 py-8 text-center text-sm text-slate-500"
                                     >
-                                        No expense heads found.
+                                        {{ $classifyBreakEven ? 'All expense heads included in break-even are classified.' : 'No expense heads found.' }}
                                     </td>
                                 </tr>
 

@@ -1,4 +1,13 @@
 <x-app-layout>
+    <style>
+        .tally-mapping-row {
+            scroll-margin-top: 5rem;
+        }
+
+        .tally-mapping-row:target {
+            background-color: #fef3c7;
+        }
+    </style>
     <x-slot name="header">
         <div class="flex items-center justify-between gap-4">
             <div>
@@ -337,7 +346,7 @@
                                     $formId = 'tally-head-' . $head->id;
                                 @endphp
 
-                                <tr>
+                                <tr id="{{ $formId }}-row" class="tally-mapping-row">
                                     <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-700">
                                         {{ $head->code }}
                                     </td>
@@ -467,7 +476,7 @@
                                     $formId = 'tally-account-' . $account->id;
                                 @endphp
 
-                                <tr>
+                                <tr id="{{ $formId }}-row" class="tally-mapping-row">
                                     <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-700">
                                         {{ $account->code }}
                                     </td>

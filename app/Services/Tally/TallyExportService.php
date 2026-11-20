@@ -12,7 +12,8 @@ class TallyExportService
      *
      * @return array{
      *     eligible: bool,
-     *     errors: array<int, string>
+     *     errors: array<int, string>,
+     *     solutions?: array<int, array{label: string, route: string, parameters: array<string, mixed>, fragment?: string}>
      * }
      */
    public function checkEligibility(
@@ -32,6 +33,7 @@ class TallyExportService
         ]);
 
         $errors = [];
+        $solutions = [];
 
         /*
 |--------------------------------------------------------------------------
@@ -46,6 +48,15 @@ if (
     $voucher->source_type === 'hospital_expense_payment'
     && $voucher->source_event === 'supplier_payment'
 ) {
+    $journal = $this->supplierPaymentJournal($voucher);
+    if ($journal !== null) {
+        $solutions[count($errors)] = [
+            'label' => 'Open linked journal in Tally Export',
+            'route' => 'finance.tally.journals.index',
+            'parameters' => ['status' => 'all', 'search' => $journal->journal_no],
+        ];
+    }
+
     $errors[] = 'Supplier payment Finance Vouchers cannot be '
         .'exported to Tally. Export the linked GL Journal instead.';
 }
@@ -130,6 +141,7 @@ if (
                 || ! $voucher->financeHead->tallyMapping->is_active
                 || blank($voucher->financeHead->tallyMapping->tally_ledger_name)
             ) {
+                $solutions[count($errors)] = $this->mappingSolution('head', $voucher->financeHead->id);
                 $errors[] = sprintf(
                     'Finance Head %s has no active Tally ledger mapping.',
                     $voucher->financeHead->code
@@ -143,6 +155,7 @@ if (
                 || ! $voucher->financeAccount->tallyMapping->is_active
                 || blank($voucher->financeAccount->tallyMapping->tally_ledger_name)
             ) {
+                $solutions[count($errors)] = $this->mappingSolution('account', $voucher->financeAccount->id);
                 $errors[] = sprintf(
                     'Finance Account %s has no active Tally ledger mapping.',
                     $voucher->financeAccount->code
@@ -164,6 +177,7 @@ if (
                 || ! $voucher->financeAccount->tallyMapping->is_active
                 || blank($voucher->financeAccount->tallyMapping->tally_ledger_name)
             ) {
+                $solutions[count($errors)] = $this->mappingSolution('account', $voucher->financeAccount->id);
                 $errors[] = sprintf(
                     'Source Finance Account %s has no active Tally ledger mapping.',
                     $voucher->financeAccount->code
@@ -177,6 +191,7 @@ if (
                 || ! $voucher->destinationAccount->tallyMapping->is_active
                 || blank($voucher->destinationAccount->tallyMapping->tally_ledger_name)
             ) {
+                $solutions[count($errors)] = $this->mappingSolution('account', $voucher->destinationAccount->id);
                 $errors[] = sprintf(
                     'Destination Finance Account %s has no active Tally ledger mapping.',
                     $voucher->destinationAccount->code
@@ -200,6 +215,31 @@ if (
         return [
             'eligible' => $errors === [],
             'errors' => $errors,
+            'solutions' => $solutions,
         ];
+    }
+
+    private function mappingSolution(string $kind, int $id): array
+    {
+        return [
+            'label' => 'Fix ledger mapping',
+            'route' => 'finance.tally.index',
+            'parameters' => [],
+            'fragment' => "tally-{$kind}-{$id}-row",
+        ];
+    }
+
+    private function supplierPaymentJournal(FinanceVoucher $voucher): ?JournalEntry
+    {
+        $journals = JournalEntry::query()
+            ->where('finance_voucher_id', $voucher->id)
+            ->where('source_type', $voucher->source_type)
+            ->where('source_id', $voucher->source_id)
+            ->where('source_event', $voucher->source_event)
+            ->where('status', 'posted')
+            ->limit(2)
+            ->get(['id', 'journal_no']);
+
+        return $journals->count() === 1 ? $journals->first() : null;
     }
 }

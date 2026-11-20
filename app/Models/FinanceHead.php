@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -30,6 +31,22 @@ protected $casts = [
     'include_in_break_even' => 'boolean',
     'is_active' => 'boolean',
 ];
+
+    public function scopeMissingBreakEvenClassification(Builder $query): Builder
+    {
+        return $query
+            ->where('head_type', 'expense')
+            ->where('is_active', true)
+            ->where('include_in_break_even', true)
+            ->where(function (Builder $query) {
+                $query->whereNull('cost_behavior')
+                    ->orWhereIn('cost_behavior', ['', '0'])
+                    ->orWhere(function (Builder $query) {
+                        $query->where('cost_behavior', 'mixed')
+                            ->whereNull('variable_percentage');
+                    });
+            });
+    }
 
     /**
      * Parent finance head.

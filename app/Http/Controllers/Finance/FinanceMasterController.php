@@ -16,8 +16,9 @@ class FinanceMasterController extends Controller
     /**
      * Display Finance Accounts and Finance Heads.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
+        $classifyBreakEven = $request->boolean('classify_break_even');
         $accounts = FinanceAccount::query()
             ->orderBy('account_type')
             ->orderBy('name')
@@ -38,7 +39,11 @@ class FinanceMasterController extends Controller
             ->get();
 
         $expenseHeads = FinanceHead::query()
-            ->where('head_type', 'expense')
+            ->when(
+                $classifyBreakEven,
+                fn ($query) => $query->missingBreakEvenClassification(),
+                fn ($query) => $query->where('head_type', 'expense')
+            )
             ->with('parent')
             ->orderBy('category')
             ->orderBy('name')
@@ -56,7 +61,8 @@ class FinanceMasterController extends Controller
             'bankCashGlAccounts',
             'incomeHeads',
             'expenseHeads',
-            'parentHeads'
+            'parentHeads',
+            'classifyBreakEven'
         ));
     }
 
@@ -348,6 +354,12 @@ class FinanceMasterController extends Controller
         $validated['code'] = strtoupper($validated['code']);
 
         $financeHead->update($validated);
+
+        if ($request->boolean('classify_break_even')) {
+            return redirect()
+                ->to(route('finance.master.index', ['classify_break_even' => 1]) . '#break-even-expense-heads')
+                ->with('success', 'Finance head updated successfully.');
+        }
 
         return back()->with(
             'success',

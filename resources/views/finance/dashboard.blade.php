@@ -1,4 +1,9 @@
 <x-app-layout>
+    @php
+        $breakEvenClassificationUrl = ($breakEven['status'] ?? '') === 'configuration_required'
+            ? route('finance.master.index', ['classify_break_even' => 1]) . '#break-even-expense-heads'
+            : null;
+    @endphp
 
     <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 
@@ -865,9 +870,15 @@
 
                 @else
 
-                    <p class="text-xl font-bold text-amber-700">
-                        Data Required
-                    </p>
+                    @if ($breakEvenClassificationUrl)
+                        <a href="{{ $breakEvenClassificationUrl }}"
+                            class="text-xl font-bold text-amber-700 underline hover:text-amber-900"
+                            aria-label="Data Required: classify break-even expense heads">
+                            Data Required
+                        </a>
+                    @else
+                        <p class="text-xl font-bold text-amber-700">Data Required</p>
+                    @endif
 
                 @endif
 
@@ -1459,9 +1470,17 @@
 
                             </p>
 
-                            <span class="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
-                                Data Required
-                            </span>
+                            @if ($breakEvenClassificationUrl)
+                                <a href="{{ $breakEvenClassificationUrl }}"
+                                    class="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800 underline hover:bg-amber-200"
+                                    aria-label="Data Required: classify break-even expense heads">
+                                    Data Required
+                                </a>
+                            @else
+                                <span class="mt-4 inline-flex rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
+                                    Data Required
+                                </span>
+                            @endif
 
                         </div>
 

@@ -513,9 +513,16 @@
         </span>
 
         <ul class="mt-2 space-y-1 text-xs text-red-700">
-            @foreach ($check['errors'] as $error)
+            @foreach ($check['errors'] as $index => $error)
+                @php($solution = $check['solutions'][$index] ?? null)
                 <li>
                     • {{ $error }}
+                    @if ($solution)
+                        <a class="ml-1 font-semibold text-indigo-700 underline"
+                            href="{{ route($solution['route'], $solution['parameters']) . (isset($solution['fragment']) ? '#' . $solution['fragment'] : '') }}">
+                            {{ $solution['label'] }}
+                        </a>
+                    @endif
                 </li>
             @endforeach
         </ul>
