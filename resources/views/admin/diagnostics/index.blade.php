@@ -1,12 +1,43 @@
 <x-app-layout>
 @include('admin.diagnostics.styles')
 <div class="erp-diag">
-    <header class="ed-hero"><div><span>SYSTEM OPERATIONS · ADMINISTRATION</span><h1>ERP Diagnostics</h1><p>Understand errors, run safe repairs and track the result.</p></div><a class="ed-button ed-light" href="{{ route('admin.erp-diagnostics.index') }}">Scan now</a></header>
+    <header class="ed-hero"><div><span>SYSTEM OPERATIONS · ADMINISTRATION</span><h1>ERP Diagnostics</h1><p>Find issues, open the screen where they can be corrected, and verify the result.</p></div><a class="ed-button ed-light" href="{{ route('admin.erp-diagnostics.index') }}">Scan now</a></header>
     @if(session('success'))<div class="ed-alert ed-ok" role="status">{{ session('success') }}</div>@endif
     @if(session('diagnostic_warning'))<div class="ed-alert ed-warning" role="alert">{{ session('diagnostic_warning') }}</div>@endif
     @if($errors->any())<div class="ed-alert ed-error" role="alert"><strong>Please check</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     @foreach($scan['warnings'] as $warning)<div class="ed-alert ed-warning">{{ $warning }}</div>@endforeach
     <div class="ed-stats"><article><small>OPEN INCIDENTS</small><strong>{{ $stats['open'] }}</strong><span>Grouped errors in the scanned window</span></article><article><small>SAFE MAINTENANCE AVAILABLE</small><strong>{{ $stats['safe'] }}</strong><span>Compiled view or route cache only</span></article><article><small>REVIEW REQUIRED</small><strong>{{ $stats['review'] }}</strong><span>Guided workflow or technical review</span></article><article><small>VERIFIED RESOLVED</small><strong>{{ $stats['resolved'] }}</strong><span>Confirmed by an administrator</span></article></div>
+    <section class="ed-section" aria-labelledby="ed-workflows-title">
+        <div class="ed-heading">
+            <div>
+                <h2 id="ed-workflows-title">Needs attention now</h2>
+                <p>Current ERP records. After correcting an issue, return here and select Scan now.</p>
+            </div>
+        </div>
+
+        @if ($workflowChecks['unavailable'])
+            <div class="ed-alert ed-warning" role="status">
+                Could not check {{ implode(', ', $workflowChecks['unavailable']) }}. See System health for database and migration status.
+            </div>
+        @endif
+
+        @if ($workflowChecks['findings'])
+            <div class="ed-health ed-workflows">
+                @foreach ($workflowChecks['findings'] as $finding)
+                    <article>
+                        <h3>{{ $finding['title'] }}</h3>
+                        <p>{{ $finding['detail'] }}</p>
+                        <a class="ed-button ed-secondary" href="{{ $finding['url'] }}">{{ $finding['label'] }}</a>
+                    </article>
+                @endforeach
+            </div>
+        @elseif (!$workflowChecks['unavailable'])
+            <div class="ed-empty">No issues found in these workflow checks.</div>
+        @endif
+
+        <p class="ed-help">The mapping check covers the latest 30 posted Finance vouchers without an export record. Payroll shows up to five empty calculated runs and five draft payment vouchers.</p>
+    </section>
+
     <section class="ed-section"><div class="ed-heading"><div><h2>System health</h2><p>Current runtime checks. No financial transactions are changed.</p></div><form method="POST" action="{{ route('admin.erp-diagnostics.tally') }}">@csrf<button class="ed-button ed-secondary" type="submit">Check Tally connection</button></form></div>
         @if(session('tally_check'))<div class="ed-alert {{ session('tally_check.status')==='ok'?'ed-ok':'ed-warning' }}"><strong>Tally connection:</strong> {{ session('tally_check.detail') }}</div>@endif
         <div class="ed-health">@foreach($checks as $check)<article><div><strong>{{ $check['name'] }}</strong><span class="ed-badge ed-{{ $check['status'] }}">{{ strtoupper($check['status']) }}</span></div><p>{{ $check['detail'] }}</p></article>@endforeach</div>
@@ -24,8 +55,11 @@
                 @if($incident['action'])
                 <form method="POST" action="{{ route('admin.erp-diagnostics.repair') }}">@csrf<input type="hidden" name="incident" value="{{ $incident['id'] }}"><input type="hidden" name="revision" value="{{ $incident['revision'] }}"><input type="hidden" name="operation_id" value="{{ (string)\Illuminate\Support\Str::uuid() }}"><input type="hidden" name="action" value="{{ $incident['action'] }}"><button class="ed-button" type="submit">{{ $incident['action']==='views_clear'?'Clear compiled views':'Clear route cache' }}</button></form>
                 @endif
-                @if($incident['route'] && \Illuminate\Support\Facades\Route::has($incident['route']))<a class="ed-button ed-secondary" href="{{ route($incident['route']) }}">Open review screen →</a>@endif
-                @if(!$incident['action'] && !$incident['route'])<span class="ed-manual">Technical or server review required</span>@endif
+                @if ($incident['workflow'] && \Illuminate\Support\Facades\Route::has($incident['workflow']['route']))
+                    <a class="ed-button ed-secondary" href="{{ route($incident['workflow']['route']) }}">{{ $incident['workflow']['label'] }}</a>
+                @elseif (!$incident['action'])
+                    <span class="ed-manual">Technical or server review required</span>
+                @endif
             </div>
             <details class="ed-details"><summary>Verify resolution / incident details</summary><p><strong>Incident:</strong> <code>{{ substr($incident['id'],0,16) }}</code></p><p><strong>Source:</strong> {{ $incident['file'] ?? 'Not identified in scanned log entry' }}{{ $incident['line']?':'.$incident['line']:'' }}</p><p>Raw messages, SQL values and request payloads are not displayed. Automatic maintenance does not close an incident.</p><form method="POST" action="{{ route('admin.erp-diagnostics.resolve') }}">@csrf<input type="hidden" name="incident" value="{{ $incident['id'] }}"><input type="hidden" name="revision" value="{{ $incident['revision'] }}"><input type="hidden" name="operation_id" value="{{ (string)\Illuminate\Support\Str::uuid() }}"><label class="ed-check"><input type="checkbox" name="screen_checked" value="1" required><span>I reopened the affected screen and verified that the original problem is resolved.</span></label><button class="ed-button ed-secondary" type="submit">Mark verified resolved</button></form></details>
             @endif

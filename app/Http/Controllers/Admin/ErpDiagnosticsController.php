@@ -3,14 +3,21 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Services\Diagnostics\{DiagnosticActionService,DiagnosticHealthService,DiagnosticStore};
+use App\Services\Diagnostics\{DiagnosticActionService,DiagnosticCatalog,DiagnosticHealthService,DiagnosticStore,DiagnosticWorkflowChecks};
 use Illuminate\Http\{RedirectResponse,Request};
 use Illuminate\View\View;
 use Illuminate\Validation\ValidationException;
 
 final class ErpDiagnosticsController extends Controller
 {
-    public function index(Request $request,DiagnosticActionService $actions,DiagnosticHealthService $health,DiagnosticStore $store): View
+    public function index(
+        Request $request,
+        DiagnosticActionService $actions,
+        DiagnosticHealthService $health,
+        DiagnosticStore $store,
+        DiagnosticWorkflowChecks $workflows,
+        DiagnosticCatalog $catalog
+    ): View
     {
         DiagnosticActionService::authorize($request->user());
         $filters=$request->validate(['status'=>['nullable','in:open,resolved,all'],'q'=>['nullable','string','max:80']]);
@@ -21,8 +28,10 @@ final class ErpDiagnosticsController extends Controller
         $stats=['open'=>$all->where('resolved',false)->count(),'safe'=>$all->where('resolved',false)->whereNotNull('action')->count(),
             'review'=>$all->where('resolved',false)->whereNull('action')->count(),'resolved'=>$all->where('resolved',true)->count()];
         $incidents=$all->filter(fn($i)=>($status==='all'||$i['resolved']===($status==='resolved')) && ($q===''||str_contains(strtolower($i['title'].' '.$i['module'].' '.$i['code']),strtolower($q))));
+        $incidents = $incidents->map(fn ($incident) => $incident + ['workflow' => $catalog->workflow($incident)]);
         $checks=$health->checks();
-        return view('admin.diagnostics.index',compact('scan','history','stats','incidents','checks','status','q','unavailable'));
+        $workflowChecks = $workflows->scan();
+        return view('admin.diagnostics.index',compact('scan','history','stats','incidents','checks','status','q','unavailable','workflowChecks'));
     }
 
     public function repair(Request $request,DiagnosticActionService $actions): RedirectResponse

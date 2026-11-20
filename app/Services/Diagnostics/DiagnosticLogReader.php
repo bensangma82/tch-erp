@@ -42,7 +42,9 @@ final class DiagnosticLogReader
                 $entry=substr($text,$offset,min(8192,$next-$offset)); $diagnosis=$this->catalog->classify($entry);
                 preg_match('~\b(app/[A-Za-z0-9_/.-]+\.php)(?::|\()?(\d{1,7})?~',$entry,$source);
                 $file=$source[1] ?? null; $line=isset($source[2]) ? (int)$source[2] : null;
-                $id=hash('sha256',$diagnosis['code'].'|'.($file ?? 'unknown').'|'.($line ?? 0));
+                // Payroll approval errors were previously stored as unclassified.
+                $fingerprintCode = $diagnosis['code'] === 'payroll_empty' ? 'unclassified' : $diagnosis['code'];
+                $id=hash('sha256',$fingerprintCode.'|'.($file ?? 'unknown').'|'.($line ?? 0));
                 $cursor=hash('sha256',basename($path).'|'.($start+$offset).'|'.$header);
                 if (!isset($groups[$id]) && count($groups)>=500) { $warnings[]='The scan contains more than 500 distinct errors; only the most recent groups encountered are shown.'; continue; }
                 if (!isset($groups[$id])) $groups[$id]=array_merge($diagnosis,['id'=>$id,'count'=>0,'first_seen'=>$timestamp,'last_seen'=>$timestamp,'revision'=>$cursor,'file'=>$file,'line'=>$line,'_order'=>'']);

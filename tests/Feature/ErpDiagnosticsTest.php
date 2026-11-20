@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
+use App\Models\{FinanceAccount,FinanceHead,FinanceVoucher,PayrollRun,User};
 use App\Services\Diagnostics\{DiagnosticActionService,DiagnosticCatalog,DiagnosticHealthService,DiagnosticLogReader,DiagnosticStore};
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\{Artisan,DB,File,Http};
@@ -63,6 +63,92 @@ class ErpDiagnosticsTest extends TestCase
     {
         $this->incident();
         $this->actingAs($this->admin())->get(route('admin.erp-diagnostics.index'))->assertOk()->assertSee('ERP Diagnostics')->assertSee('Clear compiled views')->assertSee('Action history')->assertSee(route('admin.erp-diagnostics.index'),false);
+    }
+
+    public function test_empty_payroll_approval_links_to_payroll_without_losing_the_incident_identity(): void
+    {
+        $source = 'app/Http/Controllers/Hr/PayrollRunController.php';
+        $incident = $this->incident('A payroll run with no employees cannot be approved. at /var/www/tch-erp/'.$source.':1228');
+
+        $this->assertSame('payroll_empty', $incident['code']);
+        $this->assertSame(hash('sha256', 'unclassified|'.$source.'|1228'), $incident['id']);
+        $this->assertNull($incident['action']);
+
+        $this->actingAs($this->admin())->get(route('admin.erp-diagnostics.index'))
+            ->assertOk()
+            ->assertSee('Payroll approval blocked by an empty run')
+            ->assertSee(route('admin.hr.payroll.runs.index'), false);
+    }
+
+    public function test_workflow_links_point_to_current_blockers_and_refresh_after_correction(): void
+    {
+        $admin = $this->admin();
+        $period = now()->addYears(5)->startOfMonth();
+        $run = PayrollRun::create([
+            'year' => $period->year,
+            'month' => $period->month,
+            'period_start' => $period->toDateString(),
+            'period_end' => $period->copy()->endOfMonth()->toDateString(),
+            'payroll_no' => 'PAY-DIAGNOSTICS-EMPTY',
+            'status' => 'calculated',
+        ]);
+        $head = FinanceHead::create([
+            'code' => 'EXP-DIAGNOSTICS',
+            'name' => 'Diagnostic Test Expense',
+            'head_type' => 'expense',
+            'is_active' => true,
+            'include_in_break_even' => true,
+            'cost_behavior' => 'mixed',
+        ]);
+        $account = FinanceAccount::create([
+            'code' => 'DIAGNOSTICS-CASH',
+            'name' => 'Diagnostic Test Cash',
+            'account_type' => 'cash',
+            'is_active' => true,
+            'opening_balance' => 0,
+        ]);
+        $account->tallyMapping()->create(['tally_ledger_name' => 'Test Cash', 'is_active' => true]);
+        $voucher = [
+            'origin' => 'erp_payroll',
+            'voucher_type' => 'payment',
+            'voucher_date' => $period->toDateString(),
+            'finance_head_id' => $head->id,
+            'finance_account_id' => $account->id,
+            'amount' => 100,
+        ];
+        $draft = FinanceVoucher::create($voucher + [
+            'voucher_no' => 'PAY-DIAGNOSTICS-DRAFT',
+            'payroll_run_id' => $run->id,
+            'status' => 'draft',
+        ]);
+        FinanceVoucher::create($voucher + [
+            'voucher_no' => 'PAY-DIAGNOSTICS-POSTED',
+            'status' => 'posted',
+        ]);
+
+        $mappingUrl = route('finance.tally.index').'#tally-head-'.$head->id.'-row';
+        $payrollUrl = route('admin.hr.payroll.runs.show', $run);
+        $draftUrl = route('finance.vouchers.show', $draft);
+
+        $this->actingAs($admin)->get(route('admin.erp-diagnostics.index'))
+            ->assertOk()
+            ->assertSee('Needs attention now')
+            ->assertSee('Classify expense heads')
+            ->assertSee(route('finance.master.index', ['classify_break_even' => 1]).'#break-even-expense-heads', false)
+            ->assertSee($mappingUrl, false)
+            ->assertSee($payrollUrl, false)
+            ->assertSee($draftUrl, false);
+
+        $head->update(['variable_percentage' => 25]);
+        $head->tallyMapping()->create(['tally_ledger_name' => 'Test Salary', 'is_active' => true]);
+        $run->update(['status' => 'draft']);
+        $draft->update(['status' => 'cancelled']);
+
+        $this->get(route('admin.erp-diagnostics.index'))
+            ->assertOk()
+            ->assertDontSee($mappingUrl, false)
+            ->assertDontSee($payrollUrl, false)
+            ->assertDontSee($draftUrl, false);
     }
 
     public function test_raw_patient_sql_and_credentials_never_reach_dashboard_or_audit(): void
