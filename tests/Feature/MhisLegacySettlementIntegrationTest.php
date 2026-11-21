@@ -17,6 +17,25 @@ class MhisLegacySettlementIntegrationTest extends TestCase
     {
         parent::setUp();
 
+        foreach ([
+            'finance' => ['create', 'view'],
+            'finance_manager' => ['create', 'view', 'verify'],
+        ] as $role => $actions) {
+            foreach ($actions as $action) {
+                $name = "finance.mhis-legacy-settlement.$action";
+                $permission = \App\Models\Permission::firstOrCreate(
+                    ['name' => $name],
+                    ['label' => $name, 'module' => 'finance']
+                );
+                \Illuminate\Support\Facades\DB::table('role_permission')
+                    ->updateOrInsert(
+                        ['role' => $role, 'permission_id' => $permission->id],
+                        ['updated_at' => now()]
+                    );
+            }
+        }
+
+
         if (DB::connection()->getDatabaseName() !== 'testing') {
             $this->fail('Refusing database integration tests outside the PostgreSQL testing database.');
         }

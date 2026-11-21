@@ -42,7 +42,7 @@ class IpdFinancialAccountingContractTest extends TestCase
 
     public function test_advance_application_requires_posted_final_bill_and_receipts(): void
     {
-        $this->assertAccountingContract('IpAdvanceApplicationAccountingService', ["lockForUpdate()", 'The IPD revenue journal is not posted', 'Advance receipt journal missing', 'advance_applied', 'toPaise', "postingService->post"]);
+        $this->assertAccountingContract('IpAdvanceApplicationAccountingService', ["lockForUpdate()", 'The IPD revenue journal is not posted', 'Exactly one posted advance receipt journal is required.', 'advance_applied', 'toPaise', "postingService->post"]);
     }
 
     public function test_mhis_recognition_requires_formal_approval_and_posted_bill(): void
@@ -52,7 +52,7 @@ class IpdFinancialAccountingContractTest extends TestCase
 
     public function test_mhis_recognition_limits_amount_and_checks_patient_payments(): void
     {
-        $this->assertAccountingContract('MhisReceivableAccountingService', ['MHIS approval exceeds the eligible bill amount', 'Approved MHIS amount exceeds remaining Patient Receivables', 'Patient payment journal does not reconcile with GL 1200', 'Advance receipt amount does not reconcile']);
+        $this->assertAccountingContract('MhisReceivableAccountingService', ['MHIS approval exceeds the eligible bill amount', 'Approved MHIS amount exceeds remaining Patient Receivables', 'Patient payment journal does not reconcile with GL 1200', 'Advance application does not reconcile with GL 1200 and 2100.']);
     }
 
     public function test_mhis_receipt_handles_tds_outstanding_and_prior_settlements(): void

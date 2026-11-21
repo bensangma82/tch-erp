@@ -16,6 +16,36 @@ use Tests\TestCase;
 
 class MhisLegacyControlledPostingTest extends TestCase
 {
+
+    private function seedLegacyMhisGlAccounts(): void
+    {
+        $this->assertSame('testing', \Illuminate\Support\Facades\DB::connection()->getDatabaseName());
+        $this->assertSame('pgsql', \Illuminate\Support\Facades\DB::connection()->getDriverName());
+
+        foreach ([
+            '1130' => ['Bank Settlement Account', 'asset', 'debit'],
+            '1210' => ['MHIS Receivables', 'asset', 'debit'],
+            '1220' => ['MHIS TDS Receivable', 'asset', 'debit'],
+            '5301' => ['MHIS Claim Deductions / Write-offs', 'expense', 'debit'],
+        ] as $code => [$name, $type, $normal]) {
+            $gl = \App\Models\GeneralLedgerAccount::firstOrCreate(
+                ['account_code' => $code],
+                [
+                    'account_name' => $name,
+                    'account_type' => $type,
+                    'account_group' => $type === 'expense' ? 'Indirect Expenses' : 'Current Assets',
+                    'normal_balance' => $normal,
+                    'is_active' => true,
+                    'allow_posting' => true,
+                ]
+            );
+
+            $this->assertTrue((bool) $gl->is_active, "GL {$code} is inactive");
+            $this->assertTrue((bool) $gl->allow_posting, "GL {$code} cannot post");
+        }
+    }
+
+
     use DatabaseTransactions;
 
     private User $maker;
@@ -28,6 +58,7 @@ class MhisLegacyControlledPostingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seedLegacyMhisGlAccounts();
         if (DB::connection()->getDatabaseName() !== 'testing') {
             $this->fail('Safety stop: requires testing database');
         }
