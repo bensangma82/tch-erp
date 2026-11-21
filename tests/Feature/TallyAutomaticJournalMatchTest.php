@@ -454,4 +454,189 @@ class TallyAutomaticJournalMatchTest extends TestCase
         }
         $this->assertSame(0, TallyExport::where('journal_entry_id', $journal->id)->count());
     }
+
+    private function ipdSalesFixture(): array
+    {
+        [$unused, $voucher, $user] = $this->fixture();
+        $tag = strtoupper(bin2hex(random_bytes(5)));
+
+        $patientId = DB::table('patients')->insertGetId([
+            'uhid' => 'IPD-AUTO-'.$tag,
+            'first_name' => 'IPD Reconciliation Test',
+            'sex' => 'male',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $admissionId = DB::table('admissions')->insertGetId([
+            'admission_no' => 'ADM-AUTO-'.$tag,
+            'patient_id' => $patientId,
+            'admitted_at' => now(),
+            'status' => 'admitted',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $bill = 'IPF-AUTO-'.$tag;
+
+        $accountId = DB::table('ip_billing_accounts')->insertGetId([
+            'account_no' => 'IPB-AUTO-'.$tag,
+            'final_bill_no' => $bill,
+            'patient_id' => $patientId,
+            'admission_id' => $admissionId,
+            'opened_at' => now(),
+            'finalized_at' => now(),
+            'status' => 'finalized',
+            'subtotal' => '427.80',
+            'net_amount' => '427.80',
+            'paid_amount' => '0.00',
+            'balance_amount' => '427.80',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $accounts = [
+            '1200' => ['Patient Receivables', 'asset', 'debit', 'Test IPD Receivables'],
+            '4206' => ['Procedure Revenue', 'income', 'credit', 'Test IPD Revenue'],
+        ];
+
+        foreach ($accounts as $code => [$name, $type, $normal, $ledger]) {
+            $gl = GeneralLedgerAccount::firstOrCreate(
+                ['account_code' => $code],
+                [
+                    'account_name' => $name,
+                    'account_type' => $type,
+                    'account_group' => $type === 'asset' ? 'Current Assets' : 'Clinical Revenue',
+                    'normal_balance' => $normal,
+                    'is_active' => true,
+                    'allow_posting' => true,
+                ]
+            );
+
+            $this->assertTrue((bool) $gl->is_active);
+            $this->assertTrue((bool) $gl->allow_posting);
+            $gl->update(['tally_ledger_name' => $ledger]);
+            $accounts[$code] = $gl;
+        }
+
+        $journal = JournalEntry::create([
+            'journal_no' => 'JRN-IPD-AUTO-'.$tag,
+            'journal_date' => '2026-11-06',
+            'source_type' => 'ip_billing_account',
+            'source_id' => (string) $accountId,
+            'source_event' => 'finalized',
+            'status' => 'draft',
+            'created_by' => $user->id,
+        ]);
+
+        foreach ([
+            [$accounts['1200']->id, '427.80', '0.00'],
+            [$accounts['4206']->id, '0.00', '427.80'],
+        ] as $i => [$glId, $dr, $cr]) {
+            JournalEntryLine::create([
+                'journal_entry_id' => $journal->id,
+                'line_no' => $i + 1,
+                'general_ledger_account_id' => $glId,
+                'debit' => $dr,
+                'credit' => $cr,
+            ]);
+        }
+
+        app(JournalPostingService::class)->post($journal);
+        $journal->refresh();
+
+        $voucher->update([
+            'voucher_type' => 'Sales',
+            'narration' => "TCH ERP IPD Bill {$bill} | Patient ID {$patientId}",
+        ]);
+
+        $voucher->entries()->where('line_no', 1)
+            ->update(['ledger_name' => 'Test IPD Receivables']);
+        $voucher->entries()->where('line_no', 2)
+            ->update(['ledger_name' => 'Test IPD Revenue']);
+
+        $export = TallyExport::create([
+            'journal_entry_id' => $journal->id,
+            'status' => 'confirmed',
+            'export_reference' => 'IPD-AUTO-'.$tag,
+            'remote_id' => 'DIFFERENT-EXPORT-GUID-'.$tag,
+            'tally_voucher_id' => '458',
+            'tally_accounting_date' => $journal->journal_date,
+            'confirmed_at' => now(),
+        ]);
+
+        return [$journal, $voucher, $user, $export, $bill, $patientId];
+    }
+
+    public function test_confirmed_ipd_bill_matches_exact_source_identity(): void
+    {
+        [$journal, $voucher, $user, $export] = $this->ipdSalesFixture();
+        $original = $export->fresh()->getAttributes();
+        $service = app(TallyAutomaticJournalMatchService::class);
+
+        $preview = $service->preview($journal->fresh());
+        $this->assertSame('ready', $preview['status'], $preview['reason']);
+        $this->assertSame($voucher->id, $preview['voucher_id']);
+
+        $service->apply($journal->id, $voucher->id, $user->id);
+
+        $this->assertSame('matched', $voucher->fresh()->reconciliation_status);
+        $this->assertSame($journal->id, (int) $voucher->fresh()->journal_entry_id);
+        $this->assertSame($original, $export->fresh()->getAttributes());
+        $this->assertSame(1, TallyExport::where('journal_entry_id', $journal->id)->count());
+
+        $this->expectException(RuntimeException::class);
+        $service->apply($journal->id, $voucher->id, $user->id);
+    }
+
+    public function test_ipd_identity_and_ledger_safeguards(): void
+    {
+        [$journal, $voucher, $user, $export, $bill, $patientId] =
+            $this->ipdSalesFixture();
+
+        $service = app(TallyAutomaticJournalMatchService::class);
+
+        $voucher->update([
+            'narration' => "TCH ERP IPD Bill {$bill} | Patient ID 999999999",
+        ]);
+        $this->assertNotSame('ready', $service->preview($journal->fresh())['status']);
+
+        $voucher->update([
+            'narration' => "TCH ERP IPD Bill WRONG-BILL | Patient ID {$patientId}",
+        ]);
+        $this->assertNotSame('ready', $service->preview($journal->fresh())['status']);
+
+        $voucher->update([
+            'narration' => "TCH ERP IPD Bill {$bill} | Patient ID {$patientId}",
+        ]);
+
+        $voucher->entries()->where('line_no', 2)
+            ->update(['ledger_name' => 'Incorrect Revenue Ledger']);
+        $this->assertSame(
+            'ledger_mismatch',
+            $service->preview($journal->fresh())['status']
+        );
+
+        $this->assertNull($voucher->fresh()->journal_entry_id);
+        $this->assertSame('confirmed', $export->fresh()->status);
+    }
+
+    public function test_duplicate_ipd_source_candidates_are_rejected(): void
+    {
+        [$journal, $voucher] = $this->ipdSalesFixture();
+
+        $duplicate = $voucher->replicate();
+        $duplicate->guid = 'DUPLICATE-CANDIDATE-'.bin2hex(random_bytes(6));
+        $duplicate->remote_id = null;
+        $duplicate->voucher_number = 'DUP-'.bin2hex(random_bytes(4));
+        $duplicate->save();
+
+        $decision = app(TallyAutomaticJournalMatchService::class)
+            ->preview($journal->fresh());
+
+        $this->assertSame('duplicate_ambiguous', $decision['status']);
+        $this->assertNull($voucher->fresh()->journal_entry_id);
+        $this->assertNull($duplicate->fresh()->journal_entry_id);
+    }
+
 }

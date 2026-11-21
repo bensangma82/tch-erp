@@ -245,6 +245,31 @@ final class TallyAutomaticJournalMatchService
      */
     private function confirmedExportSourceMatches(JournalEntry $journal, TallyImportedVoucher $voucher): bool
     {
+        // Historical IPD Sales vouchers may carry the final bill and patient
+        // identity instead of the ERP journal number or original export GUID.
+        if ($journal->source_type === 'ip_billing_account'
+            && $journal->source_event === 'finalized'
+            && ctype_digit((string) $journal->source_id)) {
+
+            $account = DB::table('ip_billing_accounts')
+                ->where('id', (int) $journal->source_id)
+                ->first(['final_bill_no', 'patient_id', 'status']);
+
+            if (!$account || $account->status !== 'finalized'
+                || !filled($account->final_bill_no)
+                || !filled($account->patient_id)) {
+                return false;
+            }
+
+            $pattern = '/^TCH\\s+ERP\\s+IPD\\s+Bill\\s+'
+                .preg_quote((string) $account->final_bill_no, '/')
+                .'\\s*\\|\\s*Patient\\s+ID\\s+'
+                .preg_quote((string) $account->patient_id, '/')
+                .'(?=\\s|\\||$)/i';
+
+            return preg_match($pattern, trim((string) $voucher->narration)) === 1;
+        }
+
         if ((string) $journal->source_type !== 'invoice' || !$journal->source_id) {
             return false;
         }
